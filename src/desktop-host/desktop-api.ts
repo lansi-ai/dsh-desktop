@@ -16,6 +16,8 @@
  */
 
 import { BrowserWindow, type WebContents } from 'electron'
+import { appendFile, mkdir } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import { IPC_CHANNELS } from '../types/channels.js'
 import {
   desktopActionEventSchema,
@@ -46,12 +48,19 @@ interface SettingsLike {
 
 // ── 服务实现 ───────────────────────────────────────────────────────
 
+/** 安装选项（M3-b2 扩展：审计日志文件路径）。 */
+export interface InstallDesktopCoreOptions {
+  /** 审计日志文件路径（JSONL，每行一条记录）。不传则仅写 console/logger。 */
+  auditLogPath?: string
+}
+
 /**
  * 在 Cordis 上下文安装 `ctx.desktop` 聚合服务（boot() prepare 阶段调用）。
  *
  * @param ctx Cordis Host 上下文。
+ * @param options 安装选项。
  */
-export async function installDesktopCore(ctx: unknown): Promise<void> {
+export async function installDesktopCore(ctx: unknown, options?: InstallDesktopCoreOptions): Promise<void> {
   const { Service } = await import('@deepseek-ai/cordis')
   const Schema = (await import('@deepseek-ai/schemastery')).default
   const coreCtx = ctx as CordisCtxLike
@@ -64,6 +73,15 @@ export async function installDesktopCore(ctx: unknown): Promise<void> {
     private config = new Map<string, unknown>()
     /** 已注册的 settings scope（懒初始化，单例）。 */
     private settingsScope: SettingsScopeLike | null = null
+    /** 审计日志文件路径（M3-b2）。 */
+    private readonly auditLogPath: string | null
+    /** 审计日志写入队列（串行化写盘）。 */
+    private writeQueue: Promise<void> = Promise.resolve()
+
+    constructor(auditLogPath?: string) {
+      super()
+      this.auditLogPath = auditLogPath ?? null
+    }
 
     /**
      * 懒初始化 settings 持久化 scope：settings 就绪时注册 `desktop` namespace 并返回其 scope。
@@ -118,6 +136,27 @@ export async function installDesktopCore(ctx: unknown): Promise<void> {
       } catch {
         console.log('[desktop/action]', JSON.stringify(record))
       }
+      // M3-b2：异步写入 JSONL 审计日志文件
+      if (this.auditLogPath !== null) {
+        this.writeAuditRecord(record)
+      }
+    }
+
+    /**
+     * 异步追加审计记录到 JSONL 文件（串行化写盘，避免并发 IO 冲突）。
+     */
+    private writeAuditRecord(record: Record<string, unknown>): void {
+      this.writeQueue = this.writeQueue.then(async () => {
+        try {
+          const line = JSON.stringify(record) + '\n'
+          const filePath = this.auditLogPath!
+          // 确保目录存在
+          await mkdir(dirname(filePath), { recursive: true })
+          await appendFile(filePath, line, 'utf-8')
+        } catch (err) {
+          console.warn('[dsh-desktop] 审计日志写入失败:', err)
+        }
+      })
     }
 
     /** 读桌面配置：settings 权威优先，未就绪回退内存缓存；未设置返回 undefined。 */
@@ -153,6 +192,6 @@ export async function installDesktopCore(ctx: unknown): Promise<void> {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  new (DesktopCoreService as any)(ctx, 'desktop')
+  new (DesktopCoreService as any)(options?.auditLogPath)(ctx, 'desktop')
   console.log('[dsh-desktop] ctx.desktop 聚合服务已注入（core 子集：onAction/emitAction/log/readConfig/writeConfig/sendDesktopEvent，config→settings 持久化）')
 }

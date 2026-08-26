@@ -1,194 +1,132 @@
 /**
- * @dsh-desktop/desktop-panel-client —— 桌面面板容器注入（M2·e 官方 UI 注入）。
+ * @dsh-desktop/desktop-panel —— 桌面面板容器注入（M2·e 官方 UI 注入）。
  *
  * 通过官方 Cordis Slots 机制向侧边栏底部注册「桌面面板」触发按钮，
- * 点击后打开桌面功能面板（悬浮模态框，显示快捷键/剪贴板/通知等桌面能力入口）。
+ * 点击后打开桌面功能面板（悬浮模态框，显示快捷键/剪贴板等桌面能力入口）。
  *
- * 面板支持两种打开方式：
- *   1. 侧边栏按钮（sidebar.footer.action slot）
- *   2. IPC 驱动（desktopBridge.openDesktopPanel() → onDesktopEvent → 面板打开）
+ * 面板使用纯 DOM 实现（不依赖 React 渲染），避免 Cordis 模块系统的
+ * react-dom 解析问题。
  *
  * 注：本文件为浏览器侧 bundle（含 window 全局），不参与 Node 编译。
  */
-/* eslint-disable no-undef -- 浏览器侧 bundle，React 等全局由 renderer 提供 */
 window.__ModuleLoader__.load({
   id: '@dsh-desktop/desktop-panel',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports
 
-    const { jsx: h } = require('react/jsx-runtime')
+    // 用 createElement 而非 jsx-runtime 的 jsx（jsx 签名 (type, props, key) 会把
+    // 第 3+ 参数当 key，children 需放 props.children；多参数传 children 会丢失并崩溃）
+    const React = require('react')
+    const h = React.createElement
 
     const bridge = () => (typeof window !== 'undefined' ? window.desktopBridge : undefined)
 
-    /** 面板状态（模块级单例，跨渲染保持）。 */
-    let panelOpen = false
-    let panelListeners = []
+    /** 面板 DOM 根节点（懒创建）。 */
+    let panelRoot = null
+    /** 面板是否可见。 */
+    let panelVisible = false
 
-    /** 切换面板显示状态。 */
+    /** 创建面板 DOM 结构（纯 DOM，不依赖 React）。 */
+    function ensurePanelRoot() {
+      if (panelRoot !== null) return panelRoot
+      panelRoot = document.createElement('div')
+      panelRoot.id = 'dsh-desktop-panel-root'
+      panelRoot.style.cssText = 'position:fixed;top:60px;right:20px;width:320px;background:#1e293b;border:1px solid #334155;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:10000;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;display:none;'
+      document.body.appendChild(panelRoot)
+      buildPanelContent(panelRoot)
+      return panelRoot
+    }
+
+    /** 构建面板内容（纯 DOM 操作）。 */
+    function buildPanelContent(root) {
+      root.innerHTML = ''
+
+      // 标题栏
+      const header = document.createElement('div')
+      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #334155;'
+      const title = document.createElement('span')
+      title.style.cssText = 'font-size:14px;font-weight:600;color:#f8fafc;'
+      title.textContent = '\u684c\u9762\u5de5\u5177'
+      const closeBtn = document.createElement('button')
+      closeBtn.textContent = '\u00d7'
+      closeBtn.style.cssText = 'background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px;'
+      closeBtn.onclick = hidePanel
+      header.appendChild(title)
+      header.appendChild(closeBtn)
+      root.appendChild(header)
+
+      // 操作列表
+      const list = document.createElement('div')
+      list.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:8px;'
+
+      const actions = [
+        { icon: '\u2328', title: '\u5feb\u901f\u95ee\u7b54', desc: 'Alt+Shift+Space \u805a\u7126\u8f93\u5165\u6846', onClick: () => { hidePanel() } },
+        { icon: '\u2195', title: '\u5524\u8d77\u7a97\u53e3', desc: 'Alt+Shift+Q \u663e\u793a\u5e76\u805a\u7126\u7a97\u53e3', onClick: () => { bridge()?.windowControl?.focus(); hidePanel() } },
+        { icon: '\u2398', title: '\u8bfb\u53d6\u526a\u8d34\u677f', desc: '\u8bfb\u53d6\u7cfb\u7edf\u526a\u8d34\u677f\u5185\u5bb9', onClick: async () => {
+          try {
+            const text = await bridge()?.desktopClipboard?.readText()
+            if (text) await navigator.clipboard.writeText(text)
+          } catch (e) { console.error('[desktop-panel] \u526a\u8d34\u677f\u8bfb\u53d6\u5931\u8d25:', e) }
+        }},
+        { icon: '\u2699', title: '\u6253\u5f00\u8bbe\u7f6e', desc: '\u7ba1\u7406\u684c\u9762\u504f\u597d\u8bbe\u7f6e', onClick: () => { hidePanel() } },
+      ]
+
+      for (const action of actions) {
+        const card = document.createElement('button')
+        card.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;cursor:pointer;text-align:left;width:100%;transition:background 0.15s;'
+        card.onmouseenter = () => { card.style.background = 'rgba(255,255,255,0.06)' }
+        card.onmouseleave = () => { card.style.background = 'rgba(255,255,255,0.03)' }
+        card.onclick = action.onClick
+
+        const iconSpan = document.createElement('span')
+        iconSpan.style.cssText = 'font-size:20px;width:28px;text-align:center;'
+        iconSpan.textContent = action.icon
+
+        const textDiv = document.createElement('div')
+        const titleDiv = document.createElement('div')
+        titleDiv.style.cssText = 'font-size:13px;font-weight:500;color:#f8fafc;'
+        titleDiv.textContent = action.title
+        const descDiv = document.createElement('div')
+        descDiv.style.cssText = 'font-size:11px;color:#94a3b8;margin-top:2px;'
+        descDiv.textContent = action.desc
+        textDiv.appendChild(titleDiv)
+        textDiv.appendChild(descDiv)
+
+        card.appendChild(iconSpan)
+        card.appendChild(textDiv)
+        list.appendChild(card)
+      }
+
+      root.appendChild(list)
+    }
+
+    /** 显示面板。 */
+    function showPanel() {
+      const root = ensurePanelRoot()
+      root.style.display = 'block'
+      panelVisible = true
+    }
+
+    /** 隐藏面板。 */
+    function hidePanel() {
+      if (panelRoot !== null) {
+        panelRoot.style.display = 'none'
+      }
+      panelVisible = false
+    }
+
+    /** 切换面板。 */
     function togglePanel() {
-      panelOpen = !panelOpen
-      panelListeners.forEach((fn) => fn(panelOpen))
-    }
-
-    /** 关闭面板。 */
-    function closePanel() {
-      if (panelOpen) {
-        panelOpen = false
-        panelListeners.forEach((fn) => fn(panelOpen))
-      }
-    }
-
-    /** 桌面能力快捷操作卡片。 */
-    function DesktopActionCard({ icon, title, description, onClick }) {
-      return h('button', {
-        onClick,
-        style: {
-          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px',
-          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: '8px', cursor: 'pointer', textAlign: 'left', width: '100%',
-          transition: 'background 0.15s',
-        },
-        onMouseEnter: (e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)' },
-        onMouseLeave: (e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' },
-      },
-        h('span', { style: { fontSize: '20px', width: '28px', textAlign: 'center' } }, icon),
-        h('div', null,
-          h('div', { style: { fontSize: '13px', fontWeight: 500, color: '#f8fafc' } }, title),
-          h('div', { style: { fontSize: '11px', color: '#94a3b8', marginTop: '2px' } }, description),
-        ),
-      )
-    }
-
-    /** 桌面面板主组件。 */
-    function DesktopPanel() {
-      const [open, setOpen] = React.useState(panelOpen)
-
-      React.useEffect(() => {
-        const listener = (state) => setOpen(state)
-        panelListeners.push(listener)
-        return () => { panelListeners = panelListeners.filter((fn) => fn !== listener) }
-      }, [])
-
-      // 监听 onDesktopEvent 中的 open-panel 事件（IPC 驱动打开）
-      React.useEffect(() => {
-        const db = bridge()
-        if (!db?.onDesktopEvent) return
-        const off = db.onDesktopEvent((event) => {
-          if (event.action === 'open-panel') togglePanel()
-          if (event.action === 'close-panel') closePanel()
-        })
-        return off
-      }, [])
-
-      if (!open) return null
-
-      const handleCopyClipboard = async () => {
-        try {
-          const text = await bridge()?.desktopClipboard?.readText()
-          if (text) {
-            await navigator.clipboard.writeText(text)
-          }
-        } catch (e) {
-          console.error('[desktop-panel] 剪贴板读取失败:', e)
-        }
-      }
-
-      return h('div', {
-        style: {
-          position: 'fixed', top: '60px', right: '20px', width: '320px',
-          background: '#1e293b', border: '1px solid #334155', borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 10000, overflow: 'hidden',
-        },
-      },
-        // 标题栏
-        h('div', {
-          style: {
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '12px 16px', borderBottom: '1px solid #334155',
-          },
-        },
-          h('span', { style: { fontSize: '14px', fontWeight: 600, color: '#f8fafc' } }, '桌面工具'),
-          h('button', {
-            onClick: closePanel,
-            style: {
-              background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer',
-              fontSize: '16px', padding: '2px 6px', borderRadius: '4px',
-            },
-          }, '\u00d7'),
-        ),
-        // 快捷操作列表
-        h('div', { style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' } },
-          h(DesktopActionCard, {
-            icon: '\u2328',
-            title: '快速问答',
-            description: 'Alt+Shift+Space 聚焦输入框',
-            onClick: () => {
-              const db = bridge()
-              db?.onDesktopEvent?.(() => {})
-              // 下行 quick-ask 事件 → 官方 UI 聚焦输入框
-              closePanel()
-            },
-          }),
-          h(DesktopActionCard, {
-            icon: '\u2398',
-            title: '唤起窗口',
-            description: 'Alt+Shift+Q 显示并聚焦窗口',
-            onClick: () => {
-              bridge()?.windowControl?.focus()
-              closePanel()
-            },
-          }),
-          h(DesktopActionCard, {
-            icon: '\u2325',
-            title: '读取剪贴板',
-            description: '读取系统剪贴板内容',
-            onClick: handleCopyClipboard,
-          }),
-          h(DesktopActionCard, {
-            icon: '\u2699',
-            title: '打开设置',
-            description: '管理桌面偏好设置',
-            onClick: () => {
-              // 触发官方设置面板打开（通过 layout 服务或事件）
-              closePanel()
-            },
-          }),
-        ),
-      )
-    }
-
-    /** 侧边栏底部桌面按钮组件。 */
-    function SidebarDesktopButton() {
-      const handleClick = (e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        togglePanel()
-      }
-
-      return h('button', {
-        onClick: handleClick,
-        title: '桌面工具',
-        style: {
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          width: '36px', height: '36px', borderRadius: '8px',
-          background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)',
-          color: '#38bdf8', cursor: 'pointer', fontSize: '16px', transition: 'all 0.15s',
-        },
-        onMouseEnter: (e) => {
-          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.2)'
-        },
-        onMouseLeave: (e) => {
-          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)'
-        },
-      }, '\u25a0') // ■ 方块图标（桌面象征）
+      if (panelVisible) hidePanel()
+      else showPanel()
     }
 
     // ── 插件声明：注册 sidebar.footer.action slot ──────────────────
 
     exports.inject = ['slots']
     exports.apply = (ctx) => {
-      // 注入侧边栏底部操作按钮（list slot，可多个）
+      // 注入侧边栏底部操作按钮
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
         name: 'sidebar.footer.action',
         id: 'desktop-panel',
@@ -196,29 +134,30 @@ window.__ModuleLoader__.load({
         locale: '@dsh-desktop/desktop-panel',
       }, SidebarDesktopButton))
 
-      // 注入桌面面板浮层（通过 React portal 或直接渲染）
-      // 面板挂在 document.body 上，不依赖 slot 系统
-      if (typeof document !== 'undefined') {
-        const container = document.createElement('div')
-        container.id = 'dsh-desktop-panel-root'
-        document.body.appendChild(container)
-        // 使用 React 18 createRoot（若可用）或 ReactDOM.render
-        try {
-          const ReactDOM = require('react-dom/client')
-          if (ReactDOM?.createRoot) {
-            const root = ReactDOM.createRoot(container)
-            root.render(h(DesktopPanel, null))
-          }
-        } catch {
-          // React 版本不支持 createRoot，降级
-          try {
-            const ReactDOM = require('react-dom')
-            ReactDOM.render(h(DesktopPanel, null), container)
-          } catch {
-            console.warn('[desktop-panel] React 渲染不可用，面板功能降级')
-          }
-        }
+      // 监听 IPC 驱动的面板打开/关闭
+      if (typeof window !== 'undefined' && window.desktopBridge?.onDesktopEvent) {
+        window.desktopBridge.onDesktopEvent((event) => {
+          if (event.action === 'open-panel') showPanel()
+          if (event.action === 'close-panel') hidePanel()
+        })
       }
+    }
+
+    // ── 侧边栏按钮组件 ──────────────────────────────────────────
+
+    function SidebarDesktopButton() {
+      return h('button', {
+        onClick: (e) => { e.preventDefault(); e.stopPropagation(); togglePanel() },
+        title: '\u684c\u9762\u5de5\u5177',
+        style: {
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '36px', height: '36px', borderRadius: '8px',
+          background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)',
+          color: '#38bdf8', cursor: 'pointer', fontSize: '16px', transition: 'all 0.15s',
+        },
+        onMouseEnter: (e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.2)' },
+        onMouseLeave: (e) => { e.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)' },
+      }, '\u25a0')
     }
 
     return module.exports

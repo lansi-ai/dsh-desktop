@@ -2,7 +2,9 @@ import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'node:path'
 import { registerDshUiProtocol, registerDshUiScheme } from './dsh-ui-protocol'
 import { parseArgv } from './argv'
-import { registerIpcBridge, cleanupWindowState, removeIpcHandlers } from '../desktop-host/bridge.js'
+import { registerIpcBridge, cleanupWindowState, removeIpcHandlers, registerWindowManagerMethods } from '../desktop-host/bridge.js'
+import type { WindowManager } from '../desktop-host/window-manager.js'
+import { createWindowManager } from '../desktop-host/window-manager.js'
 import { registerIpcCarrierServices } from '../desktop-host/manifest.js'
 import {
   installMainCrashHandlers,
@@ -12,6 +14,7 @@ import {
 } from './relaunch'
 import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
+import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
 import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy' with { 'resolution-mode': 'import' }
 
 /**
@@ -38,9 +41,16 @@ if (launchOptions.serve) {
 } else {
   console.log('[dsh-desktop] 启动参数：默认零端口 IPC 载波模式（webserver/web-runtime/web-startup 禁用）')
 }
+// M3-b3：--hidden 静默启动（开机自启登录后驻留托盘，不弹主窗口）
+if (launchOptions.hidden) {
+  console.log('[dsh-desktop] 启动参数：--hidden（静默模式，主窗口不显示，驻留托盘）')
+}
 
 // 注册 dsh-ui:// 协议方案特权（必须在 app.whenReady 前）
 registerDshUiScheme()
+
+// 注册 dsh:// 系统协议（M3-b1，必须在 app.whenReady 前）
+app.setAsDefaultProtocolClient('dsh')
 
 // 崩溃自愈：主进程崩溃处理器 + 熔断启动守卫
 installMainCrashHandlers()
@@ -55,13 +65,27 @@ if (isCircuitBroken()) {
   if (!gotTheLock) {
     app.quit()
   } else {
-    app.on('second-instance', () => {
+    app.on('second-instance', (_event, commandLine) => {
+      // M3-b1：从 second-instance 参数中提取 dsh:// URL 并路由
+      const dshUrl = extractDshUrlFromArgv(commandLine)
+      if (dshUrl !== null) {
+        // 延迟到 bootstrap 完成后再路由
+        pendingDshUrl = dshUrl
+        return
+      }
+      // 默认行为：聚焦窗口
       const [win] = BrowserWindow.getAllWindows()
       if (win !== undefined) {
         if (win.isMinimized()) win.restore()
         win.focus()
       }
     })
+
+    // M3-b1：macOS open-url 事件（协议唤起）
+    app.on('open-url', (_event, url) => {
+      pendingDshUrl = url
+    })
+
     void bootstrap()
   }
 }
@@ -71,11 +95,20 @@ if (isCircuitBroken()) {
 /** preload 脚本绝对路径（在同样 tsconfig rootDir 下编译后位于 dist/desktop-shell/）。 */
 const PRELOAD_PATH = join(__dirname, 'preload.js')
 
-/** 桌面能力句柄（退出前清理）：托盘 + 通知 + 快捷键 + 剪贴板。 */
+/** 桌面能力句柄（退出前清理）：托盘 + 通知 + 快捷键 + 剪贴板 + 命令面板 + 审计查看器 + 开机自启。 */
 let desktopTrayHandle: (() => void) | null = null
 let desktopNotifyHandle: (() => void) | null = null
 let desktopShortcutsHandle: (() => void) | null = null
 let desktopClipboardHandle: (() => void) | null = null
+let desktopCmdPaletteHandle: (() => void) | null = null
+let desktopAuditViewerHandle: (() => void) | null = null
+let desktopAutostartHandle: (() => void) | null = null
+
+/** 窗口管理器句柄（M3·多窗口）。 */
+let windowManager: WindowManager | null = null
+
+/** M3-b1：待处理的 dsh:// 协议 URL（second-instance/open-url 先缓存，bootstrap 完成后路由）。 */
+let pendingDshUrl: string | null = null
 
 /** 应用/窗口图标（优先桌面资源 app-icon.png，缺失回退 tray-icon.png）。 */
 function loadAppIcon(): Electron.NativeImage {
@@ -107,6 +140,13 @@ function createWindow(): BrowserWindow {
   win.setMenuBarVisibility(false)
   win.removeMenu()
 
+  // 开发调试：Ctrl+Shift+I 打开 DevTools（菜单隐藏后默认快捷键失效）
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+      win.webContents.toggleDevTools()
+    }
+  })
+
   // 页面加载完成
   win.webContents.on('did-finish-load', () => {
     console.log('[dsh-desktop] 页面加载完成，URL:', win.webContents.getURL())
@@ -126,7 +166,10 @@ function createWindow(): BrowserWindow {
     console.log(`${prefix} ${message} (line ${line}, ${sourceId})`)
   })
 
-  win.once('ready-to-show', () => win.show())
+  // M3-b3：--hidden 静默模式下不显示主窗口（开机自启登录后驻留托盘）
+  win.once('ready-to-show', () => {
+    if (!launchOptions.hidden) win.show()
+  })
   win.on('closed', () => {
     cleanupWindowState(win.id)
   })
@@ -152,8 +195,16 @@ async function bootstrap(): Promise<void> {
     // 2. 注册 IPC 桥（必须在 Host 启动前，确保 renderer 就绪通知可接收）
     registerIpcBridge()
 
+    // 2.5. 注册 Cordis inventory 等价面（M2·c 插件列表显示）。
+    // 必须早于 createWindow()：ui-cordis 面板在客户端插件挂载时会立即读取
+    // `dynamicCordisRunner/inventory`，若晚于窗口创建注册，首次读取会 404 并被缓存。
+    // 该方法不依赖 desktopCore，独立于 step 8 的桌面能力守卫。
+    const { registerCordisInventoryCompat } = await import('../desktop-host/cordis-inventory.js')
+    registerCordisInventoryCompat()
+
     // 3. 启动 Cordis Host（desktop profile 装配 + 插件树挂载；--serve 控制 Web 传输层启用）
     const { bootDesktopHost } = await import('../desktop-host/boot.js')
+    const auditLogFilePath = join(app.getPath('userData'), 'audit.jsonl')
     console.log('[dsh-desktop] 启动 Cordis Host...')
     const hostCtx = await bootDesktopHost({
       // 开发模式：bareModuleBaseUrl 指向项目 node_modules（生产模式由打包配置覆盖）
@@ -161,6 +212,8 @@ async function bootstrap(): Promise<void> {
       // Step 6·--serve 兼容模式：默认 false = 零端口 IPC 载波；显式 --serve 时恢复 HTTP loopback
       serveMode: launchOptions.serve,
       servePort: launchOptions.servePort,
+      // M3-b2 审计日志路径
+      auditLogPath: auditLogFilePath,
     })
     console.log('[dsh-desktop] Cordis Host 已就绪:', hostCtx)
 
@@ -226,10 +279,39 @@ async function bootstrap(): Promise<void> {
     // 6. 创建窗口并加载官方 UI
     const win = createWindow()
 
-    // 7. 启动 host 会话事件 → renderer 下行帧中继（攻坚第 2 批：session/event 等
-    //    server-request 帧经 bridge 下发，使官方 UI 完成端到端对话）
-    // apiProxy 已在步骤 4 取到（转 DownlinkEventStream，复用其 events.mux/host）。
+    // 7. 获取下行帧代理（供 WindowManager 和主窗口中继共用）
     const downlinkProxy = apiProxy as unknown as import('../desktop-host/carrier-relay.js').DownlinkEventStream
+
+    // 7.5. 初始化窗口管理器（M3·多窗口基建 + 持久化）
+    const windowStateFilePath = join(app.getPath('userData'), 'window-state.json')
+    windowManager = createWindowManager({
+      getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
+      getAppIconPath: () => join(__dirname, 'web', 'app-icon.png'),
+      apiProxy: downlinkProxy,
+      getStateFilePath: () => windowStateFilePath,
+    })
+    windowManager.initialize()
+    // 注册窗口管理方法到 bridge
+    registerWindowManagerMethods(windowManager)
+    // 把 WindowManager 引用注入 bridge，READY 通知后自动推送会话上下文
+    const { setWindowManager } = await import('../desktop-host/bridge.js')
+    setWindowManager(windowManager)
+    console.log('[dsh-desktop] 窗口管理器已初始化')
+
+    // 7.6. 恢复持久化窗口状态（主窗口已创建后恢复会话窗口）
+    // M3-b3：--hidden 静默模式下跳过恢复（开机自启登录后驻留托盘，不弹会话窗口）
+    const persistedState = await windowManager.loadState()
+    if (persistedState !== null && persistedState.windows.length > 0) {
+      if (launchOptions.hidden) {
+        console.log(`[dsh-desktop] 静默模式：跳过恢复 ${persistedState.windows.length} 个持久化会话窗口`)
+      } else {
+        console.log(`[dsh-desktop] 恢复 ${persistedState.windows.length} 个持久化会话窗口`)
+        windowManager.restorePersistedWindows(persistedState)
+      }
+    }
+
+    // 8. 启动 host 会话事件 → renderer 下行帧中继（攻坚第 2 批：session/event 等
+    //    server-request 帧经 bridge 下发，使官方 UI 完成端到端对话）
     if (downlinkProxy?.events?.mux !== undefined) {
       const { startDownlinkRelay } = await import('../desktop-host/carrier-relay.js')
       const relayState = { relay: null as import('../desktop-host/carrier-relay.js').DownlinkRelay | null }
@@ -267,9 +349,47 @@ async function bootstrap(): Promise<void> {
       // M2-e 面板控制：open/close 经下行 desktop:event 触发 renderer 侧面板组件
       registerMethod('desktop.panel.open', async () => { desktopCore.sendDesktopEvent({ action: 'open-panel' }); return { opened: true } })
       registerMethod('desktop.panel.close', async () => { desktopCore.sendDesktopEvent({ action: 'close-panel' }); return { closed: true } })
+
       desktopShortcutsHandle = installDesktopShortcuts(shortcutOptions)
       desktopClipboardHandle = installDesktopClipboard(clipboardOptions)
-      console.log('[dsh-desktop] 桌面能力已装配：tray(关窗驻留+快速问答) + notify(审批/错误/进展) + shortcuts(Alt+Shift+Q/Space) + clipboard(read/write)')
+
+      // M3·a4 命令面板：全局快捷键 Cmd/Ctrl+Shift+P + Ctrl+K renderer 内面板
+      const { installDesktopCmdPalette } = await import('../desktop-host/desktop-cmdpalette.js')
+      desktopCmdPaletteHandle = installDesktopCmdPalette({
+        getWindow,
+        desktop: desktopCore,
+        windowManager,
+      })
+
+      // M3·b2 审计查看器：审计日志查询服务（读取 audit.jsonl + 过滤 + 分页）
+      const { installDesktopAuditViewer } = await import('../desktop-host/desktop-audit-viewer.js')
+      desktopAuditViewerHandle = installDesktopAuditViewer({
+        getAuditLogPath: () => auditLogFilePath,
+      })
+
+      // M3·b3 开机自启：OS 登录项管理（--hidden 静默到托盘；dev 模式拦截注册）
+      const { installDesktopAutostart } = await import('../desktop-host/desktop-autostart.js')
+      desktopAutostartHandle = installDesktopAutostart({ desktop: desktopCore })
+
+      console.log('[dsh-desktop] 桌面能力已装配：tray + notify + shortcuts + clipboard + cmdpalette + audit-viewer + autostart')
+
+      // M3-b1：处理启动时的 dsh:// 协议 URL（命令行参数）
+      const startupDshUrl = extractDshUrlFromArgv(process.argv)
+      if (startupDshUrl !== null) {
+        pendingDshUrl = startupDshUrl
+      }
+
+      // M3-b1：路由待处理的 dsh:// 协议 URL（second-instance/open-url 缓存 + 启动参数）
+      if (pendingDshUrl !== null) {
+        const getWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
+        const result = routeDshProtocol(pendingDshUrl, {
+          getWindow,
+          desktop: desktopCore,
+          windowManager,
+        })
+        console.log(`[dsh-protocol] 路由结果: ${result.success ? '成功' : '失败'} - ${result.message ?? result.action}`)
+        pendingDshUrl = null
+      }
     } else {
       console.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
     }
@@ -287,7 +407,15 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', async () => {
+  // 先确保窗口状态已保存（dispose 内部也会保存，但显式调用更可靠）
+  if (windowManager) {
+    await windowManager.saveState()
+  }
+  windowManager?.dispose()
+  desktopAuditViewerHandle?.()
+  desktopAutostartHandle?.()
+  desktopCmdPaletteHandle?.()
   desktopClipboardHandle?.()
   desktopShortcutsHandle?.()
   desktopNotifyHandle?.()

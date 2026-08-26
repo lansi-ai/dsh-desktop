@@ -45,6 +45,8 @@ export interface BridgeOptions {
   apiProxyHandler?: (request: RpcRequest) => unknown | Promise<unknown>
   /** 初始 unary 方法表。 */
   methods?: Record<string, RpcHandler>
+  /** WindowManager 引用（用于 READY 通知后自动注入会话上下文）。 */
+  windowManager?: { sendSessionContextToWindow: (windowId: number) => void }
 }
 
 // ── 内部状态 ─────────────────────────────────────────────────────────
@@ -54,6 +56,9 @@ const methodTable = new Map<string, RpcHandler>()
 
 /** 默认 API 代理处理器。 */
 let defaultApiProxyHandler: ((request: RpcRequest) => unknown | Promise<unknown>) | null = null
+
+/** WindowManager 引用（供 READY 通知后注入会话上下文）。 */
+let windowManagerRef: { sendSessionContextToWindow: (windowId: number) => void } | null = null
 
 /** 窗口就绪状态。 */
 const windowStates = new Map<number, { ready: boolean }>()
@@ -122,6 +127,9 @@ export function registerIpcBridge(options?: BridgeOptions): void {
   if (options?.apiProxyHandler !== undefined) {
     defaultApiProxyHandler = options.apiProxyHandler
   }
+  if (options?.windowManager !== undefined) {
+    windowManagerRef = options.windowManager
+  }
 
   // 注册桌面专属方法
   registerDesktopMethods()
@@ -157,6 +165,7 @@ export function registerIpcBridge(options?: BridgeOptions): void {
         console.log(`[dsh-bridge] RPC 成功: ${request.method}`)
         return { rpcId: request.rpcId, data: result }
       }
+      console.warn(`[dsh-bridge] RPC 未命中 unary 表，fallback apiProxy: ${request.method}`)
 
       // fallback 到默认 apiProxy 处理器
       if (defaultApiProxyHandler !== null) {
@@ -203,6 +212,11 @@ export function registerIpcBridge(options?: BridgeOptions): void {
     const windowId = parsed.data.windowId
     windowStates.set(windowId, { ready: true })
     console.log(`[dsh-bridge] 窗口 ${windowId} 就绪`)
+
+    // 自动注入会话上下文（若 WindowManager 已设置）
+    if (windowManagerRef !== null) {
+      windowManagerRef.sendSessionContextToWindow(windowId)
+    }
   })
 
   // ── desktop:invoke — 桌面能力统一调用入口 ──────────────────────
@@ -258,6 +272,15 @@ export function unregisterMethod(method: string): void {
  */
 export function setApiProxyHandler(handler: (request: RpcRequest) => unknown | Promise<unknown>): void {
   defaultApiProxyHandler = handler
+}
+
+/**
+ * 动态设置 WindowManager 引用（供 bootstrap 在 bridge 注册后调用）。
+ *
+ * @param wm WindowManager 实例。
+ */
+export function setWindowManager(wm: { sendSessionContextToWindow: (windowId: number) => void }): void {
+  windowManagerRef = wm
 }
 
 // ── 帧管理 ──────────────────────────────────────────────────────────
@@ -344,7 +367,75 @@ export function cleanupWindowState(windowId: number): void {
   windowStates.delete(windowId)
 }
 
-// ── 清理 ────────────────────────────────────────────────────────────
+// ── 窗口事件广播 ────────────────────────────────────────────────────
+
+/** 窗口事件通道名（preload 同步）。 */
+const WINDOW_EVENT_CHANNEL = IPC_CHANNELS.WINDOW_EVENT
+
+/**
+ * 向所有就绪窗口广播窗口事件帧。
+ *
+ * @param frame 窗口事件帧。
+ */
+export function broadcastWindowEvent(frame: { type: string; payload: unknown; ts: number }): void {
+  for (const [windowId, state] of windowStates) {
+    if (!state.ready) continue
+    const win = BrowserWindow.fromId(windowId)
+    if (win === null || win.webContents.isDestroyed()) {
+      windowStates.delete(windowId)
+      continue
+    }
+    win.webContents.send(WINDOW_EVENT_CHANNEL, frame)
+  }
+}
+
+// ── 窗口管理器方法注册 ──────────────────────────────────────────────
+
+/**
+ * 注册窗口管理器方法到 unary 表。
+ *
+ * @param windowManager WindowManager 实例。
+ */
+export function registerWindowManagerMethods(
+  windowManager: {
+    createSessionWindow: (request: { sessionId: string; bounds?: { x: number; y: number; width: number; height: number } }) => { success: boolean; message?: string; windowId?: number; sessionId?: string }
+    closeSessionWindow: (sessionId: string) => { success: boolean; message?: string }
+    closeWindowById: (windowId: number) => { success: boolean; message?: string }
+    focusSessionWindow: (sessionId: string) => { success: boolean; message?: string }
+    listActiveSessions: () => Array<{ sessionId: string; windowId: number; state: string }>
+  },
+): void {
+  // desktop.window.create
+  methodTable.set('desktop.window.create', async (params: unknown): Promise<{ success: boolean; message?: string; windowId?: number; sessionId?: string }> => {
+    const p = params as { sessionId: string; bounds?: { x: number; y: number; width: number; height: number } }
+    return windowManager.createSessionWindow({ sessionId: p.sessionId, bounds: p.bounds })
+  })
+
+  // desktop.window.closeBySession
+  methodTable.set('desktop.window.closeBySession', async (params: unknown): Promise<{ success: boolean; message?: string }> => {
+    const p = params as { sessionId: string }
+    return windowManager.closeSessionWindow(p.sessionId)
+  })
+
+  // desktop.window.closeById
+  methodTable.set('desktop.window.closeById', async (params: unknown): Promise<{ success: boolean; message?: string }> => {
+    const p = params as { windowId: number }
+    return windowManager.closeWindowById(p.windowId)
+  })
+
+  // desktop.window.focusBySession
+  methodTable.set('desktop.window.focusBySession', async (params: unknown): Promise<{ success: boolean; message?: string }> => {
+    const p = params as { sessionId: string }
+    return windowManager.focusSessionWindow(p.sessionId)
+  })
+
+  // desktop.window.listSessions
+  methodTable.set('desktop.window.listSessions', async (): Promise<Array<{ sessionId: string; windowId: number; state: string }>> => {
+    return windowManager.listActiveSessions()
+  })
+
+  console.log('[dsh-bridge] 窗口管理器方法已注册')
+}
 
 /**
  * 移除所有 IPC 处理器并清理状态（应用退出时调用）。

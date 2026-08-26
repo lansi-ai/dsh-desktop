@@ -23,7 +23,7 @@
       padding: 24px;
       line-height: 1.6;
     }
-    .container { max-width: 880px; margin: 0 auto; }
+    .container { max-width: 920px; margin: 0 auto; }
     .header {
       border-bottom: 2px solid var(--border);
       padding-bottom: 16px;
@@ -52,6 +52,7 @@
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
     }
     .card h2 { margin-top: 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .card h3 { margin-top: 16px; font-size: 0.95rem; color: var(--accent); }
     .task-list { list-style: none; padding: 0; margin: 0; }
     .task-item {
       padding: 8px 12px;
@@ -59,241 +60,212 @@
       border-radius: 6px;
       background: rgba(255, 255, 255, 0.02);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 10px;
     }
-    .task-item.sub { margin-left: 24px; font-size: 0.95rem; color: var(--text-muted); }
-    .status-icon { font-weight: bold; font-family: monospace; }
-    .done { color: var(--success); text-decoration: line-through; opacity: 0.7; }
+    .task-item.sub { margin-left: 24px; font-size: 0.92rem; color: var(--text-muted); }
+    .task-item.sub-2 { margin-left: 48px; font-size: 0.88rem; color: var(--text-muted); }
+    .status-icon { font-weight: bold; font-family: monospace; flex-shrink: 0; }
+    .done { color: var(--success); }
     .in-progress { color: var(--warning); font-weight: 600; }
     .todo { color: var(--text-muted); }
+    .deferred { color: #6b7280; text-decoration: line-through; }
     .highlight-box {
       background: rgba(56, 189, 248, 0.05);
       border-left: 4px solid var(--accent);
       padding: 12px 16px;
       border-radius: 0 8px 8px 0;
     }
+    .phase-divider {
+      margin: 16px 0 8px 0;
+      padding: 4px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .phase-label {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .phase-label.done { background: rgba(52, 211, 153, 0.15); color: var(--success); }
+    .phase-label.active { background: rgba(251, 191, 36, 0.15); color: var(--warning); }
+    .phase-label.pending { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); }
     ul { padding-left: 20px; color: var(--text-muted); }
     li { margin-bottom: 6px; }
     strong { color: var(--text-main); }
     code { background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
+    .tag {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      margin-left: 4px;
+    }
+    .tag-now { background: rgba(251, 191, 36, 0.15); color: var(--warning); }
+    .tag-next { background: rgba(52, 211, 153, 0.15); color: var(--success); }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>🚀 激活上下文看板 · dsh-desktop</h1>
-      <span class="badge">M2 阶段</span>
+      <span class="badge">M3 阶段 · 多窗口与深度交互</span>
     </div>
 
     <!-- 01. 目标 -->
     <div class="card">
       <h2>🎯 当前迭代目标</h2>
-      <p><strong>版本阶段：</strong><b>M1 已完成</b>（2026-08-26）→ <b>进入 M2（桌面能力插件化）</b></p>
-      <p><strong>M1 核心价值（已达成）：</strong>官方 Web UI 桌面内嵌运行（<code>dsh-ui://</code> + IPC 载波，零 HTTP 端口），第三方插件无改动装载，崩溃可自愈。</p>
-      <p><strong>M2 目标：</strong>桌面能力 = host 插件（<code>ctx.desktop.*</code>）+ 旧 Web 插件 host 半兼容（desktopRoutes 等价面）+ 官方 UI 注入桌面设置/面板 → 成为「可天天用的桌面工具」。</p>
-      <p><strong>M1 门禁（已达成）：</strong>官方 UI 可对话 + <code>netstat</code> 无监听 + 第三方插件无改动装载。</p>
+      <p><strong>版本阶段：</strong><b>M2 已完成</b>（2026-08-26）→ <b>进入 M3（多窗口与深度交互）</b></p>
+      <p><strong>M2 核心价值（已达成）：</strong>桌面能力 = host 插件（<code>ctx.desktop.*</code>）+ 旧 Web 插件 host 半兼容 + 官方 UI 注入桌面设置/面板，成为「可天天用的桌面工具」。</p>
+      <p><strong>M3 目标：</strong>多窗口独立会话 + 命令面板（Ctrl+K）+ <code>dsh://</code> 协议唤起 + 会话审计查询 + 开机自启 → 达到「<b>日常使用 2 周无浏览器</b>」的可用度门禁。</p>
+      <p><strong>M3 推进节奏：</strong>分两波 —— M3-a（多窗口 + 命令面板）→ M3-b（协议 + 审计 + 自启）。M3-a 完成后即启动 dogfood。</p>
     </div>
 
     <!-- 02. 看板 -->
     <div class="card">
       <h2>📋 任务看板 (Task Kanban)</h2>
+
+      <!-- M1 已完成 -->
+      <div class="phase-label done">M1 · 桌面骨架 ✅ 已完成</div>
       <ul class="task-list">
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 1: 基础设施与脚手架搭设（2026-08-25 完成）</strong></span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>npm 单包 + Electron 44 + TypeScript strict（Node16）+ ESLint 基线（沙箱限制弃 pnpm）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>.rules/ 与 docs/ 设计基线已就位（含 ADR）；src/desktop-shell/main.ts 编译通过</span>
-        </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 2: M0 基线核对与事实刷新（2026-08-25 完成）</strong></span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>钉上游 dsh-v0.1.0-rc.8（本地检出权威） + sync-upstream 迁移登记表（ADR-005）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>复核 R3（respond 实现）、dsh-terminal 现行 API、BootSeams/loadBundle 签名</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>patch-invariants 差集基线落盘（spec 随步骤 3 装配落地）</span>
-        </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 3: 装配原型与 dist 协议加载（2026-08-26 完成）</strong></span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>配置依赖：dsh / dsh-app-boot / dsh-web-app 精确 0.1.0-rc.8（npm install --save-exact）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>官方 dist 发行物就位：dsh-web-frontend@0.1.0-rc.8 携带 dist/（index.html+assets 分块齐全，R4 解除）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>boot() desktop profile 装配最小可运行（overlay patches 禁用 web 传输层；!!js → TS 直接求值；Cordis Host 验证通过）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>dsh-ui:// 自定义协议注册并加载官方 UI（dist 直读 + __DSH_BOOT__ manifest 注入 + Electron 窗口验证通过）</span>
-        </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 4: IPC 载波实现（四件套）（2026-08-26 完成）</strong></span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>src/types/ zod 契约 + channel 常量 + AppError 码表（channels.ts / contract.ts / errors.ts / index.ts）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>bridge 宿主端：unary 表分发 + respond 回填 + 帧路由 per-window（bridge.ts）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>preload desktopBridge 白名单（rpc/respond/onFrame/onDesktopEvent/windowControl/getPlatformInfo）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>roster/manifest 覆盖：connection/client-runtime 禁用 + IPC 载波服务注册（manifest.ts）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>dsh-ui:// scheme 特权 + 占位诊断页 + dist 回退 + build copy-web 脚本</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>验证通过：renderer → preload → bridge → host 全链路 RPC 通信畅通</span>
-        </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 5: 零端口 bundle spike（方案 A vs 方案 B）</strong>（2026-08-26 完成·ADR-007 spike 结论落盘）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>方案 A：dsh-ui://plugins/&lt;id&gt;/client.js?rev= 协议直读（boot-graph.ts resolveBundleRequest + verify-bundle-spike.cjs 冒烟通过）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>方案 B：BootSeams.loadBundle 覆写 —— 保留作回退；ADR-007 spike 定案方案 A（最贴近官方 &lt;script src&gt; 到达语义），方案 B 未启用</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>双案结论：方案 A 定案（dsh-ui:// 协议直读），已落 ADR-007 后果（2026-08-26 M1-T4）</span>
-        </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 6: 零端口验证与崩溃恢复初版</strong>（2026-08-26 完成）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>--serve 兼容模式实现（argv.ts + boot.ts.buildPatches()：默认零端口/--serve=&lt;port&gt; 双态切换 + desktopStartup 元信息注入）。修正：桌面补丁栈从未插入 dsh-web-app 的传输层行（§3 仅 disabled 打点是 no-op），serve 分支改为显式 INSERT webserver 定义行（@deepseek-ai/dsh-host-webserver + 常量 host:127.0.0.1/port:&lt;servePort&gt;），不依赖已解析的 webStartup CLI flag（2026-08-26 修订）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>默认补丁栈零端口红线逻辑冒烟通过（verify-serve-mode.cjs：parseArgv 8 项行为矩阵 + webserver/web-runtime/web-startup disabled 校验）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>netstat 零监听验证 + --serve 冒烟（Electron 实机核验，2026-08-26）：默认模式 LISTENING 集合与基线一致（零端口 R-03 成立）；--serve=38080 绑定 127.0.0.1:38080（electron.exe PID 62012，HTTP 404 证明服务存活）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>崩溃 relaunch 自愈 v0（relaunch.ts：主进程熔断 + renderer reload + 状态文件持久化）已就位</span>
-        </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 7: M1 门禁验收与收尾</strong>（2026-08-26 完成）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>官方 UI 完成日常对话全流程（攻坚第 2 批实机验证通过 + 本次实机复验：Host 就绪/preload/Cordis 载波/下行中继/host.describe·session.list·session.history·session.models 全链路畅通；dynamicCordisRunner/* 404 为坑 8 已知可接受现象）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证 —— @lnyanhongyan/dsh-opencode-usage（GitHub 源）：client bundle 经 dsh-ui://plugins/&lt;id&gt;/client.js 协议送达 + ctx.webServer 等价面注入 + host 半无改动激活 + 同源 /opencode-usage/* fetch 协议拦截（dispatch 逻辑单测通过）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>docs/active-context.html 看板同步落盘 + 里程碑提交</span>
-        </li>
-        <li class="task-item in-progress">
-          <span class="status-icon">[ ]</span>
-          <span><strong>M2: 桌面能力插件化（P0）</strong>（2026-08-26 启动 · Sign-off 已确认）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span><strong>M2-a 地基</strong>：desktop-api 提供 ctx.desktop（core 子集 + 配置接入 settings-file 持久化 + 审计总线 + desktop:event 下行）—— 实机验证通过（ctx.desktop 聚合服务已注入 + Host 就绪）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span><strong>M2-d1 托盘+关窗驻留</strong>：desktop-host-tray（关窗即隐藏驻留、托盘菜单/状态、快速问答唤起）—— 实机装配通过（桌面能力已装配：tray）；图标已优化：裁剪放大主体 + 透明底（托盘 tray-icon.png / 窗口应用 app-icon.png，源图 lansi.jpg，工具 scripts/process-icon.cjs）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span><strong>M2-d2 通知闭环</strong>：desktop-host-notify（完成/审批/错误三类 + 点击定位会话）—— 实机装配通过（桌面能力已装配：notify）；通知弹出待桌面点验</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span><strong>M2-b compat 完整化</strong>：compat-webserver.ts 动态路由白名单（matchesRegisteredRoute + getRegisteredPrefixes）+ dsh-ui-protocol.ts 协议拦截由硬编码 /opencode-usage/ 改为查询注册表动态匹配</span>
-        </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span><s>M2-c 旧插件门禁</s> <b>置后</b>（载体本地 /plugins/dsh-terminal / dsh-rule-manager / dsh-restart，待启用）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span><strong>M2-d3 shortcuts/clipboard</strong>：desktop-shortcuts.ts（globalShortcut 注册/注销 + 预置 Alt+Shift+Q/Space）+ desktop-clipboard.ts（readText 免审批/writeText 走 approval）+ desktop:invoke IPC 通道 + preload 白名单 + bridge methodTable 注册；typecheck + lint 零错误</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span><strong>M2-e 官方 UI 注入</strong>：desktop-settings-client.js（Slot 注入桌面设置 section：托盘/通知/快捷键/面板配置）+ desktop-panel-client.js（Slot 注入侧边栏按钮 + 悬浮面板 + IPC 双通道 open/close）+ boot-graph 图谱注入 + preload openDesktopPanel/closeDesktopPanel 白名单</span>
-        </li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 1:</strong> 基础设施与脚手架搭设（2026-08-25）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 2:</strong> M0 基线核对与事实刷新（2026-08-25）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 3:</strong> 装配原型与 dist 协议加载（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 4:</strong> IPC 载波实现（四件套）（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 5:</strong> 零端口 bundle spike（方案 A 定案）（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 6:</strong> 零端口验证与崩溃恢复初版（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 7:</strong> M1 门禁验收与收尾（2026-08-26）</span></li>
+      </ul>
+
+      <!-- M2 已完成 -->
+      <div class="phase-label done">M2 · 桌面能力插件化 ✅ 已完成</div>
+      <ul class="task-list">
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-a 地基:</strong> <code>ctx.desktop</code> 聚合服务 + 配置持久化 + 审计总线</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d1:</strong> 托盘+关窗驻留（关窗隐藏、托盘菜单、快速问答）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d2:</strong> 通知闭环（完成/审批/错误三类 + 点击定位）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d3:</strong> shortcuts/clipboard（Alt+Shift+Q/Space + read/write）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-b:</strong> compat 完整化（动态路由白名单 + 协议拦截动态匹配）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-e:</strong> 官方 UI 注入（桌面设置 section + 悬浮面板 + IPC 双通道）</span></li>
+        <li class="task-item deferred"><span class="status-icon">[ ]</span><span><s>M2-c 旧插件门禁</s> <b>置后</b>（载体本地待确认）</span></li>
+      </ul>
+
+      <!-- M3 进行中 -->
+      <div class="phase-label active">M3 · 多窗口与深度交互 🔄 进行中</div>
+
+      <h3>M3-a 第一波：多窗口 + 命令面板</h3>
+      <ul class="task-list">
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a1 窗口管理器基建</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>window-manager.ts</code>: WindowManager 单例（窗口注册表 + 会话绑定 + 创建/销毁/聚焦 API）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>types/window.ts</code>: 窗口契约 zod Schema（WindowRecord、WindowState、广播帧结构）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 白名单扩展：createSessionWindow/closeWindow/listSessions/focusSession/onWindowEvent</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>main.ts bootstrap 集成：WindowManager + registerWindowManagerMethods</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>typecheck + lint 零错误</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a2 会话独立窗口</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>新建窗口：renderer → 主进程 → 新 BrowserWindow → <code>dsh-ui://app/index.html</code> + READY 后自动注入会话上下文</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话绑定：独立 IPC 载波路由（carrier-relay per-window）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话同步：会话列表变化广播到所有窗口</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口崩溃恢复：单窗口崩溃不影响其他；会话经 Host 持久化恢复</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口间切换：托盘/命令面板 → 聚焦或创建新窗口（去重逻辑）</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a3 窗口状态持久化</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口位置/大小持久化到 userData/window-state.json（debounce 500ms）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话绑定持久化（重启恢复所有会话窗口）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口 Z-order 记忆与恢复（按 zIndex 排序）</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a4 命令面板（Ctrl+K 混合方案）</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>renderer 内 Ctrl+K 面板（会话列表/插件开关/设置快捷）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>desktop-cmdpalette-client.js</code>: Slot 注入 + IPC 桥接</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>主进程全局快捷键: Cmd/Ctrl+Shift+P 快速提问</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>desktop-cmdpalette.ts</code>: host 插件（快捷键 + 窗口管理）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 新增 openCommandPalette/quickAsk 白名单</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>boot-graph 图谱注入命令面板 client 脚本</span></li>
+
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-a5 M3-a 门禁</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>多窗口实机验证：3+ 会话窗口 → 独立对话 → 同步 → 恢复</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>命令面板冒烟：Ctrl+K + 切换 + 插件 + Ctrl+Shift+P</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>🐕 Dogfood 启动：M3-a 完成后即启动 2 周日常使用</span></li>
+      </ul>
+
+      <!-- M3-b 第二波 -->
+      <h3>M3-b 第二波：协议 + 审计 + 自启</h3>
+      <ul class="task-list">
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-b1 dsh:// 系统协议</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>协议注册: <code>app.setAsDefaultProtocolClient('dsh')</code></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>open action: <code>dsh://open?session=xxx</code> → 聚焦/创建会话窗口</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>ask action: <code>dsh://ask?q=xxx</code> → 快速提问窗口</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>settings action: <code>dsh://settings</code> → 设置面板</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口去重: 已存在会话 → 聚焦而非重复创建</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>dsh-protocol.ts</code>: 协议路由处理器</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-b2 会话审计查询工具</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计日志持久化：audit.jsonl（JSONL，异步串行写盘）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计日志查看器 UI（官方 UI 槽位注入，过滤+分页+清空）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计查询服务（读取+按动作/会话/时间过滤+分页）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 接口 + boot-graph + main.ts 集成</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-b3 开机自启</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>设置开关：desktop-settings 注入 AutoStartSetting Toggle</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>Windows 自启：<code>app.setLoginItemSettings({ openAtLogin, args: ['--hidden'] })</code></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>配置持久化：settings-file UI 偏好 + OS 登录项为唯一真源</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>静默到托盘：--hidden 参数 + dev 模式拦截注册</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 白名单：autostart.setEnabled/getStatus + Schema</span></li>
+
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-b4 M3 门禁</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>完整 dogfood 验收：2 周无浏览器</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全量回归：M1+M2+M3 全链可用</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>netstat</code> 零监听红线再验证</span></li>
       </ul>
     </div>
 
     <!-- 03. 决策 -->
     <div class="card">
       <h2>💡 关键决策与遗留记录</h2>
+      <p><strong>M3 新增决策：</strong></p>
+      <ul>
+        <li><strong>D-9</strong> 多窗口 = 每个会话独立 BrowserWindow（非 Tab），窗口间广播帧同步</li>
+        <li><strong>D-10</strong> 命令面板 = 混合方案（renderer Ctrl+K + 主进程 Ctrl+Shift+P）</li>
+        <li><strong>D-11</strong> <code>dsh://</code> 协议 MVP = 全覆盖（open + ask + settings），窗口去重聚焦</li>
+        <li><strong>D-12</strong> Dogfood = M3-a 完成后即启动，不等全量</li>
+      </ul>
+      <p style="margin-top: 12px;"><strong>已有关键决策：</strong></p>
       <ul>
         <li><strong>D-1</strong> Electron 主进程内嵌 Cordis Host（非外部子进程）</li>
         <li><strong>D-2</strong> IPC fetch 载波零端口（--serve 显式兼容）</li>
-        <li><strong>D-3</strong> 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2，ADR-006 启用）</li>
-        <li><strong>D-4</strong> 基线钉本地检出 dsh-v0.1.0-rc.8（rc.12 差异登记 sync-upstream，M4 升级前核查）</li>
-        <li><strong>D-5</strong> 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）</li>
-        <li><strong>D-6</strong> 兼容层 = ctx.webServer 等价面（compat-webserver.ts:内存路由表 register/dispatch + req/res 契约）+ 同源 fetch 协议拦截（ADR-007，M1 已落地）</li>
-        <li><strong>D-8</strong> 第三方无改动装载 = boot-graph.buildThirdPartyBundleDecl（任意 scope 的 dsh.client+exports[&quot;./client&quot;] 解析，入图谱）→ host patch INSERT → ctx.webServer 等价服务注入 → /opencode-usage/* 协议拦截；第三方 client bundle 可经 dsh-ui://plugins/&lt;id&gt;/client.js 送达（M1 门禁载体 @lnyanhongyan/dsh-opencode-usage）</li>
+        <li><strong>D-3</strong> 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2）</li>
+        <li><strong>D-4</strong> 基线钉本地 rc.8（rc.12 差异登记 sync-upstream）</li>
+        <li><strong>D-5</strong> 载波替换 = roster/manifest 覆盖 IPC 变体</li>
+        <li><strong>D-6</strong> 兼容层 = ctx.webServer 等价面 + fetch 协议拦截</li>
+        <li><strong>D-8</strong> 第三方无改动装载 = boot-graph → host patch → ctx.webServer</li>
       </ul>
       <p style="margin-top: 12px;"><strong>风险与技术债：</strong></p>
       <ul>
-        <li><strong><s>R5</s> closed</strong>（2026-08-26）：dsh-ui:// 自定义协议路径已实机验证（官方 dist 加载 + 资源 200 + bundle 送达）；BootSeams 方案 B 保留作回退未启用</li>
-        <li><strong>R4 closed</strong> dist 构建产物可得性 —— @deepseek-ai/dsh-web-frontend@0.1.0-rc.8 直接携带官方 dist 发行物，无需自建构建脚本</li>
-        <li><strong>R6 open</strong> !!js 表达式在 overlay patches（JS 对象直传 boot()）中不被 Cordis Loader 求值 —— 当前以 TS 直接求值绕过</li>
-        <li><strong>R7 open</strong> session-persistence-jsonl / storage-json 的 root 路径使用硬编码 .runtime/user-data/...；待 dshHomePath 服务可用后切回</li>
-        <li><strong>暂存项：</strong>自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入</li>
-        <li><strong><s>步骤 6 --serve 传输层 no-op</s> closed</strong>（2026-08-26）：DESKTOP_OVERLAY_PATCHES 仅以 {id:webserver,disabled:true} 打点，而 webserver/web-runtime/web-startup 行在 boot() 直传空 cordis.yml+patches 时从未被插入，故 --serve 原"解除 disabled"落空、无法绑定。已在 buildPatches serve 分支改为显式 INSERT webserver 行修复</li>
+        <li><strong>R6 open</strong> !!js 表达式在 overlay patches 中不被 Cordis Loader 求值</li>
+        <li><strong>R7 open</strong> session-persistence-jsonl 硬编码 .runtime/user-data/...</li>
+        <li><strong>R9 多窗口资源开销</strong> 3+ 窗口常驻内存 ≤ 400MB（M5 验证）</li>
+        <li><strong>R10 协议安全</strong> dsh:// 协议需校验来源，防恶意链接（M3-b 加白名单）</li>
       </ul>
     </div>
 
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑进度：</strong><b>M1（桌面客户端可行性闭环）已完整完成</b>（2026-08-26）；<b>M2（桌面能力插件化）进行中</b>。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 已完成项：</strong>M2-a 地基 + M2-d1 托盘 + M2-d2 通知 + M2-d3 shortcuts/clipboard + M2-b compat 动态白名单 + M2-e 官方 UI 注入。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 待推进项：</strong></p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:var(--text-muted);">&nbsp;&nbsp;• <strong>M2-c 旧插件门禁</strong>（阻塞项）：dsh-terminal / dsh-rule-manager / dsh-restart 真实载体来源待确认</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>M2-c 需确认旧插件（dsh-terminal / dsh-rule-manager / dsh-restart）的真实载体来源（npm 包 / 本地路径 / 暂不启用）。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
+      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3-a ✅ → M3-b1 ✅ → M3-b2 ✅ → M3-b3 ✅ → <b>M3（多窗口 + 深度交互）🔄 进行中</b></p>
+      <p style="margin:8px 0 0 0;"><strong>M3 第一优先级：</strong> <b>M3-b4 M3 门禁</b>（dogfood 验收 + 全量回归 + netstat 零监听红线再验证 + 崩溃恢复/多窗口组合异常测试）</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">已完成（M3-b3）：</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/types/desktop.ts</code>（autostart Schema: AutostartSetEnabled/AutostartStatus）</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-host/desktop-autostart.ts</code>（开机自启服务：OS 登录项管理 + dev 拦截）</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-shell/web/desktop-settings-client.js</code>（AutoStartSetting Toggle 注入）</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-shell/preload.ts</code>（autostart.setEnabled/getStatus 白名单）</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-shell/argv.ts</code> + <code>main.ts</code>（--hidden 静默到托盘 + 装配/清理）</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">验收提示（M3-b4）：开机自启实际系统注册需在打包版（app.isPackaged）验证，dev 模式仅冒烟 UI Toggle 与状态查询。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>阻塞项：</strong> M2-c 旧插件门禁载体待确认，<b>不阻塞 M3</b>。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">💡 提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
     </div>
   </div>
 </body>

@@ -22,6 +22,10 @@ export const IPC_CHANNELS = {
   DESKTOP_EVENT: 'desktop:event',
   /** 上行：桌面能力统一调用入口（快捷键/剪贴板等 → bridge methodTable 分发）。 */
   DESKTOP_INVOKE: 'desktop:invoke',
+  /** 下行：窗口事件（窗口创建/销毁/状态变化 → renderer onWindowEvent）。 */
+  WINDOW_EVENT: 'desktop:window-event',
+  /** 下行：会话上下文注入（窗口就绪后推送 sessionId → renderer onSessionContext）。 */
+  SESSION_CONTEXT: 'desktop:session-context',
 } as const satisfies Record<string, string>
 
 /** IPC 通道名联合类型。 */

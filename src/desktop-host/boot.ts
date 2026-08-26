@@ -39,6 +39,8 @@ export interface BootOptions {
   readonly serveMode?: boolean
   /** --serve 监听端口（serveMode=true 时有效；默认 38000）。 */
   readonly servePort?: number
+  /** 审计日志文件路径（M3-b2，JSONL 格式）。 */
+  readonly auditLogPath?: string
 }
 
 // ── Desktop profile overlay patches ─────────────────────────────────────────
@@ -217,7 +219,17 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
     ],
   },
-  { id: 'agent-presets', config: { default: 'standard' } },
+  // agent-presets：M2·官方 UI 设置面板 agent 预设选择器数据源。
+  // 此前缺 name 未加载 dsh-agent-presets 插件 → host 无 agentPresets 域 → 面板空白。
+  // 现补 name 加载插件，并把 roots 指向仓库随附的裁剪预设（仅用已装插件，避免缺依赖）。
+  {
+    id: 'agent-presets',
+    name: '@deepseek-ai/dsh-agent-presets',
+    config: {
+      default: 'standard',
+      roots: [{ path: join(__dirname, '..', 'resources', 'agent-presets'), trust: 'system' }],
+    },
+  },
 ]
 
 // ── 空根配置生成 ────────────────────────────────────────────────────────────
@@ -362,7 +374,7 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
       // 解析，共用审计总线 + 配置 + 下行桌面事件通道。
       try {
         const { installDesktopCore } = await import('./desktop-api.js')
-        await installDesktopCore(hostCtx)
+        await installDesktopCore(hostCtx, { auditLogPath: options.auditLogPath })
       } catch (error) {
         console.warn('[dsh-desktop] ctx.desktop 聚合服务注入失败:', error)
       }

@@ -16,6 +16,8 @@ export interface CliOptions {
   serve: boolean
   /** --serve 监听端口（仅当 serve=true 时有意义）。默认 38000。 */
   servePort: number
+  /** 是否静默启动（--hidden，开机自启登录后驻留托盘，不弹主窗口）。 */
+  hidden: boolean
 }
 
 /** --serve 默认端口：Loopback 范围高位，避免与常用服务冲突。 */
@@ -36,10 +38,13 @@ export function parseArgv(argv: string[] = process.argv): CliOptions {
   const rest = argv.slice(2) // 跳过 node + script
   let serve = false
   let servePort = DEFAULT_SERVE_PORT
+  let hidden = false
   let i = 0
   while (i < rest.length) {
     const arg = rest[i]
-    if (arg === '--serve') {
+    if (arg === '--hidden') {
+      hidden = true
+    } else if (arg === '--serve') {
       serve = true
       const next = rest[i + 1]
       if (next !== undefined && !next.startsWith('--')) {
@@ -59,5 +64,5 @@ export function parseArgv(argv: string[] = process.argv): CliOptions {
     }
     i += 1
   }
-  return { serve, servePort }
+  return { serve, servePort, hidden }
 }

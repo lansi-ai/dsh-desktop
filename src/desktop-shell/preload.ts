@@ -27,8 +27,14 @@ const IPC_CHANNELS = {
   FRAME: 'dsh:frame',
   /** 上行：renderer 就绪通知（窗口加载完成，可接收帧）。 */
   READY: 'dsh:ready',
+  /** 下行：桌面事件（desktop/action 审计/通知 → renderer onDesktopEvent）。 */
+  DESKTOP_EVENT: 'desktop:event',
   /** 上行：桌面能力统一调用入口（快捷键/剪贴板/面板等）。 */
   DESKTOP_INVOKE: 'desktop:invoke',
+  /** 下行：窗口事件（窗口创建/销毁/状态变化 → renderer onWindowEvent）。 */
+  WINDOW_EVENT: 'desktop:window-event',
+  /** 下行：会话上下文注入（窗口就绪后推送 sessionId → renderer onSessionContext）。 */
+  SESSION_CONTEXT: 'desktop:session-context',
 } as const
 
 /**
@@ -81,7 +87,68 @@ interface PlatformInfo {
   channel: string
 }
 
-/** Renderer 侧桌面桥接 API。 */
+/** 多窗口管理器接口。 */
+interface DesktopWindowManager {
+  /** 创建绑定会话的新窗口（若已存在则聚焦）。 */
+  createSessionWindow(sessionId: string, bounds?: { x: number; y: number; width: number; height: number }): Promise<{
+    success: boolean
+    message?: string
+    windowId?: number
+    sessionId?: string
+  }>
+  /** 关闭指定会话的窗口。 */
+  closeSessionWindow(sessionId: string): Promise<{ success: boolean; message?: string }>
+  /** 关闭指定窗口 ID。 */
+  closeWindowById(windowId: number): Promise<{ success: boolean; message?: string }>
+  /** 聚焦指定会话的窗口。 */
+  focusSessionWindow(sessionId: string): Promise<{ success: boolean; message?: string }>
+  /** 列出所有活动会话窗口。 */
+  listSessions(): Promise<Array<{ sessionId: string; windowId: number; state: string }>>
+  /** 注册窗口事件监听器（窗口创建/销毁/状态变化/会话列表更新）。 */
+  onWindowEvent(cb: (event: { type: string; payload: unknown; ts: number }) => void): () => void
+  /** 注册会话上下文监听器（窗口就绪后自动注入）。 */
+  onSessionContext(cb: (context: { sessionId: string; windowId: number; ts: number }) => void): () => void
+}
+
+/** 命令面板操作接口。 */
+interface DesktopCmdPalette {
+  /** 打开命令面板。 */
+  open(query?: string): Promise<{ opened: boolean }>
+  /** 关闭命令面板。 */
+  close(): Promise<{ closed: boolean }>
+  /** 唤起快速提问。 */
+  quickAsk(question?: string): Promise<{ triggered: boolean }>
+  /** 切换到指定会话。 */
+  switchSession(sessionId: string): Promise<{ success: boolean; message?: string }>
+  /** 获取活动会话列表。 */
+  listSessions(): Promise<Array<{ sessionId: string; windowId: number; state: string; title?: string }>>
+}
+
+/** 审计查询操作接口。 */
+interface DesktopAudit {
+  /** 查询审计日志。 */
+  query(params: {
+    action?: string
+    sessionId?: string
+    from?: number
+    to?: number
+    limit?: number
+    offset?: number
+  }): Promise<{
+    entries: Array<{ ts: number; action: string; payload?: unknown }>
+    total: number
+  }>
+  /** 获取可用动作列表。 */
+  listActions(): Promise<string[]>
+}
+
+/** 开机自启操作接口（M3-b3 新增）。 */
+interface DesktopAutostart {
+  /** 设置开机自启开关（OS 登录项为唯一真源）。 */
+  setEnabled(enabled: boolean): Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }>
+  /** 读取开机自启当前状态（实时读取 OS 登录项）。 */
+  getStatus(): Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }>
+}
 export interface DesktopBridge {
   /** 上行 RPC 调用（替换 WebApiClient 的 doFetch）。 */
   rpc(method: string, body: unknown): Promise<unknown>
@@ -94,8 +161,16 @@ export interface DesktopBridge {
   onFrame(cb: (frame: unknown) => void): () => void
   /** 注册桌面事件监听器。返回注销函数。 */
   onDesktopEvent(cb: (event: { action: string; payload?: unknown }) => void): () => void
-  /** 窗口控制。 */
+  /** 窗口控制（当前窗口）。 */
   windowControl: WindowControl
+  /** 多窗口管理器（M3 新增）。 */
+  windowManager: DesktopWindowManager
+  /** 命令面板操作（M3-a4 新增）。 */
+  cmdPalette: DesktopCmdPalette
+  /** 审计查询操作（M3-b2 新增）。 */
+  audit: DesktopAudit
+  /** 开机自启操作（M3-b3 新增）。 */
+  autostart: DesktopAutostart
   /** 全局快捷键操作。 */
   desktopShortcut: DesktopShortcut
   /** 剪贴板操作。 */
@@ -156,7 +231,7 @@ function createDesktopBridge(): DesktopBridge {
       }
     },
 
-    // ── 窗口控制 ──────────────────────────────────────────────────
+    // ── 窗口控制（当前窗口） ──────────────────────────────────────
     windowControl: {
       focus(): Promise<void> {
         return ipcRenderer.invoke(IPC_CHANNELS.RPC, {
@@ -178,6 +253,150 @@ function createDesktopBridge(): DesktopBridge {
           method: 'desktop.windowControl.close',
           params: undefined,
         })
+      },
+    },
+
+    // ── 多窗口管理器（M3 新增） ──────────────────────────────────
+    windowManager: {
+      async createSessionWindow(
+        sessionId: string,
+        bounds?: { x: number; y: number; width: number; height: number },
+      ): Promise<{ success: boolean; message?: string; windowId?: number; sessionId?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.window.create',
+          params: { sessionId, bounds },
+        }) as Promise<{ success: boolean; message?: string; windowId?: number; sessionId?: string }>
+      },
+      async closeSessionWindow(sessionId: string): Promise<{ success: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.window.closeBySession',
+          params: { sessionId },
+        }) as Promise<{ success: boolean; message?: string }>
+      },
+      async closeWindowById(windowId: number): Promise<{ success: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.window.closeById',
+          params: { windowId },
+        }) as Promise<{ success: boolean; message?: string }>
+      },
+      async focusSessionWindow(sessionId: string): Promise<{ success: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.window.focusBySession',
+          params: { sessionId },
+        }) as Promise<{ success: boolean; message?: string }>
+      },
+      async listSessions(): Promise<Array<{ sessionId: string; windowId: number; state: string }>> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.window.listSessions',
+          params: undefined,
+        }) as Promise<Array<{ sessionId: string; windowId: number; state: string }>>
+      },
+      onWindowEvent(cb: (event: { type: string; payload: unknown; ts: number }) => void): () => void {
+        const handler = (_event: Electron.IpcRendererEvent, windowEvent: { type: string; payload: unknown; ts: number }): void => {
+          cb(windowEvent)
+        }
+        ipcRenderer.on(IPC_CHANNELS.WINDOW_EVENT, handler)
+        return () => {
+          ipcRenderer.removeListener(IPC_CHANNELS.WINDOW_EVENT, handler)
+        }
+      },
+      onSessionContext(
+        cb: (context: { sessionId: string; windowId: number; ts: number }) => void,
+      ): () => void {
+        const handler = (_event: Electron.IpcRendererEvent, context: { sessionId: string; windowId: number; ts: number }): void => {
+          cb(context)
+        }
+        ipcRenderer.on(IPC_CHANNELS.SESSION_CONTEXT, handler)
+        return () => {
+          ipcRenderer.removeListener(IPC_CHANNELS.SESSION_CONTEXT, handler)
+        }
+      },
+    },
+
+    // ── 命令面板操作（M3-a4 新增） ─────────────────────────────
+    cmdPalette: {
+      open(query?: string): Promise<{ opened: boolean }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.cmdpalette.open',
+          params: { query },
+        }) as Promise<{ opened: boolean }>
+      },
+      close(): Promise<{ closed: boolean }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.cmdpalette.close',
+          params: undefined,
+        }) as Promise<{ closed: boolean }>
+      },
+      quickAsk(question?: string): Promise<{ triggered: boolean }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.cmdpalette.quickAsk',
+          params: { question },
+        }) as Promise<{ triggered: boolean }>
+      },
+      switchSession(sessionId: string): Promise<{ success: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.cmdpalette.switchSession',
+          params: { sessionId },
+        }) as Promise<{ success: boolean; message?: string }>
+      },
+      listSessions(): Promise<Array<{ sessionId: string; windowId: number; state: string; title?: string }>> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.cmdpalette.listSessions',
+          params: undefined,
+        }) as Promise<Array<{ sessionId: string; windowId: number; state: string; title?: string }>>
+      },
+    },
+
+    // ── 审计查询操作（M3-b2 新增） ─────────────────────────────
+    audit: {
+      query(params: {
+        action?: string
+        sessionId?: string
+        from?: number
+        to?: number
+        limit?: number
+        offset?: number
+      }): Promise<{ entries: Array<{ ts: number; action: string; payload?: unknown }>; total: number }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.audit.query',
+          params,
+        }) as Promise<{ entries: Array<{ ts: number; action: string; payload?: unknown }>; total: number }>
+      },
+      listActions(): Promise<string[]> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.audit.listActions',
+          params: undefined,
+        }) as Promise<string[]>
+      },
+    },
+
+    // ── 开机自启操作（M3-b3 新增） ─────────────────────────────
+    autostart: {
+      setEnabled(enabled: boolean): Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.autostart.setEnabled',
+          params: { enabled },
+        }) as Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }>
+      },
+      getStatus(): Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.autostart.getStatus',
+          params: undefined,
+        }) as Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }>
       },
     },
 

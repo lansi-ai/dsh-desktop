@@ -35,6 +35,14 @@ export interface BootBundleDecl {
   immediately?: boolean
 }
 
+/** 图谱应排除的互斥 client 包（官方装配单选的互斥对只保一个激活，双激活会注册冲突）。 */
+const CLIENT_EXCLUDE_IDS = new Set([
+  // 桌面端 directory-picker 走 native（匹配 prepare 钩子的 ElectronDirectoryPicker），
+  // browse（浏览器文件浏览）是互斥副本；两包注册同一 single slot（conversation.hero.workspace.directoryFlow
+  // / sidebar.workspaces.directoryFlow）会抛 "already has a registration"。
+  '@deepseek-ai/dsh-client-ui-directory-picker-browse',
+])
+
 // ── 内部状态 ─────────────────────────────────────────────────────────
 
 /** bundle 路径表：id → client bundle 绝对路径（供 bundle route 直读）。 */
@@ -287,6 +295,7 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
   const scannedDecls: BootBundleDecl[] = []
   for (const [id, meta] of scanned) {
     if (id === CLIENT_CONNECTION_ID) continue // D-9：不入图谱，仅预载注册供 require
+    if (CLIENT_EXCLUDE_IDS.has(id)) continue // 互斥副本排除（防止 single slot 双激活冲突）
     scannedDecls.push({
       id,
       path: meta.clientPath,
@@ -301,9 +310,13 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 官方 UI 渲染必需的自启动核心（client-modules/client-runtime 由扫描集覆盖，
     // 此处显式确保其在列 + immediately，且 client-runtime 的 inject 依赖由扫描集提供）。
     { id: IPC_CONNECTION_ID, path: resolveLocalWebBundle('ipc-connection.js'), inject: [], immediately: true, external: [`${CLIENT_CONNECTION_ID}/client`] },
-    // M2-e 官方 UI 注入：桌面设置页面 + 桌面面板容器（经 Slot 系统注入官方 UI）
-    { id: '@dsh-desktop/desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client', '@deepseek-ai/dsh-client-ui-settings/client'], immediately: true },
+    // M2-e 官方 UI 注入：桌面设置页面 + 桌面面板容器 + 命令面板（经 Slot 系统注入官方 UI）
+    { id: '@dsh-desktop/desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
     { id: '@dsh-desktop/desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口
+    { id: '@dsh-desktop/desktop-cmdpalette', path: resolveLocalWebBundle('desktop-cmdpalette-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    // M3-b2 审计查看器：会话审计日志查询 UI
+    { id: '@dsh-desktop/desktop-audit-viewer', path: resolveLocalWebBundle('desktop-audit-viewer-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
     ...(extraBundles ?? []),
   ]
 

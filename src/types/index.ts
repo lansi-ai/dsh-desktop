@@ -49,3 +49,31 @@ export type {
   DesktopCore,
   DesktopEvent,
 } from './desktop.js'
+
+export {
+  WindowState,
+  windowStateSchema,
+  windowBoundsSchema,
+  windowRecordSchema,
+  createWindowRequestSchema,
+  sessionWindowRequestSchema,
+  windowIdRequestSchema,
+  updateBoundsRequestSchema,
+  activeSessionSchema,
+  windowOperationResponseSchema,
+  WindowEvent,
+  windowEventTypeSchema,
+  windowBroadcastFrameSchema,
+  sessionListPayloadSchema,
+  windowLifecyclePayloadSchema,
+  windowStateChangePayloadSchema,
+} from './window.js'
+export type {
+  WindowBounds,
+  WindowRecord,
+  WindowState as WindowStateType,
+  CreateWindowRequest,
+  ActiveSession,
+  WindowOperationResponse,
+  WindowBroadcastFrame,
+} from './window.js'

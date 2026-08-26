@@ -436,7 +436,14 @@
       config:
         backend: json
 
-# 预置 roster（桌面使用同一 shipped preset root，与 web 共享 agent 定义）
+# 预置 roster。name 必须指向 dsh-agent-presets 插件：缺 name 时插件不加载，
+# host 侧无 agentPresets 域 → 官方设置面板 agent 预设 section 空白。
+# roots 指向仓库随附的裁剪预设（仅用已在 package.json 声明的 @deepseek-ai 插件）。
+# 运行时权威值为 boot.ts buildPatches()（此处为参考文档）。
 - id: agent-presets
+  name: '@deepseek-ai/dsh-agent-presets'
   config:
     default: standard
+    roots:
+      - path: resources/agent-presets
+        trust: system

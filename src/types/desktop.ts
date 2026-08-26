@@ -57,6 +57,26 @@ export const clipboardWriteSchema = z.object({
   text: z.string(),
 })
 
+// ── 命令面板 Schema（M3-a4 command palette）────────────────────────
+
+/** 命令面板打开请求（renderer → host，支持指定初始查询）。 */
+export const cmdPaletteOpenSchema = z.object({
+  /** 初始查询文本（可选，聚焦后预填输入框）。 */
+  query: z.string().optional(),
+})
+
+/** 快速提问请求（renderer → host + 全局快捷键触发）。 */
+export const cmdPaletteQuickAskSchema = z.object({
+  /** 预填问题文本。 */
+  question: z.string().optional(),
+})
+
+/** 命令面板会话切换请求。 */
+export const cmdPaletteSwitchSessionSchema = z.object({
+  /** 目标会话 ID。 */
+  sessionId: z.string(),
+})
+
 // ── 推导类型 ──────────────────────────────────────────────────────
 
 export type DesktopAction = z.infer<typeof desktopActionSchema>
@@ -65,6 +85,108 @@ export type DesktopEvent = z.infer<typeof desktopEventSchema>
 export type ShortcutRegister = z.infer<typeof shortcutRegisterSchema>
 export type ShortcutUnregister = z.infer<typeof shortcutUnregisterSchema>
 export type ClipboardWrite = z.infer<typeof clipboardWriteSchema>
+export type CmdPaletteOpen = z.infer<typeof cmdPaletteOpenSchema>
+export type CmdPaletteQuickAsk = z.infer<typeof cmdPaletteQuickAskSchema>
+export type CmdPaletteSwitchSession = z.infer<typeof cmdPaletteSwitchSessionSchema>
+
+// ── dsh:// 协议 Schema（M3-b1 system protocol）─────────────────────
+
+/** dsh://open 协议载荷（聚焦/创建指定会话窗口）。 */
+export const dshProtocolOpenSchema = z.object({
+  /** 目标会话 ID。 */
+  session: z.string(),
+})
+
+/** dsh://ask 协议载荷（唤起快速提问 + 预填问题）。 */
+export const dshProtocolAskSchema = z.object({
+  /** 预填问题文本。 */
+  q: z.string().optional(),
+})
+
+/** dsh:// 协议动作枚举。 */
+export const dshProtocolActionSchema = z.enum(['open', 'ask', 'settings'])
+
+/** dsh:// 协议路由结果。 */
+export const dshProtocolResultSchema = z.object({
+  /** 路由是否成功。 */
+  success: z.boolean(),
+  /** 被路由的动作。 */
+  action: dshProtocolActionSchema,
+  /** 路由结果描述。 */
+  message: z.string().optional(),
+  /** 关联的会话 ID（open 动作时返回）。 */
+  sessionId: z.string().optional(),
+})
+
+export type DshProtocolOpen = z.infer<typeof dshProtocolOpenSchema>
+export type DshProtocolAsk = z.infer<typeof dshProtocolAskSchema>
+export type DshProtocolAction = z.infer<typeof dshProtocolActionSchema>
+export type DshProtocolResult = z.infer<typeof dshProtocolResultSchema>
+
+// ── 审计查询 Schema（M3-b2 audit viewer）────────────────────────────
+
+/** 审计日志条目（从 audit.jsonl 读取）。 */
+export const auditLogEntrySchema = z.object({
+  /** 时间戳（毫秒）。 */
+  ts: z.number().int(),
+  /** 动作名（如 'tray.window-hide'、'shortcut.register'）。 */
+  action: z.string(),
+  /** 附加载荷（任意 JSON）。 */
+  payload: z.unknown().optional(),
+})
+
+/** 审计查询请求。 */
+export const auditQuerySchema = z.object({
+  /** 按动作名过滤（精确匹配）。 */
+  action: z.string().optional(),
+  /** 按会话 ID 过滤（payload.sessionId 匹配）。 */
+  sessionId: z.string().optional(),
+  /** 起始时间戳（毫秒）。 */
+  from: z.number().int().optional(),
+  /** 结束时间戳（毫秒）。 */
+  to: z.number().int().optional(),
+  /** 每页数量（默认 50）。 */
+  limit: z.number().int().min(1).max(500).default(50),
+  /** 偏移量（分页用）。 */
+  offset: z.number().int().min(0).default(0),
+})
+
+/** 审计查询响应。 */
+export const auditQueryResultSchema = z.object({
+  /** 条目列表（按时间倒序）。 */
+  entries: z.array(auditLogEntrySchema),
+  /** 总匹配数（忽略 limit/offset）。 */
+  total: z.number().int(),
+  /** 本次查询使用的参数。 */
+  query: auditQuerySchema,
+})
+
+export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>
+export type AuditQuery = z.infer<typeof auditQuerySchema>
+export type AuditQueryResult = z.infer<typeof auditQueryResultSchema>
+
+// ── 开机自启 Schema（M3-b3 autostart）────────────────────────────────
+
+/** 开机自启设置请求（renderer → host）。 */
+export const autostartSetEnabledSchema = z.object({
+  /** 是否启用开机自启。 */
+  enabled: z.boolean(),
+})
+
+/** 开机自启状态响应（OS 登录项为唯一真源，实时读取）。 */
+export const autostartStatusSchema = z.object({
+  /** OS 登录项当前是否启用。 */
+  enabled: z.boolean(),
+  /** 当前平台是否支持开机自启（Windows/macOS）。 */
+  supported: z.boolean(),
+  /** 是否处于开发模式（dev 下注册被拦截，仅打包版生效）。 */
+  devMode: z.boolean(),
+  /** 状态描述（拦截原因/失败信息等）。 */
+  message: z.string().optional(),
+})
+
+export type AutostartSetEnabled = z.infer<typeof autostartSetEnabledSchema>
+export type AutostartStatus = z.infer<typeof autostartStatusSchema>
 
 /**
  * `ctx.desktop` 聚合服务接口（core 子集，M2 地基）。

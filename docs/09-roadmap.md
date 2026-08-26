@@ -33,12 +33,35 @@
 | desktop-client-settings / panel | 官方 UI 注入桌面设置卡 + 侧栏「桌面」面板 |
 | 门禁 | 桌面能力全部可 `dsh plugin` 列表可见、可 patch 关闭、卸载无残留 |
 
-## M3 · 多窗口与深度交互（P1 前半）
-- 会话独立窗口（拖出/新建）、窗口状态持久化、焦点跟随 agent 活动
-- 命令面板（Ctrl+K：切换会话/命令/设置/插件开关）——复用官方 UI 的面板或注入
-- `dsh://` 协议唤起（open/ask）→ 窗口聚焦
-- 开机自启（设置开关）
-- 桌面会话审计查询工具（audit.jsonl 尾部查看）
+## M3 · 多窗口与深度交互（P1 前半）—— 2026-08-26 启动
+**推进节奏：分两波 —— M3-a（多窗口 + 命令面板）→ M3-b（协议 + 审计 + 自启）**
+
+### M3-a 第一波：多窗口 + 命令面板
+| 任务 | 子项 | 验收 |
+| --- | --- | --- |
+| M3-a1 窗口管理器基建 | WindowManager 单例（窗口注册表 + 会话绑定 + 创建/销毁/聚焦 API）；`types/window.ts` zod 契约；多窗口 IPC 通道；preload 白名单扩展；main.ts bootstrap 集成 | typecheck + lint 零错误 |
+| M3-a2 会话独立窗口 | 新建窗口（renderer→主进程→新 BrowserWindow→dsh-ui:// + 会话上下文）；独立 IPC 载波路由（per-window carrier-relay）；窗口会话同步广播；窗口崩溃恢复；窗口间切换 | 3+ 窗口独立对话 + 同步 + 恢复 |
+| M3-a3 窗口状态持久化 | 位置/大小持久化到 settings-file；会话绑定持久化（重启恢复）；Z-order 记忆 | 重启后窗口状态恢复 |
+| M3-a4 命令面板（Ctrl+K 混合方案） | renderer 内 Ctrl+K 面板（会话/插件/设置）+ desktop-cmdpalette-client.js 注入；主进程全局 Ctrl+Shift+P 快速提问悬浮窗；desktop-cmdpalette.ts host 插件；preload 白名单；boot-graph 图谱注入 | Ctrl+K 切换会话 + Ctrl+Shift+P 唤起提问 |
+| M3-a5 M3-a 门禁 | 多窗口实机验证 + 命令面板冒烟 | Dogfood 启动：日常使用 |
+
+### M3-b 第二波：协议 + 审计 + 自启
+| 任务 | 子项 | 验收 |
+| --- | --- | --- |
+| M3-b1 dsh:// 系统协议 | 协议注册 + Windows 注册表关联；open/ask/settings 三个 action；窗口去重聚焦；dsh-protocol.ts 路由 | 浏览器/命令行 dsh:// 唤起工作 |
+| M3-b2 会话审计查询工具 | 审计日志查看器 UI（槽位注入）；desktop-audit-viewer.ts 服务（读取+过滤+分页）；desktop:event + Host 全链路 | 审计 Tab 可过滤查看 |
+| M3-b3 开机自启 | 设置开关（desktop-settings 注入）；Windows setLoginItemSettings；配置持久化 | 设置开关生效 |
+| M3-b4 M3 门禁 | 完整 dogfood 验收 + 全量回归 + netstat 零监听再验证 | **2 周无浏览器** + 崩溃恢复测试 |
+
+**关键决策（M3 新增）：**
+- D-9 多窗口 = 每个会话独立 BrowserWindow（非 Tab），窗口间广播帧同步
+- D-10 命令面板 = 混合方案（renderer Ctrl+K + 主进程 Ctrl+Shift+P）
+- D-11 dsh:// 协议 MVP = 全覆盖（open + ask + settings），窗口去重聚焦
+- D-12 Dogfood = M3-a 完成后即启动，不等全量
+
+**风险：**
+- R9 多窗口资源开销：3+ 窗口常驻内存 ≤ 400MB（M5 性能项验证）
+- R10 协议安全：dsh:// 协议需校验来源，防恶意链接（M3-b 加白名单）
 - **门禁：日常使用 2 周无浏览器**（自用 dogfood）
 
 ## M4 · 分发与更新（P1 后半）
