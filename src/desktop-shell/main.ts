@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, nativeImage } from 'electron'
 import { join } from 'node:path'
 import { registerDshUiProtocol, registerDshUiScheme } from './dsh-ui-protocol'
 import { parseArgv } from './argv'
@@ -75,11 +75,19 @@ const PRELOAD_PATH = join(__dirname, 'preload.js')
 let desktopTrayHandle: (() => void) | null = null
 let desktopNotifyHandle: (() => void) | null = null
 
+/** 应用/窗口图标（优先桌面资源 app-icon.png，缺失回退 tray-icon.png）。 */
+function loadAppIcon(): Electron.NativeImage {
+  const appIcon = nativeImage.createFromPath(join(__dirname, 'web', 'app-icon.png'))
+  return appIcon.isEmpty() ? nativeImage.createFromPath(join(__dirname, 'web', 'tray-icon.png')) : appIcon
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
     show: false,
+    // 窗口/任务栏图标（透明度鲸鱼应用图标）
+    icon: loadAppIcon(),
     // 去掉 Electron 默认原生菜单栏（File/Edit/View/Window），避免与官方 UI 顶部布局冲突
     autoHideMenuBar: true,
     // 官方 UI 经 dsh-ui:// 自定义协议加载（dist 直读，零 HTTP 端口）
@@ -131,6 +139,10 @@ function createWindow(): BrowserWindow {
 async function bootstrap(): Promise<void> {
   try {
     await app.whenReady()
+
+    // 0. 应用图标：Windows 任务栏分组标识 + macOS dock 图标（同鲸鱼图标）。
+    app.setAppUserModelId('deepseek-harness.desktop')
+    if (process.platform === 'darwin') app.dock?.setIcon(loadAppIcon())
 
     // 1. 协议注册（必须在 boot 前：boot 期间可能触发 dsh-ui:// 加载）
     registerDshUiProtocol()
