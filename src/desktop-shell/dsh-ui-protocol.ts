@@ -14,9 +14,8 @@ import { generateFullBootScript, resolveBundleRequest } from '../desktop-host/ma
  * 替换官方 WebSocket/HTTP 传输条目）。
  *
  * URL 布局：
- *   dsh-ui://index.html                  → 主页面（注入 boot manifest）
- *   dsh-ui://index.html/assets/<file>    → 静态资源
- *   dsh-ui:///assets/<file>              → 静态资源（host 为空兜底）
+ *   dsh-ui://app/index.html               → 主页面（注入 boot manifest；host 为固定虚拟标识）
+ *   dsh-ui://app/assets/<file>            → 静态资源（官方 dist 根绝对路径 /assets/... 经此落地）
  */
 
 const nodeRequire = createRequire(__filename)
@@ -31,10 +30,11 @@ let distRoot: string | null = null
 const PLACEHOLDER_ROOT = join(__dirname, 'web')
 
 /**
- * 开发模式：强制使用占位页面以验证 IPC 桥。
- * 正式发布时设为 false 并确保 web-frontend dist 可用。
+ * 开发模式：默认使用官方 web-frontend dist（D-3 主线复用官方发行物）。
+ * 仅当官方 dist 缺失时才回退到占位页面。
+ * 注：官方 dist 需确保 npm 安装完整落盘（dsh-web-frontend dist 内含 assets/）。
  */
-const FORCE_PLACEHOLDER = true
+const FORCE_PLACEHOLDER = false
 
 /** MIME 映射（覆盖 dist 实际产出类型）。 */
 const MIME_TYPES: Record<string, string> = {
@@ -81,14 +81,18 @@ function checkDistAvailable(): boolean {
 
 /**
  * 解析 dsh-ui:// URL 到目标根目录内的相对路径（安全：normalize 后必须留在根目录内）。
+ *
+ * 仅用 pathname 映射（**忽略 host**）：官方 dist 资源为根绝对路径（/assets/...），
+ * 页面以固定虚拟 host `dsh-ui://app` 加载，浏览器把 /assets/... 解析为
+ * `dsh-ui://app/assets/...`；host 恒为虚拟标识，不参与文件路径（R5 修复：
+ * 空 host 会被 Electron 规范化为 dsh-ui://index.html/，若把 host 拼入 rel 会错位）。
  * @param url - 协议请求 URL。
  * @param root - 根目录（dist 或占位页面）。
  * @returns 相对路径（'/' 时归一为 index.html），或 undefined 表示越界。
  */
 function resolveRelative(url: URL, root: string): string | undefined {
-  const host = url.hostname
   const rawPath = decodeURIComponent(url.pathname)
-  const rel = (host === '' ? rawPath : `${host}${rawPath}`).replace(/^\/+/, '')
+  const rel = rawPath.replace(/^\/+/, '')
   if (rel === '' || rel === '/' || rel.endsWith('/')) return 'index.html'
   const filePath = normalize(join(root, rel))
   if (!filePath.startsWith(root + sep) && filePath !== root) return undefined
@@ -96,20 +100,19 @@ function resolveRelative(url: URL, root: string): string | undefined {
 }
 
 /** Full boot manifest 注入脚本（含 IPC 载波 roster 条目 + queueLoader shim）。 */
-function bootManifestScript(): string {
-  // Spike 阶段：注入一个最小样例 client 插件作为零端口装载路径验证载体。
-  // 正式接入第三方插件时，将该 bundle 声明替换为真实已安装插件即可。
-  const spikeSampleBundle = {
-    id: 'dsh-spike-sample',
-    path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js'),
-  }
-  return generateFullBootScript('desktop-m1-ipc', [spikeSampleBundle])
+function bootManifestScript(useDist: boolean): string {
+  // 官方 dist 模式：不注入 spike 样例（官方 UI 用官方图谱正常加载，避免外来 bundle 干扰）；
+  // 占位页回退模式：注入最小样例 client 插件作为零端口装载路径验证载体。
+  const extraBundles = useDist
+    ? []
+    : [{ id: 'dsh-spike-sample', path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js') }]
+  return generateFullBootScript('desktop-m1-ipc', extraBundles)
 }
 
 /** 将 boot manifest 注入到 index.html 的 <head> 之后（对齐官方 IndexTap 语义）。 */
-function injectBootManifest(html: string): string {
+function injectBootManifest(html: string, useDist: boolean): string {
   const headEnd = html.indexOf('</head>')
-  const script = bootManifestScript()
+  const script = bootManifestScript(useDist)
   if (headEnd === -1) return `${script}${html}`
   return `${html.slice(0, headEnd)}${script}${html.slice(headEnd)}`
 }
@@ -153,16 +156,21 @@ export function registerDshUiProtocol(): void {
       }
 
       const rel = resolveRelative(url, root)
-      if (rel === undefined) return new Response('forbidden', { status: 403 })
+      if (rel === undefined) {
+        console.log(`[dsh-ui-protocol] 403 ${request.url} (越界)`)
+        return new Response('forbidden', { status: 403 })
+      }
 
       const filePath = join(root, rel)
       const data = await readFile(filePath)
       const contentType = MIME_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
       const isIndex = rel.endsWith('index.html')
-      const body = isIndex ? injectBootManifest(data.toString('utf8')) : data
+      const body = isIndex ? injectBootManifest(data.toString('utf8'), useDist) : data
+      console.log(`[dsh-ui-protocol] 200 ${request.url} → ${rel} (${contentType})`)
       return new Response(body, { headers: { 'content-type': contentType } })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      console.log(`[dsh-ui-protocol] 404 ${request.url} (${message})`)
       return new Response(`not found: ${message}`, { status: 404 })
     }
   })

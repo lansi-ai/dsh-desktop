@@ -18,6 +18,14 @@ const NODE_GLOBALS = {
   setInterval: 'readonly',
   clearInterval: 'readonly',
   queueMicrotask: 'readonly',
+  URL: 'readonly',
+  URLSearchParams: 'readonly',
+  Response: 'readonly',
+  AbortSignal: 'readonly',
+  AbortController: 'readonly',
+  TextEncoder: 'readonly',
+  TextDecoder: 'readonly',
+  crypto: 'readonly',
 }
 
 /** 浏览器渲染器全局（src/desktop-shell/web/*.js）。 */
@@ -44,7 +52,7 @@ const BROWSER_GLOBALS = {
 }
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'docs/active-context.html'] },
+  { ignores: ['dist/', 'node_modules/', '.runtime/', 'docs/active-context.html'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -63,5 +71,8 @@ export default tseslint.config(
   {
     files: ['src/desktop-shell/web/**/*.js'],
     languageOptions: { globals: BROWSER_GLOBALS },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
   },
 )

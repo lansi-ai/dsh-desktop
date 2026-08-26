@@ -97,7 +97,10 @@ function createWindow(): void {
   win.on('closed', () => {
     cleanupWindowState(win.id)
   })
-  void win.loadURL('dsh-ui://index.html')
+  // 官方 dist 资源使用根绝对路径（/assets/...）。页面用固定虚拟 host dsh-ui://app 布局，
+  // 使这些绝对路径解析为 dsh-ui://app/assets/...；resolveRelative 仅取 pathname 映射到
+  // dist 根（R5 修复：空 host 会被 Electron 规范化为 dsh-ui://index.html/ 导致资源 404）。
+  void win.loadURL('dsh-ui://app/index.html')
 }
 
 /** 主进程启动流程（仅当未熔断时调用）。 */

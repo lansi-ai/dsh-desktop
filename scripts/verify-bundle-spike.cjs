@@ -53,6 +53,33 @@ assert.ok(script.includes('@deepseek-ai/dsh-client-runtime/client.js'), '注入�
 assert.ok(script.includes('window.__DSH_BOOT__'), '注入脚本应含 __DSH_BOOT__')
 assert.ok(script.includes(`"id":"${sampleId}"`), '注入脚本图谱应包含样例插件')
 
+// ── 官方 web-frontend dist 加载路径（R5 修复后）──────────────────────
+// 官方 dist 资源使用根绝对路径（/assets/...）。在固定虚拟 host `dsh-ui://app` 布局下，
+// resolveRelative 仅取 pathname 映射到 dist 根（rel = 去掉前导 `/`）。
+// 这里断言：dist 已落盘、index.html 引用的每个资源都在 dist 根真实存在。
+const fwPkg = path.join(root, 'node_modules', '@deepseek-ai', 'dsh-web-frontend', 'package.json')
+assert.ok(fs.existsSync(fwPkg), `官方 dist 包缺失: ${fwPkg}`)
+const fwDist = path.join(path.dirname(fwPkg), 'dist')
+const fwIndexPath = path.join(fwDist, 'index.html')
+assert.ok(fs.existsSync(fwIndexPath), `官方 dist index.html 缺失: ${fwIndexPath}`)
+const fwHtml = fs.readFileSync(fwIndexPath, 'utf8')
+
+// 提取 dist/index.html 引用的根绝对路径资源（src/href）
+const refs = [...fwHtml.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((m) => m[1])
+const uniqueRefs = [...new Set(refs)]
+assert.ok(uniqueRefs.length > 0, '官方 index.html 应引用至少一个静态资源')
+assert.ok(uniqueRefs.every((r) => r.startsWith('/')), '官方 dist 关键资源应为根绝对路径（空 host 布局依赖此语义）')
+assert.ok(uniqueRefs.includes('/manifest.webmanifest'), '官方 index.html 应引用 /manifest.webmanifest')
+assert.ok(uniqueRefs.some((r) => r.startsWith('/assets/index-')), '官方 index.html 应引用 /assets/index-*.js')
+
+// 每个引用在 dist 根下真实存在（resolveRelative 空 host 分支映射结果）
+for (const ref of uniqueRefs) {
+  const rel = decodeURIComponent(ref).replace(/^\/+/, '')
+  const target = path.join(fwDist, rel)
+  assert.ok(fs.existsSync(target), `官方 dist 引用资源缺失: ${ref} → ${target}`)
+}
+console.log(`   官方 dist 资源引用: ${uniqueRefs.join(', ')} (共 ${uniqueRefs.length} 项，全部落盘)`)
+
 console.log('✅ 零端口 bundle spike（方案 A）验证通过')
 console.log(`   图谱条目: ${ids.join(', ')}`)
 console.log(`   样例 bundle route: /plugins/${sampleId}/client.js → ${bundle.body.length} bytes`)
