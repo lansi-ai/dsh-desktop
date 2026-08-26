@@ -79,6 +79,7 @@
 - 可选：桌面工具 `desktop_*`（默认关）
 
 ## M6 · 增强与自绘面（探索期，P2）
+- **harness 基线动态化（2026-08-26 新增，依赖 M4-b 更新基建）**：基线产物外置至 `userData/harness/<version>/` 版本化目录 + S1/S2/S3 拴合面兼容矩阵协商（版本声明契约 + 桌面侧 adapter 注册表）+ 复用 M4-b 描述符机制下载校验（manifest + SHA256）+ 多版本并存与启动失败自动回滚；门禁 = 应用内完成 rc.8 → rc.12 切换（不重装应用、会话数据无损）。M4-d 首次 rc.12 升级仍走整包重发（sync-upstream SOP），作为动态化的对照基线
 - 文件拖放/关联（R-14）、Git 集成面（R-23）、TTS（R-24）
 - 自绘主面评估（[`13-ui-design.md`](13-ui-design.md)、[ADR-006](adr/adr-006-custom-ui.md)——本期暂缓，若要切：
   宿主与协议不变，切 renderer 为自研 UI + 官方 UI 降为兼容窗口）

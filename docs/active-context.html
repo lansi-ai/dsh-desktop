@@ -267,6 +267,17 @@
         <li class="task-item todo"><span class="status-icon">[ ]</span><span>发布 rc 安装包，外部使用者（≥3 人）安装即用无环境报错</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span>SHA256SUMS 外部可验证</span></li>
       </ul>
+
+      <h3>M6 · 增强与自绘面（探索期 · P2 · 预告）</h3>
+      <ul class="task-list">
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-x harness 基线动态化（2026-08-26 新需求排期 · D-16 · 前置依赖 M4-b）</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>基线外置：harness 产物拆出 asar → <code>userData/harness/&lt;version&gt;/</code> 版本化目录，boot() 动态解析</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>拴合面协商：S1/S2/S3 兼容矩阵 manifest + 桌面侧 adapter 注册表按版本选择</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>更新源与校验：复用 M4-b 描述符机制（manifest + SHA256）下载 harness 版本包</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>多版本并存与回滚：启动失败自动回退上一可用版本</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>门禁：应用内完成 rc.8 → rc.12 切换（不重装应用、会话数据无损、拴合面自动适配或明确报不兼容）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>注：与 M4-d（整包升级）形成对照验证——首次升级走整包，动态化后走应用内</span></li>
+      </ul>
     </div>
 
     <!-- 03. 决策 -->
@@ -274,6 +285,7 @@
       <h2>💡 关键决策与遗留记录</h2>
       <p><strong>M4 新增决策（2026-08-26）：</strong></p>
       <ul>
+        <li><strong>D-16</strong> harness 基线动态化排入 M6（P2 探索期）：应用内可更新/切换 harness 基线版本（基线外置 + 拴合面兼容矩阵 + 版本回滚）；前置依赖 M4-b 更新描述符基建；M4-d 首次 rc.12 升级仍走整包重发（sync-upstream SOP），作为动态化的对照基线</li>
         <li><strong>D-13</strong> M3-b4 dogfood 与 M4 并行推进（dogfood 结果作 M3 收尾门禁，不阻塞 M4 开发）</li>
         <li><strong>D-14</strong> M4 首发钉 rc.8 基线打包；rc.12 升级为 M4-d 独立节点（build(upstream) SOP）</li>
         <li><strong>D-15</strong> R10 协议安全 + M3-b3 自启打包验证排入 M4-a（分发前必须补安全面）；M2-c 置后；R6/R7 留 M5</li>
