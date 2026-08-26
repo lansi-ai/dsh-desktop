@@ -67,6 +67,9 @@ interface PlatformInfo {
 export interface DesktopBridge {
   /** 上行 RPC 调用（替换 WebApiClient 的 doFetch）。 */
   rpc(method: string, body: unknown): Promise<unknown>
+  /** 透传完整 RPC 信封（保留调用方 rpcId，不自动生成、不解包）；bridge 返回原始 {rpcId, data|error}。
+   *  供官方 client-connection 的 IPC 子类 doFetch 对齐 server-response 协议。 */
+  request(envelope: { rpcId: string; method: string; params: unknown }): Promise<unknown>
   /** 上行帧应答。 */
   respond(rpcId: string, body: unknown): Promise<{ accepted: boolean }>
   /** 注册下行帧监听器（session/event、approval 等）。返回注销函数。 */
@@ -92,6 +95,12 @@ function createDesktopBridge(): DesktopBridge {
         params: body,
       }) as { data?: unknown }
       return raw?.data ?? raw
+    },
+
+    // ── 信封透传（官方 IPC 载波子类 doFetch 用）────────────────────
+    async request(envelope: { rpcId: string; method: string; params: unknown }): Promise<unknown> {
+      // 原样透传信封（保留调用方 rpcId），返回 bridge 原始结果（不解包 data）
+      return await ipcRenderer.invoke(IPC_CHANNELS.RPC, envelope)
     },
 
     // ── 帧应答 ────────────────────────────────────────────────────
