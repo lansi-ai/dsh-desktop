@@ -14,6 +14,19 @@
 所有桌面原生能力（托盘、全局热键、系统通知、剪贴板、开机自启、协议唤起、多窗口）以 **host 插件** 形态注入运行时，
 与官方「一切皆插件」的架构同构——**不是给网页套壳，而是把桌面能力变成可装配、可卸载、可审查的插件树**。
 
+## AI 驱动开发声明
+
+本项目（含 `docs/` 设计文档、`.rules/` 工程规则、`src/` 代码、`scripts/` 验证脚本）**全程由 AI 驱动编写**，
+迭代过程基于 `.trae/rules/workflow.md` 的协作 SOP 与 `docs/pitfalls.md` 的实战踩坑记录进行。
+开发中遵循以下原则：
+
+- **契约优先**：所有 IPC 契约 / zod Schema / DTO 先定义于 `src/types/`，作为唯一类型源头，preload / 桥 / 测试类型均由推导获得。
+- **规则驱动**：`.trae/rules/` 下的核心规范（`core-standards` / `architecture` / `active-context` / `git-commit-guide` / `workflow`）约束编码、放置、提交与看板同步。
+- **可复现排障**：开发中遇到的环境/架构问题与解法沉淀于 [`docs/pitfalls.md`](docs/pitfalls.md)，供后续会话与协作者查阅复用。
+- **质量自检链**：交付前必过 typecheck / lint / build + 自动化验证脚本（`scripts/verify-*.cjs`）全绿，并经实机验收。
+
+> 说明：代码为 AI 生成 + 人工决策审阅的产物；架构与技术选型（Electron 内嵌 Host、IPC 载波零端口、官方 UI 复用、插件化桌面能力）基于 `docs/` 与 ADR 的评审结论确定。
+
 ## 「非套壳」判定标准（本项目红线）
 
 | 维度 | 套壳（反面教材） | 本项目（目标） |
