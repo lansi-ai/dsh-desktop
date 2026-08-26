@@ -201,8 +201,8 @@ export async function bootDesktopHost(options: {
   readonly bareModuleBaseUrl?: string
 }): Promise<unknown> {
   // 动态导入 ESM 包（项目 CJS，上游 ESM，必须使用 import()）
-  const { boot } = await import('@deepseek-ai/dsh-app-boot') as any
-  const { provideCmdline } = await import('@deepseek-ai/dsh-cmdline') as any
+  const { boot } = await import('@deepseek-ai/dsh-app-boot')
+  const { provideCmdline } = await import('@deepseek-ai/dsh-cmdline')
 
   const configPath = options.configPath ?? createRootConfig()
   const patches = options.patches ?? DESKTOP_OVERLAY_PATCHES
@@ -212,7 +212,7 @@ export async function bootDesktopHost(options: {
     configPath,
     patches,
     // prepare 钩子：在 Loader 安装后、插件树挂载前注入 cmdlineArgs 服务
-    async (hostCtx: any) => {
+    async (hostCtx) => {
       provideCmdline(hostCtx, {
         args: Object.freeze([]),
         exit: (code: number) => {
