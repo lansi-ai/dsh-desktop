@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { registerDshUiProtocol, registerDshUiScheme } from './dsh-ui-protocol'
+import { parseArgv } from './argv'
 import { registerIpcBridge, cleanupWindowState, removeIpcHandlers } from '../desktop-host/bridge.js'
 import { registerIpcCarrierServices } from '../desktop-host/manifest.js'
 import {
@@ -26,6 +27,16 @@ import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy' with { 'resolutio
 // userData 重定向到项目内 .runtime/user-data：开发期避开系统 AppData（沙箱/残留垃圾易致
 // Chromium 锁与缓存创建失败），且随仓库可整体清理。必须在 any app 事件前设置。
 app.setPath('userData', join(__dirname, '..', '..', '.runtime', 'user-data'))
+
+// 解析启动参数（Step 6·--serve 兼容模式 / 零端口红线切换）。
+// Electron 把命令行参数挂在 app.commandLine，argv[1] 是 script 路径，
+// parseArgv 内部会跳过前两项，因此直接传 process.argv 即可。
+const launchOptions = parseArgv(process.argv)
+if (launchOptions.serve) {
+  console.warn(`[dsh-desktop] 启动参数：--serve=${launchOptions.servePort}（兼容模式，第三方 web 路由走 HTTP 原义）`)
+} else {
+  console.log('[dsh-desktop] 启动参数：默认零端口 IPC 载波模式（webserver/web-runtime/web-startup 禁用）')
+}
 
 // 注册 dsh-ui:// 协议方案特权（必须在 app.whenReady 前）
 registerDshUiScheme()
@@ -122,12 +133,15 @@ async function bootstrap(): Promise<void> {
     // 2. 注册 IPC 桥（必须在 Host 启动前，确保 renderer 就绪通知可接收）
     registerIpcBridge()
 
-    // 3. 启动 Cordis Host（desktop profile 装配 + 插件树挂载）
+    // 3. 启动 Cordis Host（desktop profile 装配 + 插件树挂载；--serve 控制 Web 传输层启用）
     const { bootDesktopHost } = await import('../desktop-host/boot.js')
     console.log('[dsh-desktop] 启动 Cordis Host...')
     const hostCtx = await bootDesktopHost({
       // 开发模式：bareModuleBaseUrl 指向项目 node_modules（生产模式由打包配置覆盖）
       bareModuleBaseUrl: join(__dirname, '..', '..', 'node_modules'),
+      // Step 6·--serve 兼容模式：默认 false = 零端口 IPC 载波；显式 --serve 时恢复 HTTP loopback
+      serveMode: launchOptions.serve,
+      servePort: launchOptions.servePort,
     })
     console.log('[dsh-desktop] Cordis Host 已就绪:', hostCtx)
 

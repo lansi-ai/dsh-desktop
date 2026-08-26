@@ -1,9 +1,12 @@
 /**
- * dsh-desktop Cordis Host 装配（M1·步骤3）。
+ * dsh-desktop Cordis Host 装配（M1·步骤3 + Step 6·--serve 兼容模式）。
  *
  * 复用 @deepseek-ai/dsh-app-boot 的 boot() 启动完整 Cordis 插件树，
- * 通过 overlay patches 禁用 Web 传输层条目，保留核心 host 服务（llm/session/agent/sandbox/fs）。
- * prepare 钩子中调用 provideCmdline() 注入 cmdlineArgs 服务（桌面模式：空参数列表）。
+ * 默认模式（零端口）：通过 overlay patches 禁用 Web 传输层条目，保留核心 host 服务
+ *   （llm/session/agent/sandbox/fs），所有通信走 Electron IPC 载波。
+ * --serve 兼容模式：显式启用 webserver/web-runtime/web-startup，供第三方 webServer
+ *   路由插件（如 dsh-terminal 的 /terminal/stream）走 HTTP 原义，loopback 监听。
+ * prepare 钩子中调用 provideCmdline() 注入 cmdlineArgs 服务。
  *
  * 补丁值策略：所有原 cordis.patch.yml 中的 !!js 表达式均在 TypeScript 中直接求值，
  * 不依赖 Cordis Loader 的 __jsExpr 运行时求值管道（该管道仅在 Include YAML 解析阶段激活，
@@ -12,7 +15,31 @@
 
 import { join } from 'node:path'
 import { writeFileSync, mkdirSync } from 'node:fs'
+import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'resolution-mode': 'import' }
 import { getIpcCarrierPatchEntries } from './manifest.js'
+
+/** boot 启动选项（含 Step 6 --serve 兼容模式）。 */
+export interface BootOptions {
+  /** 自定义 configPath（省略时自动生成于 .runtime/）。 */
+  readonly configPath?: string
+  /** 自定义 overlay patches（省略时按 serveMode 自动生成）。 */
+  readonly patches?: PatchOptions[]
+  /** 裸模块解析基 URL（Electron 打包后指向 resources/app/node_modules）。 */
+  readonly bareModuleBaseUrl?: string
+  /**
+   * 是否启用 --serve 兼容模式（默认 false）。
+   *
+   * 启用时会：
+   *   - 解除 DESKTOP_OVERLAY_PATCHES 中对 webserver/web-runtime/web-startup
+   *     的 disabled 标记
+   *   - 在 prepare 钩子注入 desktopStartup 元信息（供第三方路由插件判定运行模式）
+   *
+   * @default false（零端口 IPC 载波模式）
+   */
+  readonly serveMode?: boolean
+  /** --serve 监听端口（serveMode=true 时有效；默认 38000）。 */
+  readonly servePort?: number
+}
 
 // ── Desktop profile overlay patches ─────────────────────────────────────────
 /**
@@ -205,32 +232,73 @@ function createRootConfig(): string {
 }
 
 // ── 入口函数 ────────────────────────────────────────────────────────────────
+
+/**
+ * 根据 serveMode 构造最终 overlay patches（Step 6 兼容模式切换）。
+ *
+ * 默认模式（portless）：沿用 DESKTOP_OVERLAY_PATCHES，webserver/web-runtime/
+ *   web-startup 保持 disabled，connection/client-runtime 由 IPC 载波变体替代。
+ * --serve 模式：解除 webserver/web-runtime/web-startup 的 disabled 标记，
+ *   使第三方 webServer 路由插件（dsh-terminal 等）恢复 HTTP 原义路径。
+ *
+ * @param serveMode 是否启用 --serve 兼容模式。
+ * @param servePort serve 监听端口（仅在 serveMode=true 下有意义）。
+ * @returns 最终传给 boot() 的 patches 数组。
+ */
+function buildPatches(serveMode: boolean, servePort: number): PatchOptions[] {
+  if (!serveMode) {
+    // 默认零端口模式：返回内置补丁栈（IPC 载波变体 + Web 传输层禁用）。
+    return DESKTOP_OVERLAY_PATCHES
+  }
+  // --serve 兼容模式：桌面补丁栈本身从未插入 dsh-web-app 的传输层行——
+  // §3 只有 `{ id: 'webserver', disabled: true }` 这类 id 打点 patch，而目标条目
+  // （webserver/web-runtime/web-startup）在 boot() 直传空 cordis.yml + patches 的组合里
+  // 不存在，故这些 disabled 是 no-op（被 applyEntryPatches 静默跳过）。
+  // 因此这里不能靠"解除 disabled"，必须显式 INSERT 一个 webserver 定义行，用常量
+  // host/port 直接绑定 loopback，且不依赖 webStartup 服务的 CLI flag 解析。
+  // web-runtime/web-startup 是官方 dist 走 HTTP + 旗标解析所在；桌面 UI 经 dsh-ui://
+  // 协议 + IPC 载波承载，--serve 只需 webserver 作为第三方 webServer 路由载波
+  // （如 dsh-terminal 的 /terminal/stream）即可。
+  const webserverInsert: PatchOptions = {
+    insert: [
+      { id: 'webserver', name: '@deepseek-ai/dsh-host-webserver', config: { host: '127.0.0.1', port: servePort } },
+    ],
+  }
+  return [...DESKTOP_OVERLAY_PATCHES, webserverInsert]
+}
+
 /**
  * 启动 dsh-desktop Cordis Host。
  *
  * @param options 配置选项。
  * @param options.configPath cordis.yml 绝对路径；省略时自动生成于 .runtime/。
- * @param options.patches overlay 补丁数组（桌面 patch 栈）；省略时使用内置 DESKTOP_OVERLAY_PATCHES。
+ * @param options.patches overlay 补丁数组（桌面 patch 栈）；省略时按 serveMode 自动生成。
  * @param options.bareModuleBaseUrl 裸模块解析基 URL（Electron 打包后指向 resources/app/node_modules）。
+ * @param options.serveMode 是否启用 --serve 兼容模式（默认 false）。
+ * @param options.servePort --serve 监听端口（默认 38000）。
  * @returns 已就绪的 Cordis Context（ctx.get(service) 可获取服务）。
  */
-export async function bootDesktopHost(options: {
-  readonly configPath?: string
-  readonly patches?: unknown[]
-  readonly bareModuleBaseUrl?: string
-}): Promise<unknown> {
+export async function bootDesktopHost(options: BootOptions = {}): Promise<unknown> {
   // 动态导入 ESM 包（项目 CJS，上游 ESM，必须使用 import()）
   const { boot } = await import('@deepseek-ai/dsh-app-boot')
   const { provideCmdline } = await import('@deepseek-ai/dsh-cmdline')
 
+  const serveMode = options.serveMode === true
+  const servePort = options.servePort ?? 38000
   const configPath = options.configPath ?? createRootConfig()
-  const patches = options.patches ?? DESKTOP_OVERLAY_PATCHES
+  const patches = options.patches ?? buildPatches(serveMode, servePort)
+
+  if (serveMode) {
+    console.warn(`[dsh-boot] --serve 兼容模式已启用（port=${servePort}），第三方 webServer 路由走 HTTP 原义`)
+  } else {
+    console.log('[dsh-boot] 零端口 IPC 载波模式（默认），webserver/web-runtime/web-startup 已禁用')
+  }
 
   const ctx = await boot(
     'dsh-desktop',
     configPath,
     patches,
-    // prepare 钩子：在 Loader 安装后、插件树挂载前注入 cmdlineArgs 服务
+    // prepare 钩子：在 Loader 安装后、插件树挂载前注入 cmdlineArgs 服务 + desktopStartup 元信息
     async (hostCtx) => {
       provideCmdline(hostCtx, {
         args: Object.freeze([]),
@@ -239,6 +307,21 @@ export async function bootDesktopHost(options: {
           process.exit(code)
         },
       })
+
+      // desktopStartup 元信息：供第三方 web 路由插件判定当前运行模式
+      //   - mode: 'portless'（默认，IPC 载波）| 'serve'（HTTP loopback 兼容）
+      //   - port: serve 模式下的 loopback 端口
+      try {
+        hostCtx.provide('desktopStartup', {
+          mode: serveMode ? 'serve' : 'portless',
+          port: serveMode ? servePort : 0,
+          portless: !serveMode,
+        })
+        console.log(`[dsh-boot] desktopStartup 已注入（mode=${serveMode ? 'serve' : 'portless'}）`)
+      } catch (error) {
+        console.warn('[dsh-boot] desktopStartup 注入失败:', error)
+      }
+
       // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer（已禁用），
       // native 版用 koffi（Win32 FFI），在 Electron 主进程读对话框路径时崩溃。故定义本地
       // ElectronDirectoryPicker extends DirectoryPicker（基类构造 super(ctx) 即 ctx.provide

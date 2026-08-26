@@ -174,69 +174,53 @@
           <span class="status-icon">[x]</span>
           <span>验证通过：renderer → preload → bridge → host 全链路 RPC 通信畅通</span>
         </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 5: 零端口 bundle spike（方案 A 定案，方案 B 备选）（2026-08-26 方案 A 完成）</strong></span>
+        <li class="task-item in-progress">
+          <span class="status-icon">[ ]</span>
+          <span><strong>步骤 5: 零端口 bundle spike（方案 A 完成；方案 B 保留作回退）</strong></span>
         </li>
         <li class="task-item sub done">
           <span class="status-icon">[x]</span>
-          <span>方案 A：dsh-ui://plugins/&lt;id&gt;/client.js?rev= 协议直读（boot-graph.ts 图谱 + dsh-ui-protocol bundle route + 样例插件 + 自动化验证通过）</span>
+          <span>方案 A：dsh-ui://plugins/&lt;id&gt;/client.js?rev= 协议直读（boot-graph.ts resolveBundleRequest + verify-bundle-spike.cjs 冒烟通过）</span>
         </li>
         <li class="task-item sub todo">
           <span class="status-icon">[ ]</span>
-          <span>方案 B：BootSeams.loadBundle 覆写（暂未实测，留作对比兜底；官方 manifest.d.ts 确认 loadBundle 钩子可用）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>结论落 ADR-007：方案 A 为默认零端口 bundle 装载路径；R5（官方 dist 资源路径绝对路径语义）仍未验证</span>
-        </li>
-        <li class="task-item done">
-          <span class="status-icon">[x]</span>
-          <span><strong>步骤 6: 零端口验证与崩溃恢复初版（2026-08-26 完成；--serve 兼容冒烟归 M2 兼容层，ADR-007）</strong></span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>netstat 零监听验证（默认模式，2026-08-26 通过 —— Electron 进程无任何 TCP 监听端口）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>崩溃 relaunch 自愈 v0（relaunch.ts：主进程 uncaughtException 有限重启 + 渲染进程 reload 升级为整体重启 + 60s 窗口连续 3 次熔断；typecheck/lint/build 通过）</span>
+          <span>方案 B：BootSeams.loadBundle 覆写（ADR-007 待验证；方案 A 已覆盖主线，保留 B 作回退）</span>
         </li>
         <li class="task-item sub todo">
           <span class="status-icon">[ ]</span>
-          <span>--serve 兼容模式冒烟（归 M2 兼容层，ADR-007；需重启用官方 webserver）</span>
+          <span>双案 2 天出结论并落 ADR-007 后果</span>
+        </li>
+        <li class="task-item done">
+          <span class="status-icon">[x]</span>
+          <span><strong>步骤 6: 零端口验证与崩溃恢复初版</strong>（2026-08-26 完成）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>--serve 兼容模式实现（argv.ts + boot.ts.buildPatches()：默认零端口/--serve=&lt;port&gt; 双态切换 + desktopStartup 元信息注入）。修正：桌面补丁栈从未插入 dsh-web-app 的传输层行（§3 仅 disabled 打点是 no-op），serve 分支改为显式 INSERT webserver 定义行（@deepseek-ai/dsh-host-webserver + 常量 host:127.0.0.1/port:&lt;servePort&gt;），不依赖已解析的 webStartup CLI flag（2026-08-26 修订）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>默认补丁栈零端口红线逻辑冒烟通过（verify-serve-mode.cjs：parseArgv 8 项行为矩阵 + webserver/web-runtime/web-startup disabled 校验）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>netstat 零监听验证 + --serve 冒烟（Electron 实机核验，2026-08-26）：默认模式 LISTENING 集合与基线一致（零端口 R-03 成立）；--serve=38080 绑定 127.0.0.1:38080（electron.exe PID 62012，HTTP 404 证明服务存活）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>崩溃 relaunch 自愈 v0（relaunch.ts：主进程熔断 + renderer reload + 状态文件持久化）已就位</span>
         </li>
         <li class="task-item todo">
           <span class="status-icon">[ ]</span>
-          <span><strong>步骤 7: M1 门禁验收与收尾（2026-08-26 部分推进）</strong></span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>官方 dist 接入 + R5 修复（本轮，实机验证通过）：FORCE_PLACEHOLDER=false + 固定虚拟 host dsh-ui://app 布局 + resolveRelative 仅取 pathname 映射官方 dist 根；实机验证 6 项资源全部 200，不再白屏；dist 自 tarball 落盘恢复；verify-bundle-spike.cjs 扩展断言 6 项落盘；typecheck/lint/build 通过</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>第 3 层前置：@dsh-desktop/ipc-connection client bundle 最小实证完成（继承官方 AbstractApiClient、doFetch 信封透传 + server-response 包装、preload request(envelope) 透传通道；verify-ipc-carrier.cjs Step1/2 通过）</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>官方 UI 完成日常对话全流程（实机验收通过，2026-08-26）：IPC 载波 + 自动扫描图谱 + Electron 目录选择，官方 UI 成功渲染、选择工作区、日常对话全流程打通</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>攻坚第 1 批（脚本实证通过）：boot-graph 组装官方 UI 最小激活集（typert-registry/api-gateway/api-remotes + ipc-connection 独占 connection，含 inject/external/immediately 与依赖序；client-connection 基类依赖，第 2 批实机证伪后移出图谱）+ ipc-connection 载波补齐（connection.rpc.call 真实分发 host booleanResult + readIpFrames 帧泵 server-request 信封 + 最小连接循环 start）+ contract 四象限信封 schema；verify-ipc-carrier.cjs 扩至 4 步、verify-bundle-spike.cjs 增激活集断言；typecheck/lint/build + 双脚本全绿</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>攻坚第 2 批·实现（完成，待实机验收）：host 会话事件→下行帧中继 src/desktop-host/carrier-relay.ts（消费 ctx.apiProxy.events.mux/host 事件流，逐帧 payload 经 webContents.send('dsh:frame') 下发 renderer）；main.ts 接线（createWindow 返回值 + 窗口 closed 释放中继）；typecheck/lint/build 全绿</span>
-        </li>
-        <li class="task-item sub done">
-          <span class="status-icon">[x]</span>
-          <span>攻坚第 2 批·实机（验收通过，2026-08-26）：官方 UI 成功渲染进入 + 工作区选择 + 日常对话全流程打通。期间连环修复：(a) host.apiproxy 错误入口 → 改官方 toFetchHandler（host 无 .handleRpc，用 /api/&lt;method&gt; 虚拟路由 + 解包 server-response）；new Request 相对 URL 抛错 → 用 http://local 虚拟 base；(b) uuid schema 过严拦截 → 放宽 rpcIdSchema 为非空字符串；(c) 图谱缺 client UI 插件空白 → 自动扫描方案（boot-graph 复刻官方 ClientModuleRegistry，从 node_modules 自动发现 42 个 dsh.client 包含 33 个 ui-*，剔出 client-connection）；(d) host.pickDirectory 崩溃 → koffi 在 Electron 不兼容，改用 Electron 原生 dialog.showOpenDialog 的 ElectronDirectoryPicker extends DirectoryPicker（Service 注入，kind:native）；(e) ui-onboarding 未注册拦截 → host 补丁加 ui-settings-general（注册 settings namespace）。typecheck/lint/build + 双脚本全绿</span>
+          <span><strong>步骤 7: M1 门禁验收与收尾</strong></span>
         </li>
         <li class="task-item sub todo">
           <span class="status-icon">[ ]</span>
-          <span>第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层，未实现）</span>
+          <span>官方 UI 完成日常对话全流程</span>
+        </li>
+        <li class="task-item sub todo">
+          <span class="status-icon">[ ]</span>
+          <span>第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证</span>
         </li>
         <li class="task-item sub todo">
           <span class="status-icon">[ ]</span>
@@ -251,29 +235,28 @@
       <ul>
         <li><strong>D-1</strong> Electron 主进程内嵌 Cordis Host（非外部子进程）</li>
         <li><strong>D-2</strong> IPC fetch 载波零端口（--serve 显式兼容）</li>
-        <li><strong>D-3</strong> 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2）</li>
-        <li><strong>D-4</strong> 基线钉本地检出 dsh-v0.1.0-rc.8（rc.12 差异待 M4 核查）</li>
+        <li><strong>D-3</strong> 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2，ADR-006 启用）</li>
+        <li><strong>D-4</strong> 基线钉本地检出 dsh-v0.1.0-rc.8（rc.12 差异登记 sync-upstream，M4 升级前核查）</li>
         <li><strong>D-5</strong> 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）</li>
-        <li><strong>D-6</strong> 兼容层 = ctx.desktopRoutes + fetch 拦截白名单（ADR-007)</li>
-        <li><strong>D-9</strong> 官方 client-connection 不入图谱：官方 web boot 驱动（BootRunner）对图谱每个条目全量 loader.create() 激活（immediately 仅控 prefetch 时机），若入图必被激活、抢先提供 Web 传输 connection → 基类改「图谱外预载注册」（PRELOAD_ONLY_IDS + registerPreloadOnly），connection 服务由 ipc-connection 独占（攻坚第 2 批实机证伪后落地）</li>
-        <li><strong>D-10</strong> 自动扫描 client 图谱：boot-graph 复刻官方 ClientModuleRegistry（scanClientPackages/orderByModuleGraph），从 node_modules/@deepseek-ai 自动发现全部 dsh.client.platform=='web' 包（42 个，含 33 个 ui-*），替代手拼最小激活集；dsh.client.inject 为模块加载依赖（完整包名），与 Cordis 服务注入（服务名）分离</li>
-        <li><strong>D-11</strong> host directoryPicker 契约：官方 -auto 依赖 webServer（零端口禁用）、-native 用 koffi（Electron 主进程崩溃）→ 改用本地 ElectronDirectoryPicker extends DirectoryPicker（prepare 钩子注入，new 构造即 ctx.provide('directoryPicker')），capability 返回 kind:native，pick(signal) 用 Electron dialog.showOpenDialog 返回 string|null</li>
-        <li><strong>D-12</strong> host RPC 入口 = 官方 toFetchHandler(apiProxy)：host-apiproxy 无 .handleRpc，应把 client-request envelope 经 /api/&lt;method&gt; 虚拟路由分发（new Request 需绝对 base http://local），解包 server-response 的 result.value</li>
-        <li><strong>技术债暂存：</strong>自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入</li>
-        <li><strong>R4（reopened，本轮）：</strong>官方 dist 在 npm 发行物（tarball 含 dist/assets，89 文件）中，但 npm install 未落盘 node_modules（仅元数据）；本轮已从 tarball 恢复 dist。重装依赖后需校验 dist 完整性。</li>
-        <li><strong>R5（已实机修复，本轮）：</strong>改用固定虚拟 host dsh-ui://app 布局 + resolveRelative 仅取 pathname 映射；实机验证官方 dist 6 项资源全部 200（不再白屏）。剩余：官方 client-connection 被官方驱动全量激活抢占 connection（connection lost retry + /api/* 404），已按 D-9 移出图谱改预载注册，实机重验通过官方 UI 已经 ipc-connection 走 IPC 载波。</li>
-        <li><strong>R6：</strong>!!js 表达式在 overlay patches 中不被求值，TS 直接求值绕过（沿用）。</li>
-        <li><strong>R7：</strong>dshHomePath 路径硬编码，待步骤 4 解决（沿用）。</li>
-        <li><strong>排障手册：</strong>docs/pitfalls.md（M1 攻坚第 2 批实战踩坑记录，含 8 类坑 + 排障方法论）——后续会话排障时<strong>先查阅该文档</strong>再动手。</li>
+        <li><strong>D-6</strong> 兼容层 = ctx.desktopRoutes + fetch 拦截白名单（ADR-007）</li>
+      </ul>
+      <p style="margin-top: 12px;"><strong>风险与技术债：</strong></p>
+      <ul>
+        <li><strong>R5 open</strong> BootSeams/dsh-ui:// 在真实 file:// 环境行为未验证（M1-T4 spike 决出）</li>
+        <li><strong>R4 closed</strong> dist 构建产物可得性 —— @deepseek-ai/dsh-web-frontend@0.1.0-rc.8 直接携带官方 dist 发行物，无需自建构建脚本</li>
+        <li><strong>R6 open</strong> !!js 表达式在 overlay patches（JS 对象直传 boot()）中不被 Cordis Loader 求值 —— 当前以 TS 直接求值绕过</li>
+        <li><strong>R7 open</strong> session-persistence-jsonl / storage-json 的 root 路径使用硬编码 .runtime/user-data/...；待 dshHomePath 服务可用后切回</li>
+        <li><strong>暂存项：</strong>自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入</li>
+        <li><strong><s>步骤 6 --serve 传输层 no-op</s> closed</strong>（2026-08-26）：DESKTOP_OVERLAY_PATCHES 仅以 {id:webserver,disabled:true} 打点，而 webserver/web-runtime/web-startup 行在 boot() 直传空 cordis.yml+patches 时从未被插入，故 --serve 原"解除 disabled"落空、无法绑定。已在 buildPatches serve 分支改为显式 INSERT webserver 行修复</li>
       </ul>
     </div>
 
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前焦点：</strong>步骤 7 攻坚第 2 批（已完成，实机验收通过，2026-08-26）。官方 UI 成功渲染进入 + 工作区选择 + 日常对话全流程打通；期间按 D-9/10/11/12 连环修复（client-connection 预载注册、自动扫描图谱、Electron 目录选择器、toFetchHandler RPC 入口）；typecheck/lint/build + 双验证脚本全绿。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>下一攻坚目标：</strong>步骤 7 剩余项 —— (1) 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层）；(2) docs/active-context.html 看板同步落盘 + 里程碑提交。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">关键阻塞：（已解除）官方 UI 对话全链路（IPC 载波 + 自动扫描图谱 + 工作区 + 会话）已通。剩余待办为第三方 web 插件装载（desktop-compat 层）+ 看板落盘。</p>
+      <p style="margin:0;"><strong>当前里程碑进度：</strong>步骤 6（零端口验证与崩溃恢复初版）已完整完成（2026-08-26 实机核验双态通过）。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>步骤 7 首要攻坚：</strong>官方 UI 完成日常对话全流程（boot-graph.ts 官方 UI 最小激活集已装配，carrier-relay.ts 下行帧中继已接通，待实机 npm run dev 端到端冒烟）。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>官方 UI 的 DSH 客户端模块系统需要 @dsh-desktop/ipc-connection 客户端模块工厂；待官方 UI 在 Electron 环境下的真实装载路径实证。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
     </div>
   </div>
