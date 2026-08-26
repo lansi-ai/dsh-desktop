@@ -53,31 +53,55 @@ assert.ok(script.includes('@deepseek-ai/dsh-client-runtime/client.js'), '注入�
 assert.ok(script.includes('window.__DSH_BOOT__'), '注入脚本应含 __DSH_BOOT__')
 assert.ok(script.includes(`"id":"${sampleId}"`), '注入脚本图谱应包含样例插件')
 
-// ── 官方 UI 最小激活集（Step 7·对话闭环攻坚）──────────────────────────
-// ipc-connection 独占 connection 服务；client-connection 仅作 require 依赖（不置 immediately）。
+// ── 官方 UI 自动扫描图谱（攻坚第 2 批·自动扫描方案）────────────────────
+// 复刻官方 ClientModuleRegistry：从 node_modules/@deepseek-ai 自动发现全部 dsh.client 包
+// （含全部 ui-* 客户端插件），client-connection 剔除出图谱（D-9：官方驱动全量激活会抢走
+// connection），ipc-connection 独占 connection 服务。
 function entryOf(id) {
   const entry = graph.entries.find((e) => e.id === id)
   assert.ok(entry, `图谱缺少激活集条目: ${id}`)
   return entry
 }
 for (const must of [
-  '@deepseek-ai/dsh-client-connection',
   '@deepseek-ai/dsh-typert-registry',
   '@deepseek-ai/dsh-api-gateway',
   '@deepseek-ai/dsh-api-remotes',
+  '@deepseek-ai/dsh-client-runtime',
   '@dsh-desktop/ipc-connection',
 ]) {
   entryOf(must)
 }
 
-// 依赖边：api-gateway 注入 typert+connection，api-remotes 注入 remote
-assert.deepEqual(entryOf('@deepseek-ai/dsh-api-gateway').inject, ['typert', 'connection'], 'api-gateway inject 应为 [typert, connection]')
-assert.deepEqual(entryOf('@deepseek-ai/dsh-api-remotes').inject, ['remote'], 'api-remotes inject 应为 [remote]')
+// 依赖边（官方 dsh.client.inject 为模块加载依赖，用完整包名而非 service 名）：
+// api-gateway 依赖 typert-registry + client-connection（连接基类），api-remotes 依赖 api-gateway
+assert.deepEqual(entryOf('@deepseek-ai/dsh-api-gateway').inject, ['@deepseek-ai/dsh-typert-registry', '@deepseek-ai/dsh-client-connection'], 'api-gateway inject 应为官方声明 [typert-registry, client-connection]')
+assert.deepEqual(entryOf('@deepseek-ai/dsh-api-remotes').inject, ['@deepseek-ai/dsh-api-gateway'], 'api-remotes inject 应为 [api-gateway]')
 // ipc-connection：external 依赖 client-connection/client（基类继承），且应 immediately 激活
 assert.deepEqual(entryOf('@dsh-desktop/ipc-connection').external, ['@deepseek-ai/dsh-client-connection/client'], 'ipc-connection external 应指向 client-connection/client')
 assert.strictEqual(entryOf('@dsh-desktop/ipc-connection').immediately, true, 'ipc-connection 应 immediately 激活')
-// client-connection：仅模块依赖，不置 immediately（避免 connection 服务冲突）
-assert.strictEqual(entryOf('@deepseek-ai/dsh-client-connection').immediately, undefined, 'client-connection 不应 immediately（connection 由 ipc-connection 独占）')
+
+// 自动扫描应含全部 ui-* 客户端插件（官方 UI 渲染必需：ui-renderer 提供 mountApp 的服务）
+const uiIds = graph.entries.map((e) => e.id).filter((id) => id.toLowerCase().includes('ui-'))
+assert.ok(uiIds.length >= 20, `自动扫描应发现 >=20 个 ui-* 插件，实际 ${uiIds.length}`)
+entryOf('@deepseek-ai/dsh-client-ui-renderer')
+entryOf('@deepseek-ai/dsh-client-ui-conversation')
+entryOf('@deepseek-ai/dsh-client-ui-layout')
+entryOf('@deepseek-ai/dsh-client-ui-sidebar')
+
+// client-connection：**不入图谱**（官方驱动全量激活会抢走 connection 服务），
+// 仅登记为图谱外预载注册模块（PRELOAD_ONLY），供 ipc-connection require 继承基类。
+const ccId = '@deepseek-ai/dsh-client-connection'
+assert.strictEqual(graph.entries.find((e) => e.id === ccId), undefined, 'client-connection 不应在图谱 entries（否则被官方驱动激活）')
+bootGraph.registerPreloadOnly()
+const ccPath = bootGraph.resolveBundlePath(ccId)
+assert.ok(ccPath !== undefined && fs.existsSync(ccPath), 'client-connection 应登记 bundle 路径')
+const ccBundle = bootGraph.resolveBundleRequest(`/plugins/${ccId}/client.js`)
+assert.ok(ccBundle, 'client-connection 应能被 bundle route 直读（预载注册）')
+// 注入脚本应带出 client-connection 预载 script（仅注册 factory，不入图谱）
+const fullScript = bootGraph.generateFullBootScript('desktop-m1-ipc-test', [{ id: sampleId, path: samplePath }])
+assert.ok(fullScript.includes(`/plugins/${ccId}/client.js?rev=`), '注入脚本应预载 client-connection 基类（PRELOAD_ONLY）')
+assert.ok(fullScript.includes(`"id":"${ccId}"`) === false, '注入脚本图谱不应含 client-connection 条目')
+assert.ok(fullScript.includes('@deepseek-ai/dsh-client-ui-renderer/client.js'), '注入脚本应预载/含 ui-renderer 客户端插件')
 
 // ── 官方 web-frontend dist 加载路径（R5 修复后）──────────────────────
 // 官方 dist 资源使用根绝对路径（/assets/...）。在固定虚拟 host `dsh-ui://app` 布局下，

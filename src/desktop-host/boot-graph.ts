@@ -14,7 +14,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { bootGraphSchema, type BootEntry, type BootGraph } from '../types/boot.js'
@@ -42,19 +42,25 @@ const bundlePathMap = new Map<string, string>()
 
 /** 客户端模块系统 bootstrap 包（must 在官方 HTML 注入脚本中预载）。 */
 const CLIENT_MODULES_ID = '@deepseek-ai/dsh-client-modules'
-/** HTML parser 预载的普通动态 bundle（在 Vite shell 运行前注册 factory）。 */
+/** HTML parser 预载的普通动态 bundle（图谱内条目，在 Vite shell 运行前注册 factory）。 */
 const PARSER_PRELOAD_IDS = [CLIENT_MODULES_ID, '@deepseek-ai/dsh-client-runtime']
 
 // ── 官方 UI 最小激活集（IPC 载波客户端面，Step 7·对话闭环攻坚）──────────────
-/** 官方 connection 基类：仅作 ipc-connection 的模块依赖（require 解析，
- *  不激活其 apply——connection 服务由 ipc-connection 独占，见 D 决策）。 */
+/**
+ * 官方 connection 基类：仅作 ipc-connection 的模块依赖（require 解析拿
+ * AbstractApiClient 继承基类），**不入图谱**、不激活其 apply。
+ *
+ * 实机证伪（攻坚第 2 批实机）：官方 web boot 驱动（`index-*.js` 的 BootRunner）
+ * 会对图谱**每个条目**执行 `loader.create()` 全量激活（`immediately` 仅控制
+ * prefetch 时机，与激活无关）——若把 client-connection 放入 entries，其 apply
+ * 必然被激活并抢先提供 Web 传输 connection（fetch /api/* → 404 + connection lost
+ * retry）。因此基类改为「HTML 预载注册」形态：预载 script 只
+ * `__ModuleLoader__.load({id, factory})` 注册工厂，官方驱动不 create 它，
+ * connection 服务由 ipc-connection 独占供出（见 D-9）。
+ */
 const CLIENT_CONNECTION_ID = '@deepseek-ai/dsh-client-connection'
-/** Typert 注册表面（client inject[]，对外提供 typert registry）。 */
-const TYPERT_REGISTRY_ID = '@deepseek-ai/dsh-typert-registry'
-/** API 网关（client inject=["typert","connection"]，对外提供 remote + 方法分发）。 */
-const API_GATEWAY_ID = '@deepseek-ai/dsh-api-gateway'
-/** API 远端描述符（client inject=["remote"]，装填 typert 远端方法表）。 */
-const API_REMOTES_ID = '@deepseek-ai/dsh-api-remotes'
+/** 图谱外预载注册模块（仅注册 factory 供 require，不入图谱、不被官方驱动激活）。 */
+const PRELOAD_ONLY_IDS = [CLIENT_CONNECTION_ID]
 /** 桌面 IPC 载波连接（inject[]，独占提供 connection 服务，替换官方 client-connection）。 */
 const IPC_CONNECTION_ID = '@dsh-desktop/ipc-connection'
 
@@ -109,6 +115,108 @@ function resolveLocalWebBundle(filename: string): string {
   throw new Error(`client-modules: 本地 client bundle 不存在: ${candidates.join(' / ')}`)
 }
 
+// ── 自动扫描 client 包（复刻官方 ClientModuleRegistry 内核，零端口、不依赖 webServer）──
+// 官方 dsh-client-modules 节点从 Loader entries 扫描声明 dsh.client 的包；此处因禁用了
+// modules/webserver，改为从 node_modules/@deepseek-ai 目录自动发现全部 dsh.client.platform==='web'
+// 的包，复刻其 resolveMeta/orderByModuleGraph/compose 逻辑生成完整图谱（含全部 ui-* 客户端插件）。
+
+/** 扫描范围：@deepseek-ai org（官方 client 插件均在此 scope 下）。 */
+const SCAN_SCOPE_DIR = '@deepseek-ai'
+
+interface ScannedClientMeta {
+  /** client bundle 绝对路径。 */
+  clientPath: string
+  /** 包名依赖边（dsh.client.inject）。 */
+  inject?: string[]
+  /** 模块依赖（dsh.client.external）。 */
+  external: string[]
+  /** 阶段一预取标记。 */
+  immediately: boolean
+}
+
+/** 解析 `exports["./client"]` 相对路径（accept 字符串与一层条件形式）。 */
+function clientExportOf(pkgName: string, pkg: { exports?: Record<string, unknown> }): string | undefined {
+  const client = pkg.exports?.['./client']
+  if (client === undefined) return undefined
+  if (typeof client === 'string') return client
+  if (typeof client === 'object' && client !== null) {
+    const fallback = (client as { default?: unknown }).default
+    if (typeof fallback === 'string') return fallback
+  }
+  throw new Error(`client-modules: ${pkgName} exports["./client"] must be a string or an object with a string default`)
+}
+
+/** 解析某包是否声明 `dsh.client.platform==='web'`，返回其 client 元数据（否则 undefined）。 */
+function scanClientMeta(pkgName: string, pkgDir: string): ScannedClientMeta | undefined {
+  const pkgPath = join(pkgDir, 'package.json')
+  if (!existsSync(pkgPath)) return undefined
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
+    exports?: Record<string, unknown>
+    dsh?: { client?: { platform?: string; inject?: string[]; external?: string[]; immediately?: boolean } }
+  }
+  const decl = pkg.dsh?.client
+  if (decl === undefined || decl.platform !== 'web') return undefined
+  const clientRel = clientExportOf(pkgName, pkg)
+  if (clientRel === undefined) {
+    throw new Error(`client-modules: ${pkgName} declares dsh.client but exports no "./client" bundle`)
+  }
+  return {
+    clientPath: join(pkgDir, clientRel),
+    ...(decl.inject !== undefined ? { inject: decl.inject } : {}),
+    external: decl.external ?? [],
+    immediately: decl.immediately === true,
+  }
+}
+
+/**
+ * 扫描 node_modules 下全部 `@deepseek-ai` 包，收集声明 `dsh.client.platform==='web'` 的包。
+ * @returns 扫描到的 client 元数据表（id → meta）。
+ */
+function scanClientPackages(): Map<string, ScannedClientMeta> {
+  const require = createRequire(__filename)
+  // 通过已安装的任意 @deepseek-ai 包定位 node_modules 根，遍历其 scope 下所有包。
+  const anchor = require.resolve('@deepseek-ai/dsh-client-modules/package.json')
+  const scopeDir = join(dirname(anchor), '..') // .../node_modules/@deepseek-ai
+  const table = new Map<string, ScannedClientMeta>()
+  if (!existsSync(scopeDir)) return table
+  for (const name of readdirSync(scopeDir)) {
+    if (name.startsWith('.')) continue
+    const pkgDir = join(scopeDir, name)
+    const pkgName = `${SCAN_SCOPE_DIR}/${name}`
+    const meta = scanClientMeta(pkgName, pkgDir)
+    if (meta !== undefined) table.set(pkgName, meta)
+  }
+  return table
+}
+
+/** 按模块依赖图排序图谱行（复刻官方 orderByModuleGraph：external 前置、拓扑序）。 */
+function orderByModuleGraph(entries: BootEntry[]): BootEntry[] {
+  const rowsById = new Map<string, BootEntry>()
+  for (const entry of entries) rowsById.set(entry.id, entry)
+  const ordered: BootEntry[] = []
+  const placed = new Set<string>()
+  const open: string[] = []
+  const visit = (entry: BootEntry): void => {
+    if (placed.has(entry.id)) return
+    const cycleStart = open.indexOf(entry.id)
+    if (cycleStart !== -1) {
+      throw new Error(`client-modules: module graph cycle ${[...open.slice(cycleStart), entry.id].join(' -> ')} — a requested package row must precede its consumers`)
+    }
+    open.push(entry.id)
+    for (const name of entry.external ?? []) {
+      const normalized = name.endsWith('/client') ? name.slice(0, -7) : name
+      const dependency = rowsById.get(name) ?? rowsById.get(normalized)
+      if (dependency === entry) throw new Error(`client-modules: "${entry.id}" requests module "${name}" that it answers itself`)
+      if (dependency !== undefined) visit(dependency)
+    }
+    open.pop()
+    placed.add(entry.id)
+    ordered.push(entry)
+  }
+  for (const entry of entries) visit(entry)
+  return ordered
+}
+
 /** 生成单条图谱行（url 携带 rev 作为破缓存 query）。 */
 function graphRow(decl: BootBundleDecl, rev: string): BootEntry {
   return {
@@ -121,55 +229,84 @@ function graphRow(decl: BootBundleDecl, rev: string): BootEntry {
   }
 }
 
-/**
- * 组合 bundle 声明列表为图谱条目：读取产物、计算 rev、登记 bundle 路径表。
- * @param bundles bundle 声明列表。
- * @returns 图谱条目列表（保持传入顺序；spike 样例无 external 依赖，真实场景需模块图拓扑排序）。
- */
-function composeEntries(bundles: BootBundleDecl[]): BootEntry[] {
-  return bundles.map((decl) => {
-    if (!existsSync(decl.path)) {
-      throw new Error(`client-modules: ${decl.id} 的 client bundle 不存在: ${decl.path}`)
-    }
-    const rev = shortHash(readFileSync(decl.path))
-    bundlePathMap.set(decl.id, decl.path)
-    return graphRow(decl, rev)
-  })
-}
-
 // ── Manifest 图谱生成 ───────────────────────────────────────────────
 
 /**
  * 生成完整的 `__DSH_BOOT__` 图谱。
  *
- * 自动包含官方基础插件（`@deepseek-ai/dsh-client-modules` + `@deepseek-ai/dsh-client-runtime`），
- * 以及官方 UI 会话所需的最小激活集（client-connection 基类模块 + typert-registry/api-gateway/api-remotes
- * + 桌面独占的 ipc-connection），并叠加外部传入的 bundle 声明。
+ * 自动扫描 node_modules/@deepseek-ai 下全部 `dsh.client.platform==='web'` 的包
+ * （含全部 ui-* 客户端插件），复刻官方 ClientModuleRegistry 的 inject/external/
+ * immediately + 模块依赖拓扑排序，生成完整图谱。
  *
- * client-connection 仅作 ipc-connection 的 require 依赖入图（materialize 供基类继承），
- * 其 Cordis `apply` 不激活（不置 immediately），connection 服务由 ipc-connection 独占供出。
+ * 特殊处理：
+ * - `@deepseek-ai/dsh-client-connection` **不入图谱**（D-9：官方驱动对图谱全量激活，
+ *   会使官方 Web 传输 connection 抢走服务 → 404/retry），仅登记为预载注册模块。
+ * - 桌面独占 `@dsh-desktop/ipc-connection` 注入图谱，独占提供 connection 服务。
+ * - 自动扫描结果与 extraBundles（含 ipc-connection 载波）合并后整体拓扑排序。
  *
  * @param rev 图谱版本号；省略时由条目内容哈希推导。
- * @param extraBundles 额外 client 插件 bundle 声明。
+ * @param extraBundles 额外 client 插件 bundle 声明（不受扫描范围限制）。
  * @returns 经 zod 校验的完整图谱。
  */
 export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[]): BootGraph {
-  const builtins: BootBundleDecl[] = [
-    { id: CLIENT_MODULES_ID, path: resolveBuiltinClientBundle(CLIENT_MODULES_ID) },
-    { id: '@deepseek-ai/dsh-client-runtime', path: resolveBuiltinClientBundle('@deepseek-ai/dsh-client-runtime') },
-    // 官方 connection 基类：模块依赖（ipc-connection require 解析用），非激活插件。
-    { id: CLIENT_CONNECTION_ID, path: resolveBuiltinClientBundle(CLIENT_CONNECTION_ID) },
-    // 官方 API 面：typert 注册表 → 分发网关 → 远端描述符装填（inject 约束激活顺序）。
-    { id: TYPERT_REGISTRY_ID, path: resolveBuiltinClientBundle(TYPERT_REGISTRY_ID), inject: [], immediately: true },
-    { id: API_GATEWAY_ID, path: resolveBuiltinClientBundle(API_GATEWAY_ID), inject: ['typert', 'connection'], immediately: true },
-    { id: API_REMOTES_ID, path: resolveBuiltinClientBundle(API_REMOTES_ID), inject: ['remote'], immediately: true },
-    // 桌面独占 connection 载波：inject 为空、immediately 激活，供 api-gateway 消费。
+  // 1. 自动扫描全部 dsh.client 包 → bundle 声明（剔除 client-connection，见 D-9）。
+  const scanned = scanClientPackages()
+  const scannedDecls: BootBundleDecl[] = []
+  for (const [id, meta] of scanned) {
+    if (id === CLIENT_CONNECTION_ID) continue // D-9：不入图谱，仅预载注册供 require
+    scannedDecls.push({
+      id,
+      path: meta.clientPath,
+      ...(meta.inject !== undefined ? { inject: meta.inject } : {}),
+      ...(meta.external.length > 0 ? { external: meta.external } : {}),
+      ...(meta.immediately ? { immediately: true } : {}),
+    })
+  }
+
+  // 2. 桌面载波 + 外部显式声明（扫描集之外，或覆盖扫描）。
+  const desktopDecls: BootBundleDecl[] = [
+    // 官方 UI 渲染必需的自启动核心（client-modules/client-runtime 由扫描集覆盖，
+    // 此处显式确保其在列 + immediately，且 client-runtime 的 inject 依赖由扫描集提供）。
     { id: IPC_CONNECTION_ID, path: resolveLocalWebBundle('ipc-connection.js'), inject: [], immediately: true, external: [`${CLIENT_CONNECTION_ID}/client`] },
+    ...(extraBundles ?? []),
   ]
-  const bundles = [...builtins, ...(extraBundles ?? [])]
-  const entries = composeEntries(bundles)
+
+  // 3. 合并 + 读取产物登记路径表 + 计算 rev → 图谱行（先登记 bundlePathMap 供 composeEntries 后路由使用）。
+  const allMeta: Map<string, { path: string; inject?: string[]; external?: string[]; immediately?: boolean }> = new Map()
+  for (const decl of scannedDecls) allMeta.set(decl.id, { path: decl.path, inject: decl.inject, external: decl.external, immediately: decl.immediately })
+  for (const decl of desktopDecls) allMeta.set(decl.id, { path: decl.path, inject: decl.inject, external: decl.external, immediately: decl.immediately })
+
+  // 4. 读取每个 bundle 内容计算 rev，登记路径表，生成图谱行。
+  const rows: BootEntry[] = []
+  for (const [id, meta] of allMeta) {
+    if (!existsSync(meta.path)) throw new Error(`client-modules: ${id} 的 client bundle 不存在: ${meta.path}`)
+    const entryRev = shortHash(readFileSync(meta.path))
+    bundlePathMap.set(id, meta.path)
+    rows.push(
+      graphRow(
+        { id, path: meta.path, ...(meta.inject !== undefined ? { inject: meta.inject } : {}), ...(meta.external !== undefined && meta.external.length > 0 ? { external: meta.external } : {}), ...(meta.immediately === true ? { immediately: true } : {}) },
+        entryRev,
+      ),
+    )
+  }
+
+  // 5. 模块依赖拓扑排序（external 前置），保证每个请求的动态包先于其消费者。
+  const entries = orderByModuleGraph(rows)
   const graphRev = rev ?? `desktop-m1-${shortHash(JSON.stringify(entries))}`
   return bootGraphSchema.parse({ rev: graphRev, entries })
+}
+
+/**
+ * 登记图谱外预载注册模块的 bundle 路径（`PRELOAD_ONLY_IDS`：client-connection 基类），
+ * 供 bundle route（`dsh-ui://plugins/<id>/client.js`）直读其产物。
+ *
+ * 这些模块不入图谱 entries，只能被 HTML 预载 script 注册 factory；
+ * 执行后可从 `resolveBundlePath` / `resolveBundleRequest` 查询。
+ */
+export function registerPreloadOnly(): void {
+  for (const id of PRELOAD_ONLY_IDS) {
+    bundlePathMap.set(id, resolveBuiltinClientBundle(id))
+  }
 }
 
 /**
@@ -254,11 +391,21 @@ window.__ModuleLoader__={
   }
 }
 })()</script>`
+  // 图谱内预载（client-modules/client-runtime）：也是图谱条目，官方驱动会激活。
   const preload = PARSER_PRELOAD_IDS.map((id) => graph.entries.find((entry) => entry.id === id))
     .filter((entry): entry is BootEntry => entry !== undefined)
     .map((entry) => `<script src="${escapeHtmlAttribute(entry.url)}"></script>`)
     .join('')
-  return `${queue}${preload}<script>window.__DSH_BOOT__ = ${json}</script>`
+  // 图谱外预载注册（client-connection 基类等）：不入图谱、不被官方驱动激活，
+  // 仅提前注册 factory 供 ipc-connection 等模块 require 解析（继承 AbstractApiClient）。
+  // URL 由 bundle 路径表 + 内容 rev 自行构造（与 graphRow 同语义，无图谱条目可查）。
+  const preloadOnly = PRELOAD_ONLY_IDS.map((id) => {
+    const bundlePath = bundlePathMap.get(id)
+    if (bundlePath === undefined || !existsSync(bundlePath)) return ''
+    const rev = shortHash(readFileSync(bundlePath))
+    return `<script src="${escapeHtmlAttribute(`/plugins/${id}/client.js?rev=${rev}`)}"></script>`
+  }).join('')
+  return `${queue}${preload}${preloadOnly}<script>window.__DSH_BOOT__ = ${json}</script>`
 }
 
 /**
@@ -269,5 +416,6 @@ window.__ModuleLoader__={
  * @returns HTML 注入脚本字符串。
  */
 export function generateFullBootScript(rev?: string, extraBundles?: BootBundleDecl[]): string {
+  registerPreloadOnly()
   return bootManifestInlineScript(generateBootGraph(rev, extraBundles))
 }

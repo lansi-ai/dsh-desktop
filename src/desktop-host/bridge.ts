@@ -139,7 +139,6 @@ export function registerIpcBridge(options?: BridgeOptions): void {
     // 校验请求格式
     const parsed = rpcRequestSchema.safeParse(raw)
     if (!parsed.success) {
-      console.warn('[dsh-bridge] RPC 请求校验失败:', parsed.error.issues)
       return makeRpcError(
         new AppError(ErrorCodes.INVALID_ARGUMENT, 'RPC 请求格式无效', parsed.error.issues),
         'unknown',

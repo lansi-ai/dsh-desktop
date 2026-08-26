@@ -10,6 +10,7 @@ import {
   resetOnCleanQuit,
 } from './relaunch'
 import type { RpcRequest } from '../types/contract.js'
+import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy' with { 'resolution-mode': 'import' }
 
 /**
  * dsh-desktop 主进程入口（M1·步骤6：崩溃 relaunch 自愈 v0 + 零端口验证铺垫）。
@@ -126,43 +127,60 @@ async function bootstrap(): Promise<void> {
 
     // 4. 连接 IPC 桥与 Cordis Host 的 apiProxy
     const { setApiProxyHandler } = await import('../desktop-host/bridge.js')
+    const { toFetchHandler } = await import('@deepseek-ai/dsh-host-apiproxy')
+    const apiProxy = (hostCtx as Record<string, unknown>)['apiProxy'] as ApiProxy | undefined
+    if (apiProxy === undefined) {
+      throw new Error('Cordis Host 未装配 apiProxy（检查 boot.ts 的 api-gateway/dsh-host-apiproxy）')
+    }
+    // host 侧 RPC 的正确入口是官方 toFetchHandler(api)：把 client-request envelope 经
+    // `/api/<method>`（host 内虚拟路由，不真正走网络）分发给 api[domain][method]。
+    // 我们协议用 {rpcId, method, params} 而非 HTTP，因此桥把 method 映射为路径。
+    const apiFetch = toFetchHandler(apiProxy)
+    // 解包官方 server-response 信封：result.ok 为真返回 result.value（bridge 包成 {rpcId,data}），
+    // result.ok 为假抛错（bridge catch → {rpcId, error}），使 renderer 端 ipcRpcCall 正确分流。
+    // 注意：非 2xx（如 404）是纯文本 "not found"，需先判 ok，否则 res.json 会抛 SyntaxError。
+    const unpackServerResponse = async (res: Response): Promise<unknown> => {
+      if (!res.ok) throw new Error(`api 调用失败: HTTP ${res.status} ${res.statusText}`)
+      const body = (await res.json()) as { type?: string; result?: { ok: boolean; value?: unknown; error?: { message?: string; code?: string } } }
+      const result = body.result
+      if (result === undefined) return body
+      if (!result.ok) throw new Error(result.error?.message ?? `api 调用失败 (${result.error?.code ?? 'unknown'})`)
+      return result.value
+    }
     setApiProxyHandler(async (request: RpcRequest) => {
-      // 委托给 Cordis Host 的 apiProxy 服务处理
-      const apiProxy = (hostCtx as Record<string, unknown>)['apiProxy'] as
-        | { handleRpc?: (req: RpcRequest) => Promise<unknown> }
-        | undefined
-      if (apiProxy?.handleRpc !== undefined) {
-        return await apiProxy.handleRpc(request)
+      const envelope = {
+        type: 'client-request' as const,
+        rpcId: request.rpcId,
+        method: request.method,
+        payload: request.params,
       }
-      // 无 apiProxy 时回退到直接调用 hostCtx 上的方法
-      const svc = (hostCtx as Record<string, unknown>)[request.method] as
-        | ((...args: unknown[]) => unknown)
-        | undefined
-      if (typeof svc === 'function') {
-        return await svc(request.params)
-      }
-      throw new Error(`未找到方法: ${request.method}`)
+      // 官方 toFetchHandler 内部用 new URL(req.url) 取 pathname，相对路径会抛
+      // "Failed to parse URL"；这里用 http://local 作虚拟 base，fetch 只读 pathname。
+      const res = await apiFetch.fetch(
+        new Request(`http://local/api/${request.method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
+      )
+      return await unpackServerResponse(res)
     })
 
     // 5. 注册 IPC 载波服务到 Cordis 上下文
     registerIpcCarrierServices(hostCtx, {
       handleRpc: async (request: RpcRequest) => {
-        const apiProxy = (hostCtx as Record<string, unknown>)['apiProxy'] as
-          | { handleRpc?: (req: RpcRequest) => Promise<unknown> }
-          | undefined
-        if (apiProxy?.handleRpc !== undefined) {
-          return await apiProxy.handleRpc(request)
+        const envelope = {
+          type: 'client-request' as const,
+          rpcId: request.rpcId,
+          method: request.method,
+          payload: request.params,
         }
-        return undefined
+        const res = await apiFetch.fetch(
+          new Request(`http://local/api/${request.method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
+        )
+        return await unpackServerResponse(res)
       },
       handleRespond: async (response: { rpcId: string; body: unknown }) => {
-        const apiProxy = (hostCtx as Record<string, unknown>)['apiProxy'] as
-          | { handleRespond?: (res: { rpcId: string; body: unknown }) => Promise<{ accepted: boolean }> }
-          | undefined
-        if (apiProxy?.handleRespond !== undefined) {
-          return await apiProxy.handleRespond(response)
-        }
-        return { accepted: false }
+        const res = await apiFetch.fetch(
+          new Request(`http://local/api/respond`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rpcId: response.rpcId, body: response.body }) }),
+        )
+        return (await res.json()) as { accepted: boolean }
       },
     })
 
@@ -171,13 +189,12 @@ async function bootstrap(): Promise<void> {
 
     // 7. 启动 host 会话事件 → renderer 下行帧中继（攻坚第 2 批：session/event 等
     //    server-request 帧经 bridge 下发，使官方 UI 完成端到端对话）
-    const apiProxy = (hostCtx as Record<string, unknown>)['apiProxy'] as
-      | import('../desktop-host/carrier-relay.js').DownlinkEventStream
-      | undefined
-    if (apiProxy?.events?.mux !== undefined) {
+    // apiProxy 已在步骤 4 取到（转 DownlinkEventStream，复用其 events.mux/host）。
+    const downlinkProxy = apiProxy as unknown as import('../desktop-host/carrier-relay.js').DownlinkEventStream
+    if (downlinkProxy?.events?.mux !== undefined) {
       const { startDownlinkRelay } = await import('../desktop-host/carrier-relay.js')
       const relayState = { relay: null as import('../desktop-host/carrier-relay.js').DownlinkRelay | null }
-      relayState.relay = startDownlinkRelay(apiProxy, win.webContents)
+      relayState.relay = startDownlinkRelay(downlinkProxy, win.webContents)
       win.on('closed', () => {
         relayState.relay?.stop()
         relayState.relay = null

@@ -36,6 +36,16 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'typert', name: '@deepseek-ai/dsh-typert-registry' },
       { id: 'typert-loader', name: '@deepseek-ai/dsh-typert-loader' },
       { id: 'typert-gateway', name: '@deepseek-ai/dsh-api-gateway' },
+      // apiProxy 服务（ctx.apiProxy）：官方 UI 对话的 host 会话事件→下行帧流来源
+      // （events.mux/host）。ApiProxyService.inject 需 agents/attachments/directoryPicker/
+      // llm/sessions/subagents/sessionQuery/tools/userQuestions/workspaceRegistry，
+      // 均在下方或 base 补丁装配。api-gateway 为 host-apiproxy 的 Cordis 条目名。
+      { id: 'api-gateway', name: '@deepseek-ai/dsh-host-apiproxy' },
+      // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer
+      // （已禁用），改为在 prepare 钩子直接实例化 native 版注入（见 boot() 内注释），
+      // 此处不设 cordis 条目，避免 auto 版因缺 webServer 激活失败。
+      // workspaceRegistry 服务：ApiProxyService.inject 必需（inject storageDomain+sessionPersistence）
+      { id: 'workspace', name: '@deepseek-ai/dsh-workspace' },
       { id: 'session-title', name: '@deepseek-ai/dsh-session-title', config: { fallbackMaxWords: 5, fallbackMaxBytes: 40, maxTitleBytes: 80 } },
       { id: 'session-title-llm', name: '@deepseek-ai/dsh-session-title-first-prompt-llm', config: { targetWords: 5, targetCjkCharacters: 10, maxInputBytes: 4096, maxOutputTokens: 64, timeoutMs: 60000 } },
       { id: 'user-questions', name: '@deepseek-ai/dsh-user-questions' },
@@ -136,6 +146,10 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'web-search-deepseek', name: '@deepseek-ai/dsh-web-search-deepseek', config: { apiKeyEnv: 'DEEPSEEK_API_KEY' } },
       { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web', config: { fetch: false, searchTimeoutMs: 60000 } },
       { id: 'tools', name: '@deepseek-ai/dsh-tools' },
+      // ui-settings-general host 面条目：注册 `ui-onboarding` settings namespace，
+      // 供官方 UI 的内测声明/onboarding 写入（client 面经 settings.mutate 打到 host settings，
+      // 缺此 namespace 会报 "settings namespace ui-onboarding is not registered" 拦截进入）。
+      { id: 'ui-settings-general', name: '@deepseek-ai/dsh-client-ui-settings-general' },
       { id: 'system-prompt', name: '@deepseek-ai/dsh-system-prompt', config: { persona: '' } },
       { id: 'agent-loop', name: '@deepseek-ai/dsh-agent-loop', config: { agents: [] } },
       { id: 'fs-sandbox', name: '@deepseek-ai/dsh-fs-sandbox' },
@@ -160,10 +174,15 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   ...getIpcCarrierPatchEntries(),
 
   // ── §4 桌面特定条目（storage + agent-presets）────────────────────────────
-  // storage-json: !!js dshHomePath('storages') —— M1 暂跳过（storage 使用默认路径）
+  // storage-json: root 用项目 .runtime/user-data/storages（R7：dshHomePath 服务可用前
+  // 以硬编码路径兜底，待服务就绪后切回 !!js dshHomePath('storages') 语义）。
+  // 链条：storage(提供 ctx.storage) → storage-json(注册 json backend 服务) →
+  //        storage-domain(提供 ctx.storageDomain) → workspace(提供 ctx.workspaceRegistry)
+  //        → host-apiproxy(提供 ctx.apiProxy + events.mux/host)。
   {
     insert: [
       { id: 'storage', name: '@deepseek-ai/dsh-storage' },
+      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(__dirname, '..', '..', '.runtime', 'user-data', 'storages') } },
       { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
     ],
   },
@@ -220,6 +239,36 @@ export async function bootDesktopHost(options: {
           process.exit(code)
         },
       })
+      // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer（已禁用），
+      // native 版用 koffi（Win32 FFI），在 Electron 主进程读对话框路径时崩溃。故定义本地
+      // ElectronDirectoryPicker extends DirectoryPicker（基类构造 super(ctx) 即 ctx.provide
+      // `directoryPicker` 服务），override capability 用 Electron dialog.showOpenDialog 提供
+      // kind:"native"，pick 返回 string|null（对齐官方契约），稳定无 koffi。
+      try {
+        const { dialog, BrowserWindow } = await import('electron')
+        const { DirectoryPicker } = await import('@deepseek-ai/dsh-host-directory-picker')
+        class ElectronDirectoryPicker extends DirectoryPicker {
+          override capability() {
+            return {
+              kind: 'native' as const,
+              pick: async (signal?: AbortSignal): Promise<string | null> => {
+                const win = BrowserWindow.getAllWindows()[0]
+                const ret = await dialog.showOpenDialog(win ?? undefined, {
+                  title: '选择工作区目录',
+                  properties: ['openDirectory', 'createDirectory'],
+                })
+                if (signal?.aborted || ret.canceled || ret.filePaths.length === 0) return null
+                return ret.filePaths[0]
+              },
+            }
+          }
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        new (ElectronDirectoryPicker as any)(hostCtx)
+        console.log('[dsh-desktop] directoryPicker (Electron native dialog Service) 已注入')
+      } catch (error) {
+        console.warn('[dsh-desktop] directoryPicker 注入失败:', error)
+      }
     },
     options.bareModuleBaseUrl,
   )

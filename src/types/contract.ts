@@ -12,8 +12,10 @@ import { z } from 'zod'
 
 // ── RPC 基础 ────────────────────────────────────────────────────────
 
-/** RPC 请求 ID（UUID 格式）。 */
-export const rpcIdSchema = z.string().uuid()
+/** RPC 请求 ID。官方 `RpcId` 为 branded string，不强制 UUID 格式（renderer
+ *  ipc-connection 的 randomUuid 回退分支产出 `${Date.now()}-${Math.random()}` 非 UUID），
+ *  故放宽为非空字符串。 */
+export const rpcIdSchema = z.string().min(1)
 
 /** RPC 请求信封。 */
 export const rpcRequestSchema = z.object({
