@@ -12,7 +12,7 @@
  */
 /* eslint-disable no-undef -- 浏览器侧 bundle，React 等全局由 renderer 提供 */
 window.__ModuleLoader__.load({
-  id: '@dsh-desktop/desktop-panel-client',
+  id: '@dsh-desktop/desktop-panel',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports
