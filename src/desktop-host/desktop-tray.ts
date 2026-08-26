@@ -12,6 +12,7 @@
  * 安装时机：窗口已创建后（main.ts bootstrap），因托盘需窗口引用。返回清理函数（销毁 Tray + 移除拦截）。
  */
 
+import { join } from 'node:path'
 import { Tray, Menu, BrowserWindow, app, nativeImage } from 'electron'
 import type { DesktopCore } from '../types/desktop.js'
 
@@ -58,11 +59,20 @@ export function installDesktopTray(options: DesktopTrayOptions): () => void {
   if (window !== null) window.on('close', onClose)
 
   // ── 托盘图标与菜单 ─────────────────────────────────────────────────
-  // 占位图标：内联 32x32 蓝色圆点 PNG（base64），避免依赖外部资源文件/构建复制。
-  // 正式品牌图标（tray-icon.png/svg）后续替换时直接改此 data URL 或改走 createFromPath。
-  const trayIcon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAd0lEQVR4nO3XsQ6AIAyE4T6X7+ZzO0LiQGJEaAleb7iha/9v0mLHeVlwymRC+3ZFlzF/hd0QRHyIQMU/Ech4F4GOvxAZ8QeCBoCON4QAmfF7BBBAAApA+odIAIrfMQUg/SSjOEopznKKhwnF02wHZLrbC4hgQvsqEs3hXEcpkYIAAAAASUVORK5CYII=',
-  )
+  // 图标：桌面资源 tray-icon.jpg（copy-web 复制到 dist/desktop-shell/web/）。
+  // JPG 无透明 + 原图较大（发光细节，缩到 16px 显示会糊）：此处先 resize 到 64px
+  // 让系统缩放到通知区更清晰；资源缺失时回退内联 base64 蓝点 PNG。
+  const trayPath = join(__dirname, '..', 'desktop-shell', 'web', 'tray-icon.jpg')
+  let trayIcon = nativeImage.createFromPath(trayPath)
+  if (trayIcon.isEmpty()) {
+    // 兜底：内联 32x32 蓝色圆点 PNG。
+    trayIcon = nativeImage.createFromDataURL(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAd0lEQVR4nO3XsQ6AIAyE4T6X7+ZzO0LiQGJEaAleb7iha/9v0mLHeVlwymRC+3ZFlzF/hd0QRHyIQMU/Ech4F4GOvxAZ8QeCBoCON4QAmfF7BBBAAApA+odIAIrfMQUg/SSjOEopznKKhwnF02wHZLrbC4hgQvsqEs3hXEcpkYIAAAAASUVORK5CYII=',
+    )
+  } else {
+    const size = trayIcon.getSize()
+    if (size.width > 64 || size.height > 64) trayIcon = trayIcon.resize({ width: 64, height: 64 })
+  }
   const tray = new Tray(trayIcon)
 
   const showWindow = (source: string): void => {
