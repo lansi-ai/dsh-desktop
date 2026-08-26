@@ -204,6 +204,30 @@ export function registerIpcBridge(options?: BridgeOptions): void {
     windowStates.set(windowId, { ready: true })
     console.log(`[dsh-bridge] 窗口 ${windowId} 就绪`)
   })
+
+  // ── desktop:invoke — 桌面能力统一调用入口 ──────────────────────
+  ipcMain.handle(IPC_CHANNELS.DESKTOP_INVOKE, async (event, raw: unknown): Promise<unknown> => {
+    const parsed = rpcRequestSchema.safeParse(raw)
+    if (!parsed.success) {
+      throw new AppError(ErrorCodes.INVALID_ARGUMENT, 'desktop:invoke 格式无效', parsed.error.issues)
+    }
+    const request = parsed.data
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const windowId = window?.id ?? -1
+
+    try {
+      const handler = methodTable.get(request.method)
+      if (handler !== undefined) {
+        const result = await handler(request.params, { windowId })
+        console.log(`[dsh-desktop-invoke] 成功: ${request.method}`)
+        return result
+      }
+      throw new AppError(ErrorCodes.METHOD_NOT_FOUND, `未找到桌面方法: ${request.method}`)
+    } catch (error) {
+      if (error instanceof AppError) throw error
+      throw new AppError(ErrorCodes.METHOD_ERROR, error instanceof Error ? error.message : String(error))
+    }
+  })
 }
 
 // ── 方法注册/注销 ───────────────────────────────────────────────────
@@ -328,6 +352,7 @@ export function cleanupWindowState(windowId: number): void {
 export function removeIpcHandlers(): void {
   ipcMain.removeHandler(IPC_CHANNELS.RPC)
   ipcMain.removeHandler(IPC_CHANNELS.RESPOND)
+  ipcMain.removeHandler(IPC_CHANNELS.DESKTOP_INVOKE)
   ipcMain.removeAllListeners(IPC_CHANNELS.READY)
   methodTable.clear()
   windowStates.clear()

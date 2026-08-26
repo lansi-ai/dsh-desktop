@@ -83,7 +83,7 @@
   <div class="container">
     <div class="header">
       <h1>🚀 激活上下文看板 · dsh-desktop</h1>
-      <span class="badge">M0 → M1 阶段</span>
+      <span class="badge">M2 阶段</span>
     </div>
 
     <!-- 01. 目标 -->
@@ -243,21 +243,21 @@
           <span class="status-icon">[x]</span>
           <span><strong>M2-d2 通知闭环</strong>：desktop-host-notify（完成/审批/错误三类 + 点击定位会话）—— 实机装配通过（桌面能力已装配：notify）；通知弹出待桌面点验</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span><s>M2-b compat 完整化</s> <b>置后</b>（desktopRoutes SSE→帧下行、fetch 白名单）</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span><strong>M2-b compat 完整化</strong>：compat-webserver.ts 动态路由白名单（matchesRegisteredRoute + getRegisteredPrefixes）+ dsh-ui-protocol.ts 协议拦截由硬编码 /opencode-usage/ 改为查询注册表动态匹配</span>
         </li>
         <li class="task-item sub todo">
           <span class="status-icon">[ ]</span>
           <span><s>M2-c 旧插件门禁</s> <b>置后</b>（载体本地 /plugins/dsh-terminal / dsh-rule-manager / dsh-restart，待启用）</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span><s>M2-d3 shortcuts / clipboard</s> <b>置后</b>（globalShortcut、剪贴板写审批）</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span><strong>M2-d3 shortcuts/clipboard</strong>：desktop-shortcuts.ts（globalShortcut 注册/注销 + 预置 Alt+Shift+Q/Space）+ desktop-clipboard.ts（readText 免审批/writeText 走 approval）+ desktop:invoke IPC 通道 + preload 白名单 + bridge methodTable 注册；typecheck + lint 零错误</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span><s>M2-e 官方 UI 注入</s> <b>置后</b>（desktop-client-settings / desktop-client-panel）</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span><strong>M2-e 官方 UI 注入</strong>：desktop-settings-client.js（Slot 注入桌面设置 section：托盘/通知/快捷键/面板配置）+ desktop-panel-client.js（Slot 注入侧边栏按钮 + 悬浮面板 + IPC 双通道 open/close）+ boot-graph 图谱注入 + preload openDesktopPanel/closeDesktopPanel 白名单</span>
         </li>
       </ul>
     </div>
@@ -288,10 +288,11 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑进度：</strong><b>M1（桌面客户端可行性闭环）已完整完成</b>（2026-08-26）；<b>M2（桌面能力插件化）已启动</b>。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 首个攻坚（进行中）：</strong>desktop-host-core + desktop-api —— src/desktop-host/desktop-api.ts 提供 ctx.desktop Cordis 服务（core 子集：onAction/emitAction/log/readConfig/writeConfig/sendDesktopEvent），boot.ts prepare 注入；zod schema 放 src/types/desktop.ts、desktop:event 纳入 IPC_CHANNELS。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 后续主项：</strong>compat 完整化（desktopRoutes：SSE→帧下行/fetch 白名单）+ 旧插件门禁（ADR-007）+ 首批桌面插件（tray/notify/shortcuts/clipboard）+ desktop-client-settings/panel。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>M2-b/c 需确认旧插件（dsh-terminal / dsh-rule-manager / dsh-restart）的真实载体来源。</p>
+      <p style="margin:0;"><strong>当前里程碑进度：</strong><b>M1（桌面客户端可行性闭环）已完整完成</b>（2026-08-26）；<b>M2（桌面能力插件化）进行中</b>。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 已完成项：</strong>M2-a 地基 + M2-d1 托盘 + M2-d2 通知 + M2-d3 shortcuts/clipboard + M2-b compat 动态白名单 + M2-e 官方 UI 注入。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 待推进项：</strong></p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:var(--text-muted);">&nbsp;&nbsp;• <strong>M2-c 旧插件门禁</strong>（阻塞项）：dsh-terminal / dsh-rule-manager / dsh-restart 真实载体来源待确认</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>M2-c 需确认旧插件（dsh-terminal / dsh-rule-manager / dsh-restart）的真实载体来源（npm 包 / 本地路径 / 暂不启用）。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
     </div>
   </div>

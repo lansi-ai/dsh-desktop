@@ -45,6 +45,14 @@ export const ErrorCodes = {
   /** 未找到匹配的 rpcId（respond 无法回填）。 */
   RPC_ID_NOT_FOUND: 3003,
 
+  // ── 5xxx 桌面能力（快捷键/剪贴板）──────────────────────────────────
+  /** 全局快捷键注册失败（已被占用或无效）。 */
+  SHORTCUT_REGISTER_FAILED: 5000,
+  /** 全局快捷键未注册（注销时不存在）。 */
+  SHORTCUT_NOT_REGISTERED: 5001,
+  /** 剪贴板操作被 approval 拒绝。 */
+  CLIPBOARD_DENIED: 5010,
+
   // ── 4xxx 帧/事件 ───────────────────────────────────────────────────
   /** 未知的帧类型。 */
   UNKNOWN_FRAME_TYPE: 4000,
@@ -76,6 +84,9 @@ const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   [ErrorCodes.UNKNOWN_FRAME_TYPE]: '未知的帧类型',
   [ErrorCodes.INVALID_FRAME_PAYLOAD]: '帧载荷校验失败',
   [ErrorCodes.FRAME_SEND_FAILED]: '帧发送失败',
+  [ErrorCodes.SHORTCUT_REGISTER_FAILED]: '全局快捷键注册失败',
+  [ErrorCodes.SHORTCUT_NOT_REGISTERED]: '全局快捷键未注册',
+  [ErrorCodes.CLIPBOARD_DENIED]: '剪贴板操作被拒绝',
 }
 
 /**

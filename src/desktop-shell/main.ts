@@ -71,9 +71,11 @@ if (isCircuitBroken()) {
 /** preload 脚本绝对路径（在同样 tsconfig rootDir 下编译后位于 dist/desktop-shell/）。 */
 const PRELOAD_PATH = join(__dirname, 'preload.js')
 
-/** 桌面能力句柄（退出前清理）：托盘 + 通知。 */
+/** 桌面能力句柄（退出前清理）：托盘 + 通知 + 快捷键 + 剪贴板。 */
 let desktopTrayHandle: (() => void) | null = null
 let desktopNotifyHandle: (() => void) | null = null
+let desktopShortcutsHandle: (() => void) | null = null
+let desktopClipboardHandle: (() => void) | null = null
 
 /** 应用/窗口图标（优先桌面资源 app-icon.png，缺失回退 tray-icon.png）。 */
 function loadAppIcon(): Electron.NativeImage {
@@ -250,7 +252,24 @@ async function bootstrap(): Promise<void> {
       const getWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
       desktopTrayHandle = installDesktopTray({ getWindow, desktop: desktopCore })
       desktopNotifyHandle = installDesktopNotify({ desktop: desktopCore, events: downlinkProxy, getWindow })
-      console.log('[dsh-desktop] 桌面能力已装配：tray(关窗驻留+快速问答) + notify(审批/错误/进展)')
+
+      // M2·d3 shortcuts/clipboard：全局快捷键 + 剪贴板（write 走 approval）。
+      const { installDesktopShortcuts, handleShortcutRegister, handleShortcutUnregister } = await import('../desktop-host/desktop-shortcuts.js')
+      const { installDesktopClipboard, handleClipboardReadText, handleClipboardWriteText } = await import('../desktop-host/desktop-clipboard.js')
+      const shortcutOptions = { getWindow, desktop: desktopCore }
+      const clipboardOptions = { desktop: desktopCore, hostCtx }
+      // 注册 bridge unary 方法（shortcut/clipboard → methodTable 分发）
+      const { registerMethod } = await import('../desktop-host/bridge.js')
+      registerMethod('desktop.shortcut.register', async (params: unknown) => handleShortcutRegister(shortcutOptions, params))
+      registerMethod('desktop.shortcut.unregister', async (params: unknown) => handleShortcutUnregister(shortcutOptions, params))
+      registerMethod('desktop.clipboard.readText', async () => handleClipboardReadText(clipboardOptions))
+      registerMethod('desktop.clipboard.writeText', async (params: unknown) => handleClipboardWriteText(clipboardOptions, params))
+      // M2-e 面板控制：open/close 经下行 desktop:event 触发 renderer 侧面板组件
+      registerMethod('desktop.panel.open', async () => { desktopCore.sendDesktopEvent({ action: 'open-panel' }); return { opened: true } })
+      registerMethod('desktop.panel.close', async () => { desktopCore.sendDesktopEvent({ action: 'close-panel' }); return { closed: true } })
+      desktopShortcutsHandle = installDesktopShortcuts(shortcutOptions)
+      desktopClipboardHandle = installDesktopClipboard(clipboardOptions)
+      console.log('[dsh-desktop] 桌面能力已装配：tray(关窗驻留+快速问答) + notify(审批/错误/进展) + shortcuts(Alt+Shift+Q/Space) + clipboard(read/write)')
     } else {
       console.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
     }
@@ -269,6 +288,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  desktopClipboardHandle?.()
+  desktopShortcutsHandle?.()
   desktopNotifyHandle?.()
   desktopTrayHandle?.()
   removeIpcHandlers()

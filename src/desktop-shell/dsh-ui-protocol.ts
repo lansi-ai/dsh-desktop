@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundleDecl } from '../desktop-host/manifest.js'
-import { dispatchHttpCompat } from '../desktop-host/compat-webserver.js'
+import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
 
 /**
  * dsh-ui:// 自定义协议：
@@ -160,10 +160,11 @@ export function registerDshUiProtocol(): void {
         return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
       }
 
-      // 第三方 web 插件同源 fetch 拦截（M1 门禁·ADR-007）：旧/第三方插件 client 半用浏览器
-      // `fetch('/opencode-usage/*')` 调用 host webServer 路由。零端口下无 HTTP 服务器，此处经
-      // dsh-ui:// 协议转发到 host 的 ctx.webServer 等价面（dispatchHttpCompat），对插件透明。
-      if (url.pathname.startsWith('/opencode-usage/') || url.pathname === '/opencode-usage') {
+      // 第三方 web 插件同源 fetch 拦截（M1 门禁·ADR-007 → M2-b 动态白名单）：
+      // 旧/第三方插件 client 半用浏览器 `fetch('/<route-prefix>/*')` 调用 host webServer 路由。
+      // 零端口下无 HTTP 服务器，此处经 dsh-ui:// 协议转发到 host 的 ctx.webServer 等价面
+      // （dispatchHttpCompat），对插件透明。白名单由 compat 注册表动态生成，不再硬编码。
+      if (matchesCompatRoute(url.pathname)) {
         const compatResult = await dispatchHttpCompat({
           method: request.method,
           url: url.pathname,

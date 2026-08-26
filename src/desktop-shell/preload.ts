@@ -27,6 +27,8 @@ const IPC_CHANNELS = {
   FRAME: 'dsh:frame',
   /** 上行：renderer 就绪通知（窗口加载完成，可接收帧）。 */
   READY: 'dsh:ready',
+  /** 上行：桌面能力统一调用入口（快捷键/剪贴板/面板等）。 */
+  DESKTOP_INVOKE: 'desktop:invoke',
 } as const
 
 /**
@@ -56,6 +58,22 @@ interface WindowControl {
   close(): Promise<void>
 }
 
+/** 快捷键操作接口。 */
+interface DesktopShortcut {
+  /** 注册全局快捷键。 */
+  register(accelerator: string, action: string): Promise<{ registered: boolean }>
+  /** 注销全局快捷键。 */
+  unregister(accelerator: string): Promise<{ unregistered: boolean }>
+}
+
+/** 剪贴板操作接口。 */
+interface DesktopClipboard {
+  /** 读取剪贴板文本（免审批）。 */
+  readText(): Promise<string>
+  /** 写入剪贴板文本（需 approval 审批）。 */
+  writeText(text: string): Promise<{ written: boolean }>
+}
+
 /** 平台信息。 */
 interface PlatformInfo {
   platform: string
@@ -78,8 +96,16 @@ export interface DesktopBridge {
   onDesktopEvent(cb: (event: { action: string; payload?: unknown }) => void): () => void
   /** 窗口控制。 */
   windowControl: WindowControl
+  /** 全局快捷键操作。 */
+  desktopShortcut: DesktopShortcut
+  /** 剪贴板操作。 */
+  desktopClipboard: DesktopClipboard
   /** 获取平台信息。 */
   getPlatformInfo(): Promise<PlatformInfo>
+  /** 打开桌面面板（IPC 驱动）。 */
+  openDesktopPanel(): Promise<void>
+  /** 关闭桌面面板（IPC 驱动）。 */
+  closeDesktopPanel(): Promise<void>
 }
 
 // ── 桥实现 ──────────────────────────────────────────────────────────
@@ -155,6 +181,42 @@ function createDesktopBridge(): DesktopBridge {
       },
     },
 
+    // ── 全局快捷键操作 ──────────────────────────────────────────
+    desktopShortcut: {
+      register(accelerator: string, action: string): Promise<{ registered: boolean }> {
+        return ipcRenderer.invoke('desktop:invoke', {
+          rpcId: generateUuid(),
+          method: 'desktop.shortcut.register',
+          params: { accelerator, action },
+        })
+      },
+      unregister(accelerator: string): Promise<{ unregistered: boolean }> {
+        return ipcRenderer.invoke('desktop:invoke', {
+          rpcId: generateUuid(),
+          method: 'desktop.shortcut.unregister',
+          params: { accelerator },
+        })
+      },
+    },
+
+    // ── 剪贴板操作 ──────────────────────────────────────────────
+    desktopClipboard: {
+      readText(): Promise<string> {
+        return ipcRenderer.invoke('desktop:invoke', {
+          rpcId: generateUuid(),
+          method: 'desktop.clipboard.readText',
+          params: undefined,
+        }) as Promise<string>
+      },
+      writeText(text: string): Promise<{ written: boolean }> {
+        return ipcRenderer.invoke('desktop:invoke', {
+          rpcId: generateUuid(),
+          method: 'desktop.clipboard.writeText',
+          params: { text },
+        })
+      },
+    },
+
     // ── 平台信息 ──────────────────────────────────────────────────
     async getPlatformInfo(): Promise<PlatformInfo> {
       // bridge 返回 { rpcId, data: { platform, version, electronVersion, chromeVersion } }
@@ -169,6 +231,22 @@ function createDesktopBridge(): DesktopBridge {
         version: info.version ?? 'unknown',
         channel: 'stable',
       }
+    },
+
+    // ── 桌面面板控制 ──────────────────────────────────────────────
+    async openDesktopPanel(): Promise<void> {
+      await ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+        rpcId: generateUuid(),
+        method: 'desktop.panel.open',
+        params: undefined,
+      })
+    },
+    async closeDesktopPanel(): Promise<void> {
+      await ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+        rpcId: generateUuid(),
+        method: 'desktop.panel.close',
+        params: undefined,
+      })
     },
   }
 }

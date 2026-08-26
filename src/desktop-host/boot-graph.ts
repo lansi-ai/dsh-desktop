@@ -301,6 +301,9 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 官方 UI 渲染必需的自启动核心（client-modules/client-runtime 由扫描集覆盖，
     // 此处显式确保其在列 + immediately，且 client-runtime 的 inject 依赖由扫描集提供）。
     { id: IPC_CONNECTION_ID, path: resolveLocalWebBundle('ipc-connection.js'), inject: [], immediately: true, external: [`${CLIENT_CONNECTION_ID}/client`] },
+    // M2-e 官方 UI 注入：桌面设置页面 + 桌面面板容器（经 Slot 系统注入官方 UI）
+    { id: '@dsh-desktop/desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], immediately: true },
+    { id: '@dsh-desktop/desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], immediately: true },
     ...(extraBundles ?? []),
   ]
 

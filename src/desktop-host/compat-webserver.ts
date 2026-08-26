@@ -106,6 +106,18 @@ export class HttpCompatRegistry {
     await route.handler(req, res)
     return { status: state.status, headers: state.headers, body: state.body }
   }
+
+  /** 返回所有已注册路由的 path 前缀（供协议层动态 fetch 白名单校验）。 */
+  getRegisteredPrefixes(): string[] {
+    return this.routes.map((r) => r.path)
+  }
+
+  /** 判断一个 pathname 是否命中已注册路由（用于协议层白名单过滤）。 */
+  matchesRegisteredRoute(pathname: string): boolean {
+    return this.routes.some((r) =>
+      r.kind === 'prefix' ? pathname.startsWith(r.path) : pathname === r.path,
+    )
+  }
 }
 
 // ── 主进程侧安装与分发句柄 ───────────────────────────────────────────
@@ -141,4 +153,10 @@ export async function installWebServerCompat(ctx: unknown): Promise<void> {
 export async function dispatchHttpCompat(input: HttpCompatDispatchInput): Promise<HttpCompatDispatchResult> {
   if (activeRegistry === null) return { status: 501, headers: {}, body: 'compat webServer not installed' }
   return activeRegistry.dispatch(input)
+}
+
+/** 协议层复用：判断 pathname 是否命中已注册的 compat 路由（动态 fetch 白名单）。 */
+export function matchesCompatRoute(pathname: string): boolean {
+  if (activeRegistry === null) return false
+  return activeRegistry.matchesRegisteredRoute(pathname)
 }

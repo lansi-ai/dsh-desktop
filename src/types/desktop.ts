@@ -33,11 +33,38 @@ export const desktopEventSchema = z.object({
   payload: z.unknown().optional(),
 })
 
+// ── 快捷键 Schema（M2·d3 shortcuts）──────────────────────────────
+
+/** 全局快捷键注册请求（renderer → host）。 */
+export const shortcutRegisterSchema = z.object({
+  /** Electron Accelerator 字符串（如 'Alt+Shift+Q'）。 */
+  accelerator: z.string().min(1),
+  /** 快捷键动作名（触发时经 desktop.emitAction + sendDesktopEvent 下行）。 */
+  action: desktopActionSchema,
+})
+
+/** 全局快捷键注销请求（renderer → host）。 */
+export const shortcutUnregisterSchema = z.object({
+  /** 要注销的 Accelerator 字符串。 */
+  accelerator: z.string().min(1),
+})
+
+// ── 剪贴板 Schema（M2·d3 clipboard）──────────────────────────────
+
+/** 剪贴板写入请求（renderer → host，需 approval 审批）。 */
+export const clipboardWriteSchema = z.object({
+  /** 要写入剪贴板的文本内容。 */
+  text: z.string(),
+})
+
 // ── 推导类型 ──────────────────────────────────────────────────────
 
 export type DesktopAction = z.infer<typeof desktopActionSchema>
 export type DesktopActionEvent = z.infer<typeof desktopActionEventSchema>
 export type DesktopEvent = z.infer<typeof desktopEventSchema>
+export type ShortcutRegister = z.infer<typeof shortcutRegisterSchema>
+export type ShortcutUnregister = z.infer<typeof shortcutUnregisterSchema>
+export type ClipboardWrite = z.infer<typeof clipboardWriteSchema>
 
 /**
  * `ctx.desktop` 聚合服务接口（core 子集，M2 地基）。

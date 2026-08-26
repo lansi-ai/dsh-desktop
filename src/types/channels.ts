@@ -20,6 +20,8 @@ export const IPC_CHANNELS = {
   READY: 'dsh:ready',
   /** 下行：桌面事件（desktop/action 审计/通知 → renderer onDesktopEvent）。 */
   DESKTOP_EVENT: 'desktop:event',
+  /** 上行：桌面能力统一调用入口（快捷键/剪贴板等 → bridge methodTable 分发）。 */
+  DESKTOP_INVOKE: 'desktop:invoke',
 } as const satisfies Record<string, string>
 
 /** IPC 通道名联合类型。 */
