@@ -43,7 +43,10 @@ alwaysApply: true
 - [ ] **步骤 7: M1 门禁验收与收尾**（2026-08-26 部分推进）
   - [x] 官方 dist 接入 + R5 修复（本轮，**实机验证通过**）：`FORCE_PLACEHOLDER=false` + 固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname 映射官方 dist 根；实机验证 **6 项资源全部 200，不再白屏**；dist 自 tarball 落盘恢复；`verify-bundle-spike.cjs` 扩展断言 6 项落盘；typecheck/lint/build 通过
   - [x] 第 3 层前置：`@dsh-desktop/ipc-connection` client bundle 最小实证完成 —— 继承官方 `AbstractApiClient`、`doFetch` 信封透传 + `server-response` 包装（rpcId 回显/error 窄化）、preload `request(envelope)` 透传通道；`verify-ipc-carrier.cjs` Step1/2 通过，typecheck/lint/build 全绿
-  - [ ] 官方 UI 完成日常对话全流程（**下一攻坚目标**：boot-graph 组装最小激活集图谱 client-modules/client-runtime/typert-registry/api-gateway/api-remotes/ipc-connection + Cordis `__DSH_BOOT__`→entry 激活控制 + host 帧路由 server-request 信封对齐）
+  - [ ] 官方 UI 完成日常对话全流程（**攻坚推进中**）
+    - [x] 攻坚第 1 批（本轮，**脚本实证通过**）：boot-graph 组装官方 UI 最小激活集（client-connection 模块依赖 + typert-registry/api-gateway/api-remotes + ipc-connection 独占 connection，含 inject/external/immediately 与依赖序）+ ipc-connection 载波补齐（`connection.rpc.call` 真实分发 host booleanResult + `readIpFrames` 帧泵 server-request 信封 + 最小连接循环 `start`）+ contract 四象限信封 schema；`verify-ipc-carrier.cjs` 扩至 4 步、`verify-bundle-spike.cjs` 增激活集断言，typecheck/lint/build + 双脚本全绿
+    - [x] 攻坚第 2 批·实现（本轮完成，**待实机验收**）：host 会话事件→下行帧中继 `src/desktop-host/carrier-relay.ts` —— 消费 `ctx.apiProxy.events.mux/host` 事件流（官方 dsh-host-apiproxy 已把 session/event、session/jobs、approval/question requested 装配为 `{rpcId, payload:frame}` 帧），逐帧 `payload` 经 `webContents.send('dsh:frame')` 下发 renderer（ipc-connection readIpFrames 用自身 streamRpcId 重包）；main.ts 接线（createWindow 返回值 + 窗口 closed 释放中继）；frameSchema 保守 dst 判定未扩（中继绕过其 3 种枚举直推原始帧，renderer 端按 `frame.type` 判类）；typecheck/lint/build 全绿
+    - [ ] 攻坚第 2 批·实机（**待推进**）：`npm run dev` 验收官方 UI 日常对话全流程（渲染层 consumed mux 帧重建会话）——依赖实时观察，暂交由后续会议实机确认
   - [ ] 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层，未实现）
   - [ ] `docs/active-context.html` 看板同步落盘 + 里程碑提交
 
@@ -63,9 +66,9 @@ alwaysApply: true
   - 暂存项：自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **当前正在处理**：步骤 7 收尾 + 第 3 层前置。本轮**实机验证通过**：官方 dist 接入（`FORCE_PLACEHOLDER=false` + 固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname）修复 R5 —— **6 项资源全部 200，不再白屏**；另完成 `@dsh-desktop/ipc-connection` 客户端模块工厂最小实证（require 官方 `AbstractApiClient` 继承 + `doFetch` server-response 封装 + preload `request` 透传），`verify-ipc-carrier.cjs` Step1/2 通过。
-- **下一攻坚目标**：官方 UI 完成日常对话全流程 —— boot-graph 组装最小激活集图谱（client-modules/client-runtime/typert-registry/api-gateway/api-remotes/ipc-connection）、Cordis `__DSH_BOOT__`→entry 激活控制、host 帧路由 server-request 信封对齐。
-- **关键阻塞项**：官方 client-runtime 未激活（waiting for services `connection`/`typert`/`remote`/`remote.commands`）；Cordis `__DSH_BOOT__`→entry 激活机制待研究；`npm install` 后官方 dist 可能未落盘（R4 reopened）。
+- **当前正在处理**：步骤 7 攻坚第 1 批（本轮，**脚本实证通过**）。boot-graph 已组装官方 UI 最小激活集（client-connection 模块依赖 + typert-registry/api-gateway/api-remotes + ipc-connection 独占 connection，inject/external/immediately 与依赖序正确）；ipc-connection 载波补齐 `connection.rpc.call` 真实分发 + `readIpFrames` 帧泵 + 最小连接循环 `start`；contract 新增四象限信封 schema。`verify-ipc-carrier.cjs` 扩至 4 步、`verify-bundle-spike.cjs` 增激活集断言，typecheck/lint/build + 双脚本全绿。
+- **下一攻坚目标**（攻坚第 2 批）：实机 `npm run dev` 验收官方 UI 对话全流程 + host 会话事件→下行帧中继——apiProxy 处理 RPC 后把 `session/event`、approval/question requested 等事件经 bridge.sendFrame 推送给 renderer，使官方 UI 完成一次端到端对话。
+- **关键阻塞项**：官方 UI 的 connection 服务面已由 ipc-connection 独占供出（client-connection 仅留作基类 require 依赖）；是否真正进入会话仍依赖 host apiProxy 对 `session.*`/`host.describe` 的远程方法分发 + host 会话事件的下行帧推送（攻坚第 2 批验证）。
 - **AI 交互指令提示**：后续会话可直接提示 "按照 active-context.md 的下一步继续执行"。
 
 ## 05. 规则自我演进维护
