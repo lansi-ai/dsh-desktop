@@ -162,7 +162,62 @@ async function stepTwo() {
   console.log('   请求信封 → preload.request 保真 rpcId 透传 → server-response 回显 rpcId → result 窄化')
 }
 
-stepTwo().catch((error) => {
-  console.error('❌ Step 2 失败:', error)
+// ── Step 3：单测 connection.rpc.call（api-gateway 远端方法分发路径）────
+// api-gateway 的 RemoteNamespaceService.invoke 调 connection.rpc.call("/api", endpoint, {args}, signal)，
+// 期待返回官方 booleanResult {ok, value|error}。这里断言 host 应答被包成该形状。
+async function stepThree() {
+  sandboxRef.window.desktopBridge.request = async (envelope) => ({
+    rpcId: envelope.rpcId,
+    data: { sessions: [{ id: 's1' }] },
+  })
+  const result = await provided.rpc.call('/api', 'session.list', { args: {} })
+  assert.equal(result.ok, true, 'rpc.call 正常应返回 ok=true')
+  assert.deepEqual(result.value, { sessions: [{ id: 's1' }] }, 'rpc.call value 应为 host 回传数据')
+
+  // host 错误分支 → result.ok=false + error
+  sandboxRef.window.desktopBridge.request = async () => ({ rpcId: 'x', error: { code: 42, message: 'nope' } })
+  const resultErr = await provided.rpc.call('/api', 'session.prompt', { args: {} })
+  assert.equal(resultErr.ok, false, 'rpc.call 错误应返回 ok=false')
+  assert.equal(resultErr.error.message, 'nope', 'rpc.call 错误应透传 message')
+  console.log('✅ 路线 A 最小实证（Step 3）通过：connection.rpc.call 分发 + booleanResult')
+}
+
+// ── Step 4：单测 readIpFrames 帧泵（下游 server-request 帧路由）────────
+// ConnectionController.pumpStream 消费 openMux/openHost 产出的 {rpcId, payload} 连续流，
+// 并把每帧投递到 onMuxEnvelope/onHostEnvelope。这里 feed 两个 host 帧并断言产出 envelope。
+async function stepFour() {
+  let frameCb = null
+  sandboxRef.window.desktopBridge.onFrame = (cb) => {
+    frameCb = cb
+    return () => {}
+  }
+  const stream = provided.api.openMux({})
+  const iterator = stream[Symbol.asyncIterator]()
+  // 首次 next() 触发 generator 体：订阅 onFrame（frameCb 就位）并挂起等待。
+  const pending = iterator.next()
+  assert.ok(frameCb !== null, 'readIpFrames 应通过 onFrame 订阅帧路由')
+  const frame1 = { type: 'session/event', payload: { event: 'session.started' } }
+  const frame2 = { type: 'session/event', payload: { event: 'session.delta' } }
+  frameCb(frame1)
+  frameCb(frame2)
+  const e1 = await pending
+  assert.equal(e1.done, false, '帧泵应产出第一帧')
+  assert.equal(e1.value.payload.type, 'session/event', '产出 envelope.payload 应为 host 帧')
+  assert.equal(e1.value.payload.payload.event, 'session.started', '帧 payload 应保真')
+  assert.ok(e1.value.rpcId, 'envelope 应携带 rpcId')
+  const e2 = await iterator.next()
+  assert.equal(e2.value.payload.payload.event, 'session.delta', '帧泵应产出第二帧')
+  console.log('✅ 路线 A 最小实证（Step 4）通过：readIpFrames 帧泵产出 server-request envelope')
+}
+
+async function main() {
+  await stepTwo()
+  await stepThree()
+  await stepFour()
+  console.log('✅ 路线 A 全部实证通过：bundle require / doFetch / rpc.call / readIpFrames')
+}
+
+main().catch((error) => {
+  console.error('❌ 实证失败:', error)
   process.exit(1)
 })

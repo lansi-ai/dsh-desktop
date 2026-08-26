@@ -53,6 +53,32 @@ assert.ok(script.includes('@deepseek-ai/dsh-client-runtime/client.js'), '注入�
 assert.ok(script.includes('window.__DSH_BOOT__'), '注入脚本应含 __DSH_BOOT__')
 assert.ok(script.includes(`"id":"${sampleId}"`), '注入脚本图谱应包含样例插件')
 
+// ── 官方 UI 最小激活集（Step 7·对话闭环攻坚）──────────────────────────
+// ipc-connection 独占 connection 服务；client-connection 仅作 require 依赖（不置 immediately）。
+function entryOf(id) {
+  const entry = graph.entries.find((e) => e.id === id)
+  assert.ok(entry, `图谱缺少激活集条目: ${id}`)
+  return entry
+}
+for (const must of [
+  '@deepseek-ai/dsh-client-connection',
+  '@deepseek-ai/dsh-typert-registry',
+  '@deepseek-ai/dsh-api-gateway',
+  '@deepseek-ai/dsh-api-remotes',
+  '@dsh-desktop/ipc-connection',
+]) {
+  entryOf(must)
+}
+
+// 依赖边：api-gateway 注入 typert+connection，api-remotes 注入 remote
+assert.deepEqual(entryOf('@deepseek-ai/dsh-api-gateway').inject, ['typert', 'connection'], 'api-gateway inject 应为 [typert, connection]')
+assert.deepEqual(entryOf('@deepseek-ai/dsh-api-remotes').inject, ['remote'], 'api-remotes inject 应为 [remote]')
+// ipc-connection：external 依赖 client-connection/client（基类继承），且应 immediately 激活
+assert.deepEqual(entryOf('@dsh-desktop/ipc-connection').external, ['@deepseek-ai/dsh-client-connection/client'], 'ipc-connection external 应指向 client-connection/client')
+assert.strictEqual(entryOf('@dsh-desktop/ipc-connection').immediately, true, 'ipc-connection 应 immediately 激活')
+// client-connection：仅模块依赖，不置 immediately（避免 connection 服务冲突）
+assert.strictEqual(entryOf('@deepseek-ai/dsh-client-connection').immediately, undefined, 'client-connection 不应 immediately（connection 由 ipc-connection 独占）')
+
 // ── 官方 web-frontend dist 加载路径（R5 修复后）──────────────────────
 // 官方 dist 资源使用根绝对路径（/assets/...）。在固定虚拟 host `dsh-ui://app` 布局下，
 // resolveRelative 仅取 pathname 映射到 dist 根（rel = 去掉前导 `/`）。
