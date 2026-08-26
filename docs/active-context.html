@@ -229,11 +229,12 @@
 
       <h3>M4-a 第一波：Win 安装包首发</h3>
       <ul class="task-list">
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a1 electron-builder 基建</strong></span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>依赖安装 + <code>electron-builder.yml</code> 打包配置（appId/产品名/图标/Win nsis target）</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>app.isPackaged</code> 路径适配：dist 资源/bareModuleBaseUrl/preload 打包产物内正确解析</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>npm run dist</code> 脚本（build → electron-builder 一条龙）</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>Win 安装包 + 便携包（portable）+ <code>SHA256SUMS</code> 校验文件生成</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-a1 electron-builder 基建（2026-08-26 完成）</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>electron-builder v26.15.3 + <code>electron-builder.yml</code>（nsis + portable 双 target）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>app.isPackaged</code> 路径适配：userData 重定向仅 dev / <code>RUNTIME_ROOT</code> 收敛 / asar 布局天然兼容</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>npm run dist</code> 脚本（build → electron-builder → make-sums，<code>--publish never</code>）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>Win 安装包（127.4MB）+ 便携包（127.1MB）+ <code>SHA256SUMS</code>；asar 关键路径核验 OK</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>附注：npmRebuild false（node-pty 预编译）；镜像下载需 <code>ELECTRON_MIRROR</code> 环境变量</span></li>
 
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a2 R10 协议安全白名单（分发前必补）</strong></span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>dsh://</code> 来源校验：open-url/second-instance 参数白名单过滤（R10 收口）</span></li>
@@ -306,15 +307,14 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>M3-b4 dogfood 🔄 进行中（与 M4 并行）</b> → <b>M4-a Win 安装包首发 待开发</b></p>
-      <p style="margin:8px 0 0 0;"><strong>M4 第一优先级：</strong> <b>M4-a1 electron-builder 基建</b>（依赖安装 + 打包配置 + <code>app.isPackaged</code> 路径适配 + <code>npm run dist</code> 脚本）</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建/修改的文件（M4-a1）：</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>electron-builder.yml</code>（打包配置，项目根目录）</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>package.json</code>（新增 dist 脚本 + electron-builder devDependency）</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/desktop-shell/main.ts</code>（app.isPackaged 打包路径适配：bareModuleBaseUrl/resources 解析）</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">M3-b4 dogfood（并行进行）：实机 <code>npm run dev</code> 日常使用，记录问题清单；每完成一周做一次阶段小结。</p>
+      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>M3-b4 dogfood 🔄 进行中（与 M4 并行）</b> → <b>M4-a1 electron-builder 基建 ✅（2026-08-26）</b> → <b>M4-a2 R10 协议安全 待开发</b></p>
+      <p style="margin:8px 0 0 0;"><strong>M4 第一优先级：</strong> <b>M4-a2 R10 协议安全白名单</b>（<code>dsh://</code> 来源校验 + 协议参数 zod 强校验）</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建/修改的文件（M4-a2）：</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/types/protocol.ts</code>（dsh:// URL 契约 zod Schema：action 白名单/session id 格式/query 长度上限）</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/desktop-host/dsh-protocol.ts</code>（入口校验：非法 URL 拒绝 + 审计记录）</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">M3-b4 dogfood（并行进行）：实机日常使用打包版（<code>release/DSH Desktop-0.1.0-portable.exe</code>）或 <code>npm run dev</code>，记录问题清单。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>阻塞项：</strong> M2-c 旧插件门禁载体待确认，<b>不阻塞 M3/M4</b>。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">💡 提示：直接在浏览器中打开本 HTML 即可随时查看最新进度；后续会话可提示 "按照 active-context.md 的 M4-a1 继续执行"。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">💡 提示：直接在浏览器中打开本 HTML 即可随时查看最新进度；后续会话可提示 "按照 active-context.md 的 M4-a2 继续执行"。</p>
     </div>
   </div>
 </body>
