@@ -264,6 +264,7 @@
         <li><strong>R5（已实机修复，本轮）：</strong>改用固定虚拟 host dsh-ui://app 布局 + resolveRelative 仅取 pathname 映射；实机验证官方 dist 6 项资源全部 200（不再白屏）。剩余：官方 client-connection 被官方驱动全量激活抢占 connection（connection lost retry + /api/* 404），已按 D-9 移出图谱改预载注册，实机重验通过官方 UI 已经 ipc-connection 走 IPC 载波。</li>
         <li><strong>R6：</strong>!!js 表达式在 overlay patches 中不被求值，TS 直接求值绕过（沿用）。</li>
         <li><strong>R7：</strong>dshHomePath 路径硬编码，待步骤 4 解决（沿用）。</li>
+        <li><strong>排障手册：</strong>docs/pitfalls.md（M1 攻坚第 2 批实战踩坑记录，含 8 类坑 + 排障方法论）——后续会话排障时<strong>先查阅该文档</strong>再动手。</li>
       </ul>
     </div>
 

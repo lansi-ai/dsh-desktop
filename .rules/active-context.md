@@ -64,10 +64,11 @@ alwaysApply: true
   - D-12 host RPC 入口 = 官方 `toFetchHandler(apiProxy)`：host-apiproxy 无 `.handleRpc`，应把 client-request envelope 经 `/api/<method>` 虚拟路由分发（`new Request` 需绝对 base `http://local`），解包 server-response 的 `result.value`
 - **风险与技术债记录**：
   - R4 **reopened（本轮）**：官方 dist 在 npm 发行物（tarball 含 dist/assets，89 文件）中，但 `npm install` 未落盘 node_modules（仅元数据）；本轮已从 tarball 恢复 dist。重装依赖后需校验 dist 完整性。
-  - R5 **已实机修复（本轮）**：改用固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname 映射；实机验证官方 dist 6 项资源全部 200（不再白屏）。剩余：官方 `client-connection` 被官方驱动全量激活抢占 connection（`connection lost retry` + `/api/*` 404），已按 D-9 移出图谱改预载注册，**待实机重验**官方 UI 是否经 ipc-connection 走 IPC 载波
+  - R5 **已实机修复（本轮）**：改用固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname 映射；实机验证官方 dist 6 项资源全部 200（不再白屏）。已按 D-9 将 `client-connection` 移出图谱改预载注册，实机重验通过——官方 UI 已经 ipc-connection 走 IPC 载波完成日常对话
   - R6 open：`!!js` 表达式在 overlay patches（JS 对象直传 `boot()`）中不被 Cordis Loader 求值（仅 Include YAML 解析阶段激活）——当前以 TS 直接求值绕过；`dshHomePath()` 等 Cordis 服务需在步骤 4 通过 `prepare` 钩子提供
   - R7 open：`session-persistence-jsonl` / `storage-json` 的 `root` 路径使用硬编码 `.runtime/user-data/...`；待 `dshHomePath` 服务可用后切回 `!!js dshHomePath(...)` 语义
   - 暂存项：自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入
+  - **排障手册**：`docs/pitfalls.md`（M1 攻坚第 2 批实战踩坑记录，含 8 类坑 + 排障方法论）——后续会话排障时**先查阅该文档**再动手
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 - **当前正在处理**：步骤 7 攻坚第 2 批（**已完成，实机验收通过**，2026-08-26）。官方 UI 成功渲染进入 + 工作区选择 + 日常对话全流程打通；期间按 D-9/10/11/12 连环修复（client-connection 预载注册、自动扫描图谱、Electron 目录选择器、toFetchHandler RPC 入口）；typecheck/lint/build + 双验证脚本全绿。
