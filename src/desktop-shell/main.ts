@@ -3,17 +3,23 @@ import { join } from 'node:path'
 import { registerDshUiProtocol, registerDshUiScheme } from './dsh-ui-protocol'
 import { registerIpcBridge, cleanupWindowState, removeIpcHandlers } from '../desktop-host/bridge.js'
 import { registerIpcCarrierServices } from '../desktop-host/manifest.js'
+import {
+  installMainCrashHandlers,
+  installRendererCrashRecovery,
+  isCircuitBroken,
+  resetOnCleanQuit,
+} from './relaunch'
 import type { RpcRequest } from '../types/contract.js'
 
 /**
- * dsh-desktop 主进程入口（M1·步骤4：boot() 装配 + IPC 载波 + dsh-ui:// 协议加载官方 Web UI）。
+ * dsh-desktop 主进程入口（M1·步骤6：崩溃 relaunch 自愈 v0 + 零端口验证铺垫）。
  *
  * 启动时序：
- * 1. userData 重定向 → 单实例锁
+ * 1. userData 重定向 → 单实例锁 → 熔断启动守卫
  * 2. app.whenReady() → registerDshUiProtocol() → registerIpcBridge() → bootDesktopHost() → createWindow()
  *
- * 后续扩展：单例锁管理、崩溃 relaunch（步骤6）；
- * src/desktop-host 承载 boot() desktop profile 装配。
+ * 崩溃自愈：主进程 uncaughtException 触发有限重启；渲染进程崩溃自动 reload 窗口；
+ * 连续崩溃在窗口期内超限即熔断（详见 relaunch.ts）。
  */
 
 // userData 重定向到项目内 .runtime/user-data：开发期避开系统 AppData（沙箱/残留垃圾易致
@@ -23,18 +29,28 @@ app.setPath('userData', join(__dirname, '..', '..', '.runtime', 'user-data'))
 // 注册 dsh-ui:// 协议方案特权（必须在 app.whenReady 前）
 registerDshUiScheme()
 
-// 单实例锁：防止多开导致宿主与数据目录冲突（正式策略后续在 desktop-shell 收敛）
-const gotTheLock = app.requestSingleInstanceLock()
-if (!gotTheLock) {
-  app.quit()
+// 崩溃自愈：主进程崩溃处理器 + 熔断启动守卫
+installMainCrashHandlers()
+
+if (isCircuitBroken()) {
+  // 连续崩溃已达熔断上限：本次启动不再自动重启，避免无限重启循环
+  console.error('[dsh-desktop] 连续崩溃已达熔断上限，暂停自动重启')
+  app.exit(1)
 } else {
-  app.on('second-instance', () => {
-    const [win] = BrowserWindow.getAllWindows()
-    if (win !== undefined) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
-    }
-  })
+  // 单实例锁：防止多开导致宿主与数据目录冲突（正式策略后续在 desktop-shell 收敛）
+  const gotTheLock = app.requestSingleInstanceLock()
+  if (!gotTheLock) {
+    app.quit()
+  } else {
+    app.on('second-instance', () => {
+      const [win] = BrowserWindow.getAllWindows()
+      if (win !== undefined) {
+        if (win.isMinimized()) win.restore()
+        win.focus()
+      }
+    })
+    void bootstrap()
+  }
 }
 
 // ── 预加载脚本路径 ───────────────────────────────────────────────────
@@ -67,10 +83,8 @@ function createWindow(): void {
     console.error(`[dsh-desktop] 页面加载失败 (${errorCode}): ${errorDescription} URL: ${validatedURL}`)
   })
 
-  // 渲染进程崩溃
-  win.webContents.on('render-process-gone', (_event, details) => {
-    console.error(`[dsh-desktop] 渲染进程崩溃: reason=${details.reason}, exitCode=${details.exitCode}`)
-  })
+  // 渲染进程崩溃自愈：自动 reload 窗口，超次升级整体重启
+  installRendererCrashRecovery(win)
 
   // 捕获 renderer 日志转发到主进程
   // Electron console-message level: 0=verbose, 1=info, 2=warning, 3=error
@@ -86,9 +100,11 @@ function createWindow(): void {
   void win.loadURL('dsh-ui://index.html')
 }
 
-app
-  .whenReady()
-  .then(async () => {
+/** 主进程启动流程（仅当未熔断时调用）。 */
+async function bootstrap(): Promise<void> {
+  try {
+    await app.whenReady()
+
     // 1. 协议注册（必须在 boot 前：boot 期间可能触发 dsh-ui:// 加载）
     registerDshUiProtocol()
 
@@ -152,11 +168,11 @@ app
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
-  })
-  .catch((error: unknown) => {
+  } catch (error: unknown) {
     console.error('[dsh-desktop] 启动失败:', error)
     app.quit()
-  })
+  }
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
@@ -164,4 +180,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   removeIpcHandlers()
+  resetOnCleanQuit()
 })

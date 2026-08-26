@@ -194,6 +194,18 @@
           <span class="status-icon">[ ]</span>
           <span><strong>步骤 6: 零端口验证与崩溃恢复初版</strong></span>
         </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>netstat 零监听验证（默认模式，2026-08-26 通过 —— Electron 进程无任何 TCP 监听端口）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>崩溃 relaunch 自愈 v0（relaunch.ts：主进程 uncaughtException 有限重启 + 渲染进程 reload 升级为整体重启 + 60s 窗口连续 3 次熔断；typecheck/lint/build 通过）</span>
+        </li>
+        <li class="task-item sub todo">
+          <span class="status-icon">[ ]</span>
+          <span>--serve 兼容模式冒烟（归 M2 兼容层，ADR-007；需重启用官方 webserver）</span>
+        </li>
         <li class="task-item todo">
           <span class="status-icon">[ ]</span>
           <span><strong>步骤 7: M1 门禁验收与收尾</strong></span>
@@ -219,8 +231,8 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前焦点：</strong>步骤 5 方案 A 已完成（2026-08-26）。<strong>下一步 = 验证官方 dist 资源路径（R5）+ 步骤 6: 零端口验证与崩溃恢复初版</strong>。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">步骤 6 首要任务：netstat 零监听验证（默认模式）+ --serve 兼容模式冒烟 + 崩溃 relaunch 自愈 v0（有限重启 + 熔断）。</p>
+      <p style="margin:0;"><strong>当前焦点：</strong>步骤 6 接近收尾（2026-08-26）。<strong>已通过：</strong>崩溃 relaunch 自愈 v0（relaunch.ts，主进程有限重启 + 渲染崩溃升级 + 60s 窗口连续 3 次熔断）+ 默认模式 netstat 零监听验证（Electron 无任何 TCP 监听端口）。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>步骤 7（下一步）：</strong>M1 门禁验收 —— 接官方 UI 完成日常对话全流程 + 第三方 web 插件无改动装载验证 + 看板同步落盘与里程碑提交。</p>
       <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">关键阻塞：官方 UI 客户端模块系统需 @dsh-desktop/ipc-connection 客户端模块工厂接入；官方 dist 资源路径绝对路径语义（R5）待验证。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
     </div>

@@ -37,8 +37,9 @@ alwaysApply: true
   - [ ] 方案 B：`BootSeams.loadBundle` 覆写（暂未实测，留作对比兜底；官方 `manifest.d.ts` 已确认 `loadBundle?: (url) => Promise<void>` 钩子可用）
   - [x] 结论落 ADR-007：方案 A 为默认零端口 bundle 装载路径；R5（官方 dist 资源路径绝对路径语义）仍未验证
 - [ ] **步骤 6: 零端口验证与崩溃恢复初版**
-  - [ ] `netstat` 零监听验证（默认模式）+ `--serve` 兼容模式冒烟
-  - [ ] 崩溃 relaunch 自愈 v0（有限重启 + 熔断）
+  - [x] `netstat` 零监听验证（默认模式，2026-08-26 通过 —— Electron 进程无任何 TCP 监听端口）
+  - [ ] `--serve` 兼容模式冒烟（**归 M2 兼容层**，ADR-007；需重启用官方 webserver）
+  - [x] 崩溃 relaunch 自愈 v0（有限重启 + 熔断；`src/desktop-shell/relaunch.ts` 主/渲染崩溃兜底 + 熔断计数，已通过 typecheck/lint/build）
 - [ ] **步骤 7: M1 门禁验收与收尾**
   - [ ] 官方 UI 完成日常对话全流程
   - [ ] 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证
@@ -60,8 +61,8 @@ alwaysApply: true
   - 暂存项：自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **当前正在处理**：步骤 5 方案 A 已完成（2026-08-26）。**下一步 = 验证官方 dist 资源路径（R5）+ 步骤 6: 零端口验证与崩溃恢复初版**。
-- **步骤 6 首要任务**：`netstat` 零监听验证（默认模式）+ `--serve` 兼容模式冒烟 + 崩溃 relaunch 自愈 v0（有限重启 + 熔断）。
+- **当前正在处理**：步骤 6 接近收尾（2026-08-26）。**已通过**：崩溃 relaunch 自愈 v0（`relaunch.ts`：主进程 uncaughtException 有限重启、渲染进程 reload 升级为整体重启、60s 窗口内连续 3 次熔断，typecheck/lint/build 通过）+ 默认模式 `netstat` 零监听验证（Electron 无任何 TCP 监听端口）。
+- **步骤 7（下一步）**：M1 门禁验收 —— 接官方 UI 完成日常对话全流程 + 第三方 web 插件无改动装载验证 + 看板同步落盘与里程碑提交。
 - **关键阻塞项**：官方 UI 客户端模块系统需要 `@dsh-desktop/ipc-connection` 客户端模块工厂，当前 IPC 载波经 preload.desktopBridge 独立提供，后续需接入 DSH 模块系统；官方 dist 资源路径绝对路径语义（R5）待验证。
 - **AI 交互指令提示**：后续会话可直接提示 "按照 active-context.md 的下一步继续执行"。
 
