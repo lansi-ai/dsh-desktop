@@ -36,13 +36,15 @@ alwaysApply: true
   - [x] 方案 A：`dsh-ui://plugins/<id>/client.js?rev=` 协议直读（`boot-graph.ts` 图谱生成 + `dsh-ui-protocol` bundle route + 样例插件 + 自动化验证通过）
   - [ ] 方案 B：`BootSeams.loadBundle` 覆写（暂未实测，留作对比兜底；官方 `manifest.d.ts` 已确认 `loadBundle?: (url) => Promise<void>` 钩子可用）
   - [x] 结论落 ADR-007：方案 A 为默认零端口 bundle 装载路径；R5（官方 dist 资源路径绝对路径语义）仍未验证
-- [ ] **步骤 6: 零端口验证与崩溃恢复初版**
+- [x] **步骤 6: 零端口验证与崩溃恢复初版**（2026-08-26 完成；`--serve` 兼容冒烟归 M2 兼容层，ADR-007）
   - [x] `netstat` 零监听验证（默认模式，2026-08-26 通过 —— Electron 进程无任何 TCP 监听端口）
   - [ ] `--serve` 兼容模式冒烟（**归 M2 兼容层**，ADR-007；需重启用官方 webserver）
   - [x] 崩溃 relaunch 自愈 v0（有限重启 + 熔断；`src/desktop-shell/relaunch.ts` 主/渲染崩溃兜底 + 熔断计数，已通过 typecheck/lint/build）
-- [ ] **步骤 7: M1 门禁验收与收尾**
-  - [ ] 官方 UI 完成日常对话全流程
-  - [ ] 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证
+- [ ] **步骤 7: M1 门禁验收与收尾**（2026-08-26 部分推进）
+  - [x] 官方 dist 接入 + R5 修复（本轮，**实机验证通过**）：`FORCE_PLACEHOLDER=false` + 固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname 映射官方 dist 根；实机验证 **6 项资源全部 200，不再白屏**；dist 自 tarball 落盘恢复；`verify-bundle-spike.cjs` 扩展断言 6 项落盘；typecheck/lint/build 通过
+  - [x] 第 3 层前置：`@dsh-desktop/ipc-connection` client bundle 最小实证完成 —— 继承官方 `AbstractApiClient`、`doFetch` 信封透传 + `server-response` 包装（rpcId 回显/error 窄化）、preload `request(envelope)` 透传通道；`verify-ipc-carrier.cjs` Step1/2 通过，typecheck/lint/build 全绿
+  - [ ] 官方 UI 完成日常对话全流程（**下一攻坚目标**：boot-graph 组装最小激活集图谱 client-modules/client-runtime/typert-registry/api-gateway/api-remotes/ipc-connection + Cordis `__DSH_BOOT__`→entry 激活控制 + host 帧路由 server-request 信封对齐）
+  - [ ] 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层，未实现）
   - [ ] `docs/active-context.html` 看板同步落盘 + 里程碑提交
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
@@ -54,16 +56,16 @@ alwaysApply: true
   - D-5 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）
   - D-6 兼容层 = `ctx.desktopRoutes` + fetch 拦截白名单（ADR-007）
 - **风险与技术债记录**：
-  - R5 open：`dsh-ui://` 在真实 file:// 环境的官方 dist 资源路径绝对路径语义未验证（bundle route 已通过；M1-T4 spike 决出）
-  - ~~R4~~ **closed**：dist 构建产物可得性 —— `@deepseek-ai/dsh-web-frontend@0.1.0-rc.8` 直接携带官方 dist 发行物，无需自建构建脚本
+  - R4 **reopened（本轮）**：官方 dist 在 npm 发行物（tarball 含 dist/assets，89 文件）中，但 `npm install` 未落盘 node_modules（仅元数据）；本轮已从 tarball 恢复 dist。重装依赖后需校验 dist 完整性。
+  - R5 **已实机修复（本轮）**：改用固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname 映射；实机验证官方 dist 6 项资源全部 200（不再白屏）。剩余：官方 `client-runtime` 未激活（waiting for services `connection`/`typert`/`remote`/`remote.commands`），需 `@dsh-desktop/ipc-connection` 等 client 服务工厂（第 3 层）
   - R6 open：`!!js` 表达式在 overlay patches（JS 对象直传 `boot()`）中不被 Cordis Loader 求值（仅 Include YAML 解析阶段激活）——当前以 TS 直接求值绕过；`dshHomePath()` 等 Cordis 服务需在步骤 4 通过 `prepare` 钩子提供
   - R7 open：`session-persistence-jsonl` / `storage-json` 的 `root` 路径使用硬编码 `.runtime/user-data/...`；待 `dshHomePath` 服务可用后切回 `!!js dshHomePath(...)` 语义
   - 暂存项：自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **当前正在处理**：步骤 6 接近收尾（2026-08-26）。**已通过**：崩溃 relaunch 自愈 v0（`relaunch.ts`：主进程 uncaughtException 有限重启、渲染进程 reload 升级为整体重启、60s 窗口内连续 3 次熔断，typecheck/lint/build 通过）+ 默认模式 `netstat` 零监听验证（Electron 无任何 TCP 监听端口）。
-- **步骤 7（下一步）**：M1 门禁验收 —— 接官方 UI 完成日常对话全流程 + 第三方 web 插件无改动装载验证 + 看板同步落盘与里程碑提交。
-- **关键阻塞项**：官方 UI 客户端模块系统需要 `@dsh-desktop/ipc-connection` 客户端模块工厂，当前 IPC 载波经 preload.desktopBridge 独立提供，后续需接入 DSH 模块系统；官方 dist 资源路径绝对路径语义（R5）待验证。
+- **当前正在处理**：步骤 7 收尾 + 第 3 层前置。本轮**实机验证通过**：官方 dist 接入（`FORCE_PLACEHOLDER=false` + 固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname）修复 R5 —— **6 项资源全部 200，不再白屏**；另完成 `@dsh-desktop/ipc-connection` 客户端模块工厂最小实证（require 官方 `AbstractApiClient` 继承 + `doFetch` server-response 封装 + preload `request` 透传），`verify-ipc-carrier.cjs` Step1/2 通过。
+- **下一攻坚目标**：官方 UI 完成日常对话全流程 —— boot-graph 组装最小激活集图谱（client-modules/client-runtime/typert-registry/api-gateway/api-remotes/ipc-connection）、Cordis `__DSH_BOOT__`→entry 激活控制、host 帧路由 server-request 信封对齐。
+- **关键阻塞项**：官方 client-runtime 未激活（waiting for services `connection`/`typert`/`remote`/`remote.commands`）；Cordis `__DSH_BOOT__`→entry 激活机制待研究；`npm install` 后官方 dist 可能未落盘（R4 reopened）。
 - **AI 交互指令提示**：后续会话可直接提示 "按照 active-context.md 的下一步继续执行"。
 
 ## 05. 规则自我演进维护
