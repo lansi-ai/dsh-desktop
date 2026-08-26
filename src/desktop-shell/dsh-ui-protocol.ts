@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
-import { generateFullBootScript } from '../desktop-host/manifest.js'
+import { generateFullBootScript, resolveBundleRequest } from '../desktop-host/manifest.js'
 
 /**
  * dsh-ui:// 自定义协议：
@@ -97,7 +97,13 @@ function resolveRelative(url: URL, root: string): string | undefined {
 
 /** Full boot manifest 注入脚本（含 IPC 载波 roster 条目 + queueLoader shim）。 */
 function bootManifestScript(): string {
-  return generateFullBootScript('desktop-m1-ipc')
+  // Spike 阶段：注入一个最小样例 client 插件作为零端口装载路径验证载体。
+  // 正式接入第三方插件时，将该 bundle 声明替换为真实已安装插件即可。
+  const spikeSampleBundle = {
+    id: 'dsh-spike-sample',
+    path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js'),
+  }
+  return generateFullBootScript('desktop-m1-ipc', [spikeSampleBundle])
 }
 
 /** 将 boot manifest 注入到 index.html 的 <head> 之后（对齐官方 IndexTap 语义）。 */
@@ -137,7 +143,16 @@ export function registerDshUiProtocol(): void {
       const root = useDist && distRoot !== null ? distRoot : PLACEHOLDER_ROOT
       console.log(`[dsh-ui-protocol] 使用 ${useDist ? '官方 dist' : '占位页面'}，根目录: ${root}`)
 
-      const rel = resolveRelative(new URL(request.url), root)
+      const url = new URL(request.url)
+
+      // 方案 A：零端口 bundle route — /plugins/<id>/client.js[.map]?rev=...
+      // 必须在 resolveRelative 之前判断（绝对路径 /plugins/ 不依赖 host）。
+      const bundle = resolveBundleRequest(url.pathname)
+      if (bundle !== undefined) {
+        return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
+      }
+
+      const rel = resolveRelative(url, root)
       if (rel === undefined) return new Response('forbidden', { status: 403 })
 
       const filePath = join(root, rel)

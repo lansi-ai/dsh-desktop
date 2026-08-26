@@ -34,3 +34,6 @@ export type {
 
 export { ErrorCodes, AppError } from './errors.js'
 export type { ErrorCode } from './errors.js'
+
+export { bootEntrySchema, bootGraphSchema } from './boot.js'
+export type { BootEntry, BootGraph } from './boot.js'
