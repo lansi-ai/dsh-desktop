@@ -45,6 +45,19 @@ const CLIENT_MODULES_ID = '@deepseek-ai/dsh-client-modules'
 /** HTML parser 预载的普通动态 bundle（在 Vite shell 运行前注册 factory）。 */
 const PARSER_PRELOAD_IDS = [CLIENT_MODULES_ID, '@deepseek-ai/dsh-client-runtime']
 
+// ── 官方 UI 最小激活集（IPC 载波客户端面，Step 7·对话闭环攻坚）──────────────
+/** 官方 connection 基类：仅作 ipc-connection 的模块依赖（require 解析，
+ *  不激活其 apply——connection 服务由 ipc-connection 独占，见 D 决策）。 */
+const CLIENT_CONNECTION_ID = '@deepseek-ai/dsh-client-connection'
+/** Typert 注册表面（client inject[]，对外提供 typert registry）。 */
+const TYPERT_REGISTRY_ID = '@deepseek-ai/dsh-typert-registry'
+/** API 网关（client inject=["typert","connection"]，对外提供 remote + 方法分发）。 */
+const API_GATEWAY_ID = '@deepseek-ai/dsh-api-gateway'
+/** API 远端描述符（client inject=["remote"]，装填 typert 远端方法表）。 */
+const API_REMOTES_ID = '@deepseek-ai/dsh-api-remotes'
+/** 桌面 IPC 载波连接（inject[]，独占提供 connection 服务，替换官方 client-connection）。 */
+const IPC_CONNECTION_ID = '@dsh-desktop/ipc-connection'
+
 // ── 内部工具 ─────────────────────────────────────────────────────────
 
 /** sha1 内容 hash 缩短为 12 位 hex（bundle rev / graph rev）。 */
@@ -57,8 +70,7 @@ function escapeHtmlAttribute(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
-/**
- * 从已安装包解析 `exports["./client"]` 产物路径（官方基础插件用）。
+/** 从已安装包解析 `exports["./client"]` 产物路径（官方基础插件用）。
  * @param id 包名。
  * @returns client bundle 绝对路径。
  * @throws 当包无法解析或未声明 `./client` 产物。
@@ -73,6 +85,28 @@ function resolveBuiltinClientBundle(id: string): string {
     return join(dirname(pkgPath), clientExport.default)
   }
   throw new Error(`client-modules: ${id} 未声明 exports["./client"]`)
+}
+
+/**
+ * 解析本地 `src/desktop-shell/web/` 下静态 client bundle（编译产物优先，源码回退）。
+ *
+ * 编译后 boot-graph 位于 `dist/desktop-host/`，本地 bundle 位于 `dist/desktop-shell/web/`；
+ * 沙箱验证时 boot-graph 位于 `src/desktop-host/`，本地 bundle 位于 `src/desktop-shell/web/`。
+ * 取两者中先存在者为路径，保证 dev 与自动化验证双态可用。
+ *
+ * @param filename 静态 bundle 文件名（如 `ipc-connection.js`）。
+ * @returns 现存 bundle 的绝对路径。
+ * @throws 当两个候选路径均不存在。
+ */
+function resolveLocalWebBundle(filename: string): string {
+  const candidates = [
+    join(__dirname, '..', 'desktop-shell', 'web', filename),
+    join(__dirname, '..', '..', 'src', 'desktop-shell', 'web', filename),
+  ]
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate
+  }
+  throw new Error(`client-modules: 本地 client bundle 不存在: ${candidates.join(' / ')}`)
 }
 
 /** 生成单条图谱行（url 携带 rev 作为破缓存 query）。 */
@@ -108,8 +142,12 @@ function composeEntries(bundles: BootBundleDecl[]): BootEntry[] {
 /**
  * 生成完整的 `__DSH_BOOT__` 图谱。
  *
- * 自动包含官方基础插件（`@deepseek-ai/dsh-client-modules` + `@deepseek-ai/dsh-client-runtime`，
- * 二者是 HTML parser 预载与模块系统 bootstrap 的必需项），并叠加外部传入的 bundle 声明。
+ * 自动包含官方基础插件（`@deepseek-ai/dsh-client-modules` + `@deepseek-ai/dsh-client-runtime`），
+ * 以及官方 UI 会话所需的最小激活集（client-connection 基类模块 + typert-registry/api-gateway/api-remotes
+ * + 桌面独占的 ipc-connection），并叠加外部传入的 bundle 声明。
+ *
+ * client-connection 仅作 ipc-connection 的 require 依赖入图（materialize 供基类继承），
+ * 其 Cordis `apply` 不激活（不置 immediately），connection 服务由 ipc-connection 独占供出。
  *
  * @param rev 图谱版本号；省略时由条目内容哈希推导。
  * @param extraBundles 额外 client 插件 bundle 声明。
@@ -119,6 +157,14 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
   const builtins: BootBundleDecl[] = [
     { id: CLIENT_MODULES_ID, path: resolveBuiltinClientBundle(CLIENT_MODULES_ID) },
     { id: '@deepseek-ai/dsh-client-runtime', path: resolveBuiltinClientBundle('@deepseek-ai/dsh-client-runtime') },
+    // 官方 connection 基类：模块依赖（ipc-connection require 解析用），非激活插件。
+    { id: CLIENT_CONNECTION_ID, path: resolveBuiltinClientBundle(CLIENT_CONNECTION_ID) },
+    // 官方 API 面：typert 注册表 → 分发网关 → 远端描述符装填（inject 约束激活顺序）。
+    { id: TYPERT_REGISTRY_ID, path: resolveBuiltinClientBundle(TYPERT_REGISTRY_ID), inject: [], immediately: true },
+    { id: API_GATEWAY_ID, path: resolveBuiltinClientBundle(API_GATEWAY_ID), inject: ['typert', 'connection'], immediately: true },
+    { id: API_REMOTES_ID, path: resolveBuiltinClientBundle(API_REMOTES_ID), inject: ['remote'], immediately: true },
+    // 桌面独占 connection 载波：inject 为空、immediately 激活，供 api-gateway 消费。
+    { id: IPC_CONNECTION_ID, path: resolveLocalWebBundle('ipc-connection.js'), inject: [], immediately: true, external: [`${CLIENT_CONNECTION_ID}/client`] },
   ]
   const bundles = [...builtins, ...(extraBundles ?? [])]
   const entries = composeEntries(bundles)

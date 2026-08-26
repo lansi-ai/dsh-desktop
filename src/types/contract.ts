@@ -73,6 +73,47 @@ export const clientResponseSchema = z.object({
   body: z.unknown(),
 })
 
+// ── 官方四象限全信封（帧路由对齐） ───────────────────────────────────
+
+/** 上行 client-request（client-connection 载波子类 doFetch 的入参）。 */
+export const clientRequestSchema = z.object({
+  type: z.literal('client-request'),
+  rpcId: rpcIdSchema,
+  method: z.string().min(1),
+  payload: z.unknown().optional(),
+})
+
+/** server-response 成功分支（result.value 为 host 回传业务值）。 */
+export const rpcSuccessDeltaSchema = z.object({
+  ok: z.literal(true),
+  value: z.unknown(),
+})
+
+/** server-response 错误分支（result.error 为结构化错误）。 */
+export const rpcErrorDeltaSchema = z.object({
+  ok: z.literal(false),
+  error: z.object({
+    code: z.number().int(),
+    message: z.string(),
+    data: z.unknown().optional(),
+  }),
+})
+
+/** 下行 server-request（host 推送帧：session/event、approval/question requested）。 */
+export const serverRequestSchema = z.object({
+  type: z.literal('server-request'),
+  rpcId: rpcIdSchema,
+  method: z.string().min(1),
+  payload: z.unknown(),
+})
+
+/** 下行 server-response（上行 client-request 的应答，result = {ok, value|error}）。 */
+export const serverResponseSchema = z.object({
+  type: z.literal('server-response'),
+  rpcId: rpcIdSchema,
+  result: z.union([rpcSuccessDeltaSchema, rpcErrorDeltaSchema]),
+})
+
 // ── Ready 通知 ──────────────────────────────────────────────────────
 
 /** Renderer 就绪通知。 */
@@ -99,6 +140,15 @@ export type Frame = z.infer<typeof frameSchema>
 
 /** 客户端帧应答。 */
 export type ClientResponse = z.infer<typeof clientResponseSchema>
+
+/** 上行 client-request 信封。 */
+export type ClientRequest = z.infer<typeof clientRequestSchema>
+
+/** 下行 server-request 信封（host 帧路由推送）。 */
+export type ServerRequest = z.infer<typeof serverRequestSchema>
+
+/** 下行 server-response 信封。 */
+export type ServerResponse = z.infer<typeof serverResponseSchema>
 
 /** Renderer 就绪通知。 */
 export type ReadyNotification = z.infer<typeof readyNotificationSchema>
