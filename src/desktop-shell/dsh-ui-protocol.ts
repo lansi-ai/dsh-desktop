@@ -1,29 +1,40 @@
 import { protocol } from 'electron'
 import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
+import { generateFullBootScript } from '../desktop-host/manifest.js'
 
 /**
- * dsh-ui:// 自定义协议：将官方 Web UI dist（@deepseek-ai/dsh-web-frontend/dist/）
- * 映射为可加载的页面与静态资源，并对 index.html 注入最小 __DSH_BOOT__ manifest。
+ * dsh-ui:// 自定义协议：
+ * 1. 优先加载官方 Web UI dist（@deepseek-ai/dsh-web-frontend/dist/）
+ * 2. dist 不存在时回退到内置占位页面（src/desktop-shell/web/index.html）
  *
- * URL 布局（官方 dist 使用绝对路径 /assets/...，host 承载首段）：
- *   dsh-ui://index.html                  → dist/index.html（注入 boot manifest）
- *   dsh-ui://index.html/assets/<file>    → dist/assets/<file>
- *   dsh-ui:///assets/<file>              → dist/assets/<file>（host 为空兜底）
+ * 对 index.html 注入完整 __DSH_BOOT__ manifest（含 IPC 载波 roster 条目，
+ * 替换官方 WebSocket/HTTP 传输条目）。
  *
- * __DSH_BOOT__ 为最小空 graph（rev + 空 entries，wire 格式对齐
- * dsh-client-modules client/manifest.ts WebBootGraph），步骤 4 roster 注入前
- * 仅用于验证官方 UI 可经协议装载（M1 spike，R5 取证）。
+ * URL 布局：
+ *   dsh-ui://index.html                  → 主页面（注入 boot manifest）
+ *   dsh-ui://index.html/assets/<file>    → 静态资源
+ *   dsh-ui:///assets/<file>              → 静态资源（host 为空兜底）
  */
 
 const nodeRequire = createRequire(__filename)
 
-/** 官方 web 前端包根（npm 包内 package.json 的绝对路径）。 */
-const WEB_FRONTEND_PKG = nodeRequire.resolve('@deepseek-ai/dsh-web-frontend/package.json')
+/** 是否存在官方 web-frontend dist 目录（启动时检测）。 */
+let hasDist: boolean | null = null
 
-/** 官方 UI dist 根目录。 */
-const DIST_ROOT = join(dirname(WEB_FRONTEND_PKG), 'dist')
+/** 官方 UI dist 根目录（存在时使用）。 */
+let distRoot: string | null = null
+
+/** 占位页面根目录（dist 不存在时使用）。 */
+const PLACEHOLDER_ROOT = join(__dirname, 'web')
+
+/**
+ * 开发模式：强制使用占位页面以验证 IPC 桥。
+ * 正式发布时设为 false 并确保 web-frontend dist 可用。
+ */
+const FORCE_PLACEHOLDER = true
 
 /** MIME 映射（覆盖 dist 实际产出类型）。 */
 const MIME_TYPES: Record<string, string> = {
@@ -41,49 +52,55 @@ const MIME_TYPES: Record<string, string> = {
 }
 
 /**
- * 解析 dsh-ui:// URL 到 dist 内的相对路径（安全：normalize 后必须留在 DIST_ROOT 内）。
- * @param url - 协议请求 URL。
- * @returns dist 相对路径（'/' 时归一为 index.html），或 undefined 表示越界。
+ * 检测 dist 目录可用性（懒加载，首次访问时检测）。
+ * 若 FORCE_PLACEHOLDER = true，则始终返回 false。
  */
-function resolveDistRelative(url: URL): string | undefined {
+function checkDistAvailable(): boolean {
+  if (FORCE_PLACEHOLDER) {
+    hasDist = false
+    return false
+  }
+  if (hasDist !== null) return hasDist
+  try {
+    const pkg = nodeRequire.resolve('@deepseek-ai/dsh-web-frontend/package.json')
+    const root = join(dirname(pkg), 'dist')
+    if (existsSync(join(root, 'index.html'))) {
+      distRoot = root
+      hasDist = true
+      console.log('[dsh-ui-protocol] 使用官方 web-frontend dist')
+    } else {
+      hasDist = false
+      console.warn('[dsh-ui-protocol] web-frontend dist 不存在，使用占位页面')
+    }
+  } catch {
+    hasDist = false
+    console.warn('[dsh-ui-protocol] 无法解析 web-frontend，使用占位页面')
+  }
+  return hasDist
+}
+
+/**
+ * 解析 dsh-ui:// URL 到目标根目录内的相对路径（安全：normalize 后必须留在根目录内）。
+ * @param url - 协议请求 URL。
+ * @param root - 根目录（dist 或占位页面）。
+ * @returns 相对路径（'/' 时归一为 index.html），或 undefined 表示越界。
+ */
+function resolveRelative(url: URL, root: string): string | undefined {
   const host = url.hostname
   const rawPath = decodeURIComponent(url.pathname)
   const rel = (host === '' ? rawPath : `${host}${rawPath}`).replace(/^\/+/, '')
   if (rel === '' || rel === '/' || rel.endsWith('/')) return 'index.html'
-  const filePath = normalize(join(DIST_ROOT, rel))
-  if (!filePath.startsWith(DIST_ROOT + sep) && filePath !== DIST_ROOT) return undefined
+  const filePath = normalize(join(root, rel))
+  if (!filePath.startsWith(root + sep) && filePath !== root) return undefined
   return rel
 }
 
-/** 空 boot manifest 注入脚本（wire 对齐 WebBootGraph：rev + entries）。 */
+/** Full boot manifest 注入脚本（含 IPC 载波 roster 条目 + queueLoader shim）。 */
 function bootManifestScript(): string {
-  const graph = { rev: 'desktop-m1', entries: [] }
-  const queueLoader = `(()=>{
-const pendingQueue=[]
-window.__ModuleLoader__={
-  mode:"queue",
-  pendingQueue,
-  load(registration){pendingQueue.push(registration)},
-  create(options){
-    if(this.mode!=="queue")throw new Error("client-modules: window.__ModuleLoader__.create called after module-system boot")
-    const index=pendingQueue.findIndex(registration=>registration.id==="@deepseek-ai/dsh-client-modules/client.js")
-    const registration=pendingQueue[index]
-    if(registration===undefined)throw new Error("client-modules: HTML did not preload @deepseek-ai/dsh-client-modules/client.js")
-    pendingQueue.splice(index,1)
-    const exports=registration.factory(specifier=>{
-      throw new Error('client-modules: @deepseek-ai/dsh-client-modules/client.js requested external "'+specifier+'" before the module system existed')
-    })
-    if(typeof exports!=="object"||exports===null||typeof exports.createClientModuleSystem!=="function"||typeof exports.apply!=="function"){
-      throw new Error("client-modules: @deepseek-ai/dsh-client-modules/client.js did not export the bootstrap module face")
-    }
-    return exports.createClientModuleSystem(this,{id:registration.id,exports},options)
-  }
-}
-})()`
-  return `<script>${queueLoader}</script><script>window.__DSH_BOOT__ = ${JSON.stringify(graph)}</script>`
+  return generateFullBootScript('desktop-m1-ipc')
 }
 
-/** 将最小 boot manifest 注入到 index.html 的 <head> 之后（对齐官方 IndexTap 语义）。 */
+/** 将 boot manifest 注入到 index.html 的 <head> 之后（对齐官方 IndexTap 语义）。 */
 function injectBootManifest(html: string): string {
   const headEnd = html.indexOf('</head>')
   const script = bootManifestScript()
@@ -91,16 +108,43 @@ function injectBootManifest(html: string): string {
   return `${html.slice(0, headEnd)}${script}${html.slice(headEnd)}`
 }
 
+/**
+ * 注册 dsh-ui:// 协议方案特权（必须在 app.whenReady 前调用）。
+ *
+ * 将 dsh-ui 注册为标准协议，赋予 origin、secure context 等能力，
+ * 避免 CORS 策略将 origin 判定为 null 导致资源加载被拦截。
+ */
+export function registerDshUiScheme(): void {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: 'dsh-ui',
+      privileges: {
+        standard: true,
+        secure: true,
+        allowServiceWorkers: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+      },
+    },
+  ])
+}
+
 /** 注册 dsh-ui:// 协议（app.whenReady 后调用一次）。 */
 export function registerDshUiProtocol(): void {
   protocol.handle('dsh-ui', async (request: Request): Promise<Response> => {
     try {
-      const rel = resolveDistRelative(new URL(request.url))
+      const useDist = checkDistAvailable()
+      const root = useDist && distRoot !== null ? distRoot : PLACEHOLDER_ROOT
+      console.log(`[dsh-ui-protocol] 使用 ${useDist ? '官方 dist' : '占位页面'}，根目录: ${root}`)
+
+      const rel = resolveRelative(new URL(request.url), root)
       if (rel === undefined) return new Response('forbidden', { status: 403 })
-      const filePath = join(DIST_ROOT, rel)
+
+      const filePath = join(root, rel)
       const data = await readFile(filePath)
       const contentType = MIME_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
-      const body = rel.endsWith('index.html') ? injectBootManifest(data.toString('utf8')) : data
+      const isIndex = rel.endsWith('index.html')
+      const body = isIndex ? injectBootManifest(data.toString('utf8')) : data
       return new Response(body, { headers: { 'content-type': contentType } })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

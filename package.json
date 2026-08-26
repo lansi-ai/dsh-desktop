@@ -9,7 +9,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-web.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "dev": "npm run build && electron .",
@@ -28,6 +28,7 @@
     "@deepseek-ai/dsh": "0.1.0-rc.8",
     "@deepseek-ai/dsh-app-boot": "0.1.0-rc.8",
     "@deepseek-ai/dsh-web-app": "0.1.0-rc.8",
-    "@deepseek-ai/dsh-web-frontend": "0.1.0-rc.8"
+    "@deepseek-ai/dsh-web-frontend": "0.1.0-rc.8",
+    "zod": "^4.4.3"
   }
 }

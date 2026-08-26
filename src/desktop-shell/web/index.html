@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepSeek Harness · Desktop</title>
+  <style>
+    :root {
+      --bg: #0f0f14;
+      --panel: #1a1a24;
+      --border: #2a2a3a;
+      --text: #e4e4ef;
+      --text-dim: #8b8ba0;
+      --accent: #5b8dff;
+      --accent-hover: #7ba0ff;
+      --success: #22c55e;
+      --error: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header .logo {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 14px;
+    }
+    header .title { font-size: 15px; font-weight: 600; }
+    header .badge {
+      font-size: 11px; padding: 2px 8px;
+      background: var(--border); border-radius: 4px; color: var(--text-dim);
+    }
+    .main {
+      flex: 1; overflow: auto;
+      padding: 24px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 16px; }
+    .status-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .status-item:last-child { border-bottom: none; }
+    .status-label { color: var(--text-dim); font-size: 13px; }
+    .status-value { font-family: "JetBrains Mono", monospace; font-size: 13px; }
+    .status-value.ok { color: var(--success); }
+    .status-value.err { color: var(--error); }
+    .log {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      color: var(--text-dim);
+      background: #0a0a0f;
+      padding: 12px;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow: auto;
+      line-height: 1.6;
+    }
+    .log .log-entry { padding: 2px 0; }
+    .log .log-entry .ts { color: var(--text-dim); }
+    .log .log-entry.success { color: var(--success); }
+    .log .log-entry.error { color: var(--error); }
+    .log .log-entry.info { color: var(--accent); }
+    .actions { display: flex; gap: 8px; margin-top: 16px; }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+    .tag.ok { background: rgba(34,197,94,0.15); color: var(--success); }
+    .tag.err { background: rgba(239,68,68,0.15); color: var(--error); }
+    .tag.info { background: rgba(91,141,255,0.15); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">D</div>
+      <div class="title">DeepSeek Harness</div>
+      <div class="badge">Desktop M1</div>
+      <div id="status-badge" class="tag info">启动中...</div>
+    </header>
+    <div class="main">
+      <div class="card">
+        <h2>系统状态</h2>
+        <div id="system-status">
+          <div class="status-item"><span class="status-label">IPC 桥</span><span id="ipc-status" class="status-value err">未连接</span></div>
+          <div class="status-item"><span class="status-label">平台</span><span id="platform-info" class="status-value">-</span></div>
+          <div class="status-item"><span class="status-label">Electron</span><span id="electron-version" class="status-value">-</span></div>
+          <div class="status-item"><span class="status-label">Host 就绪</span><span id="host-status" class="status-value ok">已就绪</span></div>
+          <div class="status-item"><span class="status-label">端口</span><span class="status-value ok">零端口模式</span></div>
+        </div>
+        <div class="actions">
+          <button id="btn-test-rpc">测试 RPC</button>
+          <button id="btn-test-frame">测试帧推送</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>诊断日志</h2>
+        <div id="log" class="log"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // dsh-ui:// protocol 注入 __DSH_BOOT__ manifest；preload 注入 window.desktopBridge
+    const logEl = document.getElementById('log');
+    const statusBadge = document.getElementById('status-badge');
+    
+    function log(msg, type = 'info') {
+      const ts = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry ' + type;
+      entry.textContent = `[${ts}] ${msg}`;
+      if (logEl) {
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    function setStatus(ok, msg) {
+      if (statusBadge) {
+        statusBadge.textContent = msg;
+        statusBadge.className = 'tag ' + (ok ? 'ok' : 'err');
+      }
+    }
+
+    function init() {
+      log('页面加载完成', 'info');
+      
+      if (typeof window.desktopBridge === 'undefined') {
+        log('❌ desktopBridge 未注入 — preload 可能未生效', 'error');
+        setStatus(false, 'IPC 未就绪');
+        return;
+      }
+      
+      log('✅ desktopBridge 已注入', 'success');
+      setStatus(true, 'IPC 已连接');
+      const ipcStatus = document.getElementById('ipc-status');
+      if (ipcStatus) {
+        ipcStatus.textContent = '已连接';
+        ipcStatus.className = 'status-value ok';
+      }
+
+      // 获取平台信息
+      window.desktopBridge.getPlatformInfo().then(info => {
+        log(`平台: ${info.platform} v${info.version}`, 'success');
+        const platformEl = document.getElementById('platform-info');
+        const versionEl = document.getElementById('electron-version');
+        if (platformEl) platformEl.textContent = info.platform;
+        if (versionEl) versionEl.textContent = info.version;
+      }).catch(e => {
+        log(`平台信息获取失败: ${e}`, 'error');
+      });
+
+      // 测试 RPC
+      window.desktopBridge.rpc('desktop.getPlatformInfo').then(result => {
+        log(`RPC 测试: ${JSON.stringify(result)}`, 'success');
+      }).catch(e => {
+        log(`RPC 测试失败: ${e}`, 'error');
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+
+    // 测试 RPC 按钮
+    document.getElementById('btn-test-rpc').addEventListener('click', () => {
+      log('发起 RPC 测试...', 'info');
+      window.desktopBridge.rpc('desktop.getPlatformInfo').then(result => {
+        log(`RPC 响应: ${JSON.stringify(result)}`, 'success');
+      }).catch(e => {
+        log(`RPC 错误: ${e}`, 'error');
+      });
+    });
+
+    // 测试帧推送按钮
+    document.getElementById('btn-test-frame').addEventListener('click', () => {
+      log('帧监听已注册（等待主进程推送帧）', 'info');
+      const off = window.desktopBridge.onFrame((frame) => {
+        log(`收到帧: ${JSON.stringify(frame)}`, 'success');
+      });
+      setTimeout(() => {
+        off();
+        log('帧监听器已注销', 'info');
+      }, 5000);
+    });
+  </script>
+</body>
+</html>
