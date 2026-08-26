@@ -58,7 +58,7 @@ if (isCircuitBroken()) {
 /** preload 脚本绝对路径（在同样 tsconfig rootDir 下编译后位于 dist/desktop-shell/）。 */
 const PRELOAD_PATH = join(__dirname, 'preload.js')
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -101,6 +101,7 @@ function createWindow(): void {
   // 使这些绝对路径解析为 dsh-ui://app/assets/...；resolveRelative 仅取 pathname 映射到
   // dist 根（R5 修复：空 host 会被 Electron 规范化为 dsh-ui://index.html/ 导致资源 404）。
   void win.loadURL('dsh-ui://app/index.html')
+  return win
 }
 
 /** 主进程启动流程（仅当未熔断时调用）。 */
@@ -166,7 +167,25 @@ async function bootstrap(): Promise<void> {
     })
 
     // 6. 创建窗口并加载官方 UI
-    createWindow()
+    const win = createWindow()
+
+    // 7. 启动 host 会话事件 → renderer 下行帧中继（攻坚第 2 批：session/event 等
+    //    server-request 帧经 bridge 下发，使官方 UI 完成端到端对话）
+    const apiProxy = (hostCtx as Record<string, unknown>)['apiProxy'] as
+      | import('../desktop-host/carrier-relay.js').DownlinkEventStream
+      | undefined
+    if (apiProxy?.events?.mux !== undefined) {
+      const { startDownlinkRelay } = await import('../desktop-host/carrier-relay.js')
+      const relayState = { relay: null as import('../desktop-host/carrier-relay.js').DownlinkRelay | null }
+      relayState.relay = startDownlinkRelay(apiProxy, win.webContents)
+      win.on('closed', () => {
+        relayState.relay?.stop()
+        relayState.relay = null
+      })
+      console.log('[dsh-desktop] host 会话事件下行帧中继已启动')
+    } else {
+      console.warn('[dsh-desktop] 未找到 host apiProxy，跳过下行帧中继（官方 UI 对话将不可用）')
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
