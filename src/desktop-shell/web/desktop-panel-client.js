@@ -186,7 +186,7 @@ window.__ModuleLoader__.load({
 
     // ── 插件声明：注册 sidebar.footer.action slot ──────────────────
 
-    exports.inject = []
+    exports.inject = ['slots']
     exports.apply = (ctx) => {
       // 注入侧边栏底部操作按钮（list slot，可多个）
       ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({

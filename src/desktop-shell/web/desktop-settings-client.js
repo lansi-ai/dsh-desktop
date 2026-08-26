@@ -122,7 +122,7 @@ window.__ModuleLoader__.load({
 
     // ── 插件声明：注册 settings.section slot ──────────────────────
 
-    exports.inject = []
+    exports.inject = ['slots', 'settings']
     exports.apply = (ctx) => {
       // 获取 desktop namespace 的 settings scope（读写桌面配置）
       let desktopScope = null
