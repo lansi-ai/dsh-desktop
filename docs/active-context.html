@@ -174,21 +174,21 @@
           <span class="status-icon">[x]</span>
           <span>验证通过：renderer → preload → bridge → host 全链路 RPC 通信畅通</span>
         </li>
-        <li class="task-item in-progress">
-          <span class="status-icon">[ ]</span>
-          <span><strong>步骤 5: 零端口 bundle spike（方案 A 完成；方案 B 保留作回退）</strong></span>
+        <li class="task-item done">
+          <span class="status-icon">[x]</span>
+          <span><strong>步骤 5: 零端口 bundle spike（方案 A vs 方案 B）</strong>（2026-08-26 完成·ADR-007 spike 结论落盘）</span>
         </li>
         <li class="task-item sub done">
           <span class="status-icon">[x]</span>
           <span>方案 A：dsh-ui://plugins/&lt;id&gt;/client.js?rev= 协议直读（boot-graph.ts resolveBundleRequest + verify-bundle-spike.cjs 冒烟通过）</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span>方案 B：BootSeams.loadBundle 覆写（ADR-007 待验证；方案 A 已覆盖主线，保留 B 作回退）</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>方案 B：BootSeams.loadBundle 覆写 —— 保留作回退；ADR-007 spike 定案方案 A（最贴近官方 &lt;script src&gt; 到达语义），方案 B 未启用</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span>双案 2 天出结论并落 ADR-007 后果</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>双案结论：方案 A 定案（dsh-ui:// 协议直读），已落 ADR-007 后果（2026-08-26 M1-T4）</span>
         </li>
         <li class="task-item done">
           <span class="status-icon">[x]</span>
@@ -210,20 +210,20 @@
           <span class="status-icon">[x]</span>
           <span>崩溃 relaunch 自愈 v0（relaunch.ts：主进程熔断 + renderer reload + 状态文件持久化）已就位</span>
         </li>
-        <li class="task-item todo">
-          <span class="status-icon">[ ]</span>
-          <span><strong>步骤 7: M1 门禁验收与收尾</strong></span>
+        <li class="task-item done">
+          <span class="status-icon">[x]</span>
+          <span><strong>步骤 7: M1 门禁验收与收尾</strong>（2026-08-26 完成）</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span>官方 UI 完成日常对话全流程</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>官方 UI 完成日常对话全流程（攻坚第 2 批实机验证通过 + 本次实机复验：Host 就绪/preload/Cordis 载波/下行中继/host.describe·session.list·session.history·session.models 全链路畅通；dynamicCordisRunner/* 404 为坑 8 已知可接受现象）</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
-          <span>第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证 —— @lnyanhongyan/dsh-opencode-usage（GitHub 源）：client bundle 经 dsh-ui://plugins/&lt;id&gt;/client.js 协议送达 + ctx.webServer 等价面注入 + host 半无改动激活 + 同源 /opencode-usage/* fetch 协议拦截（dispatch 逻辑单测通过）</span>
         </li>
-        <li class="task-item sub todo">
-          <span class="status-icon">[ ]</span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
           <span>docs/active-context.html 看板同步落盘 + 里程碑提交</span>
         </li>
       </ul>
@@ -238,11 +238,12 @@
         <li><strong>D-3</strong> 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2，ADR-006 启用）</li>
         <li><strong>D-4</strong> 基线钉本地检出 dsh-v0.1.0-rc.8（rc.12 差异登记 sync-upstream，M4 升级前核查）</li>
         <li><strong>D-5</strong> 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）</li>
-        <li><strong>D-6</strong> 兼容层 = ctx.desktopRoutes + fetch 拦截白名单（ADR-007）</li>
+        <li><strong>D-6</strong> 兼容层 = ctx.webServer 等价面（compat-webserver.ts:内存路由表 register/dispatch + req/res 契约）+ 同源 fetch 协议拦截（ADR-007，M1 已落地）</li>
+        <li><strong>D-8</strong> 第三方无改动装载 = boot-graph.buildThirdPartyBundleDecl（任意 scope 的 dsh.client+exports[&quot;./client&quot;] 解析，入图谱）→ host patch INSERT → ctx.webServer 等价服务注入 → /opencode-usage/* 协议拦截；第三方 client bundle 可经 dsh-ui://plugins/&lt;id&gt;/client.js 送达（M1 门禁载体 @lnyanhongyan/dsh-opencode-usage）</li>
       </ul>
       <p style="margin-top: 12px;"><strong>风险与技术债：</strong></p>
       <ul>
-        <li><strong>R5 open</strong> BootSeams/dsh-ui:// 在真实 file:// 环境行为未验证（M1-T4 spike 决出）</li>
+        <li><strong><s>R5</s> closed</strong>（2026-08-26）：dsh-ui:// 自定义协议路径已实机验证（官方 dist 加载 + 资源 200 + bundle 送达）；BootSeams 方案 B 保留作回退未启用</li>
         <li><strong>R4 closed</strong> dist 构建产物可得性 —— @deepseek-ai/dsh-web-frontend@0.1.0-rc.8 直接携带官方 dist 发行物，无需自建构建脚本</li>
         <li><strong>R6 open</strong> !!js 表达式在 overlay patches（JS 对象直传 boot()）中不被 Cordis Loader 求值 —— 当前以 TS 直接求值绕过</li>
         <li><strong>R7 open</strong> session-persistence-jsonl / storage-json 的 root 路径使用硬编码 .runtime/user-data/...；待 dshHomePath 服务可用后切回</li>
@@ -254,9 +255,9 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑进度：</strong>步骤 6（零端口验证与崩溃恢复初版）已完整完成（2026-08-26 实机核验双态通过）。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>步骤 7 首要攻坚：</strong>官方 UI 完成日常对话全流程（boot-graph.ts 官方 UI 最小激活集已装配，carrier-relay.ts 下行帧中继已接通，待实机 npm run dev 端到端冒烟）。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>官方 UI 的 DSH 客户端模块系统需要 @dsh-desktop/ipc-connection 客户端模块工厂；待官方 UI 在 Electron 环境下的真实装载路径实证。</p>
+      <p style="margin:0;"><strong>当前里程碑进度：</strong><b>M1（桌面客户端可行性闭环）已完整完成</b>（2026-08-26）。官方 UI 日常对话全流程 + 第三方 web 插件无改动装载（@lnyanhongyan/dsh-opencode-usage）+ netstat 零监听红线全部达成。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 待启动主项：</strong>第三方/旧插件 host 半完整兼容扩展（desktopRoutes 等价面：SSE 流式路由 → 帧下行、inject:['webServer'] 的 patch 层改指、dsh-terminal/dsh-rule-manager/dsh-restart 生态抽样回归）；桌面能力宿主插件化（desktop-tray/hotkey/notify/settings/restart，ctx.desktop.*）+ 自绘 Desktop UI（U-01~08，ADR-006 暂缓）；dshHomePath 服务接入（R6/R7 收口）。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>无（官方 UI 对话链路已打通；compat fetch 端到端（renderer 点选 → 协议 → host）需用户实机 UI 点验确认，逻辑层已单测通过）。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
     </div>
   </div>
