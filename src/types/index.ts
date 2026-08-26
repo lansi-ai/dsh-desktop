@@ -37,3 +37,15 @@ export type { ErrorCode } from './errors.js'
 
 export { bootEntrySchema, bootGraphSchema } from './boot.js'
 export type { BootEntry, BootGraph } from './boot.js'
+
+export {
+  desktopActionSchema,
+  desktopActionEventSchema,
+  desktopEventSchema,
+} from './desktop.js'
+export type {
+  DesktopAction,
+  DesktopActionEvent,
+  DesktopCore,
+  DesktopEvent,
+} from './desktop.js'

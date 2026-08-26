@@ -1,0 +1,107 @@
+/**
+ * dsh-desktop 桌面能力·托盘（M2·黄金路径：关窗驻留 + 托盘菜单/状态 + 快速问答唤起）。
+ *
+ * 项目内模块（M2 阶段，prepare/main 装配，暂不拆独立包）。职责：
+ *   - **关窗驻留**：拦截主窗口 `close` → 隐藏而非退出（`trayEnabled` 配置开启时）；
+ *     仅托盘「退出」才标记 `quitting` 并 `app.quit()`。
+ *   - **托盘菜单**：显示主窗口 / 快速问答 / 退出（会话列表于后续接入 host 会话服务）。
+ *   - **快速问答唤起**：显示 + 聚焦窗口，并下行 `desktop:event`（action `quick-ask`）
+ *     供 renderer 聚焦输入框（官方 UI 接入待后续）。
+ *   - 审计：托盘动作经 `ctx.desktop.emitAction('tray.*')`（R-15）。
+ *
+ * 安装时机：窗口已创建后（main.ts bootstrap），因托盘需窗口引用。返回清理函数（销毁 Tray + 移除拦截）。
+ */
+
+import { Tray, Menu, BrowserWindow, app, nativeImage } from 'electron'
+import type { DesktopCore } from '../types/desktop.js'
+
+// ── 类型 ───────────────────────────────────────────────────────────
+
+/** 托盘安装选项。 */
+export interface DesktopTrayOptions {
+  /** 取当前主窗口（单窗口期直接返回首个窗口）。 */
+  getWindow(): BrowserWindow | null
+  /** `ctx.desktop` 聚合服务（读 `trayEnabled` 配置、审计动作）。 */
+  desktop: DesktopCore
+}
+
+/** 应用是否已标记「真正退出」（关窗驻留拦截时据此放行）。模块级共享给关窗拦截。 */
+let quitting = false
+
+/**
+ * 标记应用即将真正退出（托盘「退出」菜单调用）；此时关窗驻留不再拦截 close。
+ * 供外部（退出流程/重启）在真正 `app.quit()` 前调用。
+ */
+export function markQuitting(): void {
+  quitting = true
+}
+
+/**
+ * 安装托盘（关窗驻留 + 菜单 + 快速问答）。仅在窗口创建后调用一次。
+ *
+ * @param options 安装选项。
+ * @returns 清理函数（销毁 Tray 并移除 close 拦截）。
+ */
+export function installDesktopTray(options: DesktopTrayOptions): () => void {
+  const { getWindow, desktop } = options
+  const trayEnabled = (): boolean => desktop.readConfig<boolean>('trayEnabled') !== false
+
+  // ── 关窗驻留：拦截 close → 隐藏（未标记退出且 trayEnabled）──────────────
+  const window = getWindow()
+  const onClose = (event: Electron.Event): void => {
+    if (!quitting && trayEnabled()) {
+      event.preventDefault()
+      window?.hide()
+      desktop.emitAction('tray.window-hide')
+    }
+  }
+  if (window !== null) window.on('close', onClose)
+
+  // ── 托盘图标与菜单 ─────────────────────────────────────────────────
+  // 图标资源待 M2 补充（无资源时 Tray 可能不显示图标但功能可用）。
+  const tray = new Tray(nativeImage.createEmpty())
+
+  const showWindow = (source: string): void => {
+    const win = getWindow()
+    if (win !== null) {
+      win.show()
+      win.focus()
+      desktop.emitAction(source, undefined)
+    }
+  }
+  const quickAsk = (): void => {
+    const win = getWindow()
+    if (win !== null) {
+      win.show()
+      win.focus()
+      // 下行到 renderer 让官方 UI 聚焦输入框（官方 UI 接入后生效）
+      desktop.sendDesktopEvent({ action: 'quick-ask' })
+      desktop.emitAction('tray.quick-ask', undefined)
+    }
+  }
+
+  tray.setToolTip('DeepSeek Harness Desktop')
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: '显示主窗口', click: () => showWindow('tray.show') },
+      { label: '快速问答', click: () => quickAsk() },
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          markQuitting()
+          desktop.emitAction('tray.quit', undefined)
+          app.quit()
+        },
+      },
+    ]),
+  )
+  // 单击托盘图标：显示主窗口
+  tray.on('click', () => showWindow('tray.click'))
+
+  // ── 清理 ─────────────────────────────────────────────────────────
+  return () => {
+    if (window !== null) window.removeListener('close', onClose)
+    tray.destroy()
+  }
+}

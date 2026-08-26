@@ -357,6 +357,16 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
         console.warn('[dsh-desktop] directoryPicker 注入失败:', error)
       }
 
+      // M2·地基 desktop-host-core：注入 ctx.desktop 聚合服务（core 子集）。
+      // 后续桌面能力 host 插件（tray/notify/shortcuts/clipboard…）经 inject:['desktop']
+      // 解析，共用审计总线 + 配置 + 下行桌面事件通道。
+      try {
+        const { installDesktopCore } = await import('./desktop-api.js')
+        await installDesktopCore(hostCtx)
+      } catch (error) {
+        console.warn('[dsh-desktop] ctx.desktop 聚合服务注入失败:', error)
+      }
+
       // 第三方 web 插件 host 半兼容（M1 门禁·ADR-007）：注入 ctx.webServer 等价面。
       // 第三方/旧插件（如 @lnyanhongyan/dsh-opencode-usage）inject:['webServer','fs','tools']
       // 硬依赖 webServer 服务；零端口模式下官方 webserver 已禁用，这里在插件树挂载前

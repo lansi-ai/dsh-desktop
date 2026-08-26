@@ -18,6 +18,8 @@ export const IPC_CHANNELS = {
   FRAME: 'dsh:frame',
   /** 上行：renderer 就绪通知（窗口加载完成，可接收帧）。 */
   READY: 'dsh:ready',
+  /** 下行：桌面事件（desktop/action 审计/通知 → renderer onDesktopEvent）。 */
+  DESKTOP_EVENT: 'desktop:event',
 } as const satisfies Record<string, string>
 
 /** IPC 通道名联合类型。 */

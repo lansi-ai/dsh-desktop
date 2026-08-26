@@ -11,6 +11,7 @@ import {
   resetOnCleanQuit,
 } from './relaunch'
 import type { RpcRequest } from '../types/contract.js'
+import type { DesktopCore } from '../types/desktop.js'
 import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy' with { 'resolution-mode': 'import' }
 
 /**
@@ -69,6 +70,10 @@ if (isCircuitBroken()) {
 
 /** preload 脚本绝对路径（在同样 tsconfig rootDir 下编译后位于 dist/desktop-shell/）。 */
 const PRELOAD_PATH = join(__dirname, 'preload.js')
+
+/** 桌面能力句柄（退出前清理）：托盘 + 通知。 */
+let desktopTrayHandle: (() => void) | null = null
+let desktopNotifyHandle: (() => void) | null = null
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -224,6 +229,20 @@ async function bootstrap(): Promise<void> {
       console.warn('[dsh-desktop] 未找到 host apiProxy，跳过下行帧中继（官方 UI 对话将不可用）')
     }
 
+    // 8. 桌面能力（M2）：托盘（关窗驻留 + 快速问答）+ 系统通知。
+    // 依赖 ctx.desktop 聚合服务（boot() prepare 注入）；需窗口已创建后安装。
+    const desktopCore = (hostCtx as Record<string, unknown>)['desktop'] as DesktopCore | undefined
+    if (desktopCore !== undefined) {
+      const { installDesktopTray } = await import('../desktop-host/desktop-tray.js')
+      const { installDesktopNotify } = await import('../desktop-host/desktop-notify.js')
+      const getWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
+      desktopTrayHandle = installDesktopTray({ getWindow, desktop: desktopCore })
+      desktopNotifyHandle = installDesktopNotify({ desktop: desktopCore, events: downlinkProxy, getWindow })
+      console.log('[dsh-desktop] 桌面能力已装配：tray(关窗驻留+快速问答) + notify(审批/错误/进展)')
+    } else {
+      console.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
+    }
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
@@ -238,6 +257,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  desktopNotifyHandle?.()
+  desktopTrayHandle?.()
   removeIpcHandlers()
   resetOnCleanQuit()
 })
