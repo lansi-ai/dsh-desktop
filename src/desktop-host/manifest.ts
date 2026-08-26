@@ -18,10 +18,11 @@ import {
   registerPreloadOnly,
   resolveBundlePath,
   resolveBundleRequest,
+  buildThirdPartyBundleDecl,
   type BootBundleDecl,
 } from './boot-graph.js'
 
-export { generateBootGraph, generateFullBootScript, registerPreloadOnly, resolveBundlePath, resolveBundleRequest }
+export { generateBootGraph, generateFullBootScript, registerPreloadOnly, resolveBundlePath, resolveBundleRequest, buildThirdPartyBundleDecl }
 export type { BootBundleDecl }
 
 // ── 类型定义 ─────────────────────────────────────────────────────────

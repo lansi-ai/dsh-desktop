@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
-import { generateFullBootScript, resolveBundleRequest } from '../desktop-host/manifest.js'
+import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundleDecl } from '../desktop-host/manifest.js'
+import { dispatchHttpCompat } from '../desktop-host/compat-webserver.js'
 
 /**
  * dsh-ui:// 自定义协议：
@@ -99,12 +100,15 @@ function resolveRelative(url: URL, root: string): string | undefined {
   return rel
 }
 
+/** 第三方 client 插件装载清单（M1 门禁·第三方无改动装载）：经 `dsh.client` 声明装载。 */
+const THIRD_PARTY_BUNDLES = ['@lnyanhongyan/dsh-opencode-usage']
+
 /** Full boot manifest 注入脚本（含 IPC 载波 roster 条目 + queueLoader shim）。 */
 function bootManifestScript(useDist: boolean): string {
-  // 官方 dist 模式：不注入 spike 样例（官方 UI 用官方图谱正常加载，避免外来 bundle 干扰）；
+  // 官方 dist 模式：额外装载第三方 client 插件（无改动，经 dsh.client 声明 + 协议直读）；
   // 占位页回退模式：注入最小样例 client 插件作为零端口装载路径验证载体。
   const extraBundles = useDist
-    ? []
+    ? THIRD_PARTY_BUNDLES.map((id) => buildThirdPartyBundleDecl(id))
     : [{ id: 'dsh-spike-sample', path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js') }]
   return generateFullBootScript('desktop-m1-ipc', extraBundles)
 }
@@ -152,7 +156,22 @@ export function registerDshUiProtocol(): void {
       // 必须在 resolveRelative 之前判断（绝对路径 /plugins/ 不依赖 host）。
       const bundle = resolveBundleRequest(url.pathname)
       if (bundle !== undefined) {
+        console.log(`[dsh-ui-protocol] 200 (bundle route) ${request.url}`)
         return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
+      }
+
+      // 第三方 web 插件同源 fetch 拦截（M1 门禁·ADR-007）：旧/第三方插件 client 半用浏览器
+      // `fetch('/opencode-usage/*')` 调用 host webServer 路由。零端口下无 HTTP 服务器，此处经
+      // dsh-ui:// 协议转发到 host 的 ctx.webServer 等价面（dispatchHttpCompat），对插件透明。
+      if (url.pathname.startsWith('/opencode-usage/') || url.pathname === '/opencode-usage') {
+        const compatResult = await dispatchHttpCompat({
+          method: request.method,
+          url: url.pathname,
+          headers: Object.fromEntries(request.headers.entries()),
+          body: Buffer.from(await request.arrayBuffer()),
+        })
+        console.log(`[dsh-ui-protocol] compat route ${request.method} ${url.pathname} → ${compatResult.status}`)
+        return new Response(compatResult.body, { status: compatResult.status, headers: compatResult.headers })
       }
 
       const rel = resolveRelative(url, root)

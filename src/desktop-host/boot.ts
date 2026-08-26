@@ -181,6 +181,10 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'agent-loop', name: '@deepseek-ai/dsh-agent-loop', config: { agents: [] } },
       { id: 'fs-sandbox', name: '@deepseek-ai/dsh-fs-sandbox' },
       { id: 'llm-deepseek', name: '@deepseek-ai/dsh-llm-deepseek' },
+      // 第三方 web 插件（M1 门禁·无改动装载）：host 半经 ctx.webServer 等价面激活。
+      // 仅 INSERT 条目（对齐其 cordis.patch.yml），不修改插件代码；apply 依赖的
+      // webServer 由 prepare 钩子注入的 compat 等价服务提供（见 boot() 内注释）。
+      { id: 'opencode-usage', name: '@lnyanhongyan/dsh-opencode-usage' },
     ],
   },
 
@@ -351,6 +355,17 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
         console.log('[dsh-desktop] directoryPicker (Electron native dialog Service) 已注入')
       } catch (error) {
         console.warn('[dsh-desktop] directoryPicker 注入失败:', error)
+      }
+
+      // 第三方 web 插件 host 半兼容（M1 门禁·ADR-007）：注入 ctx.webServer 等价面。
+      // 第三方/旧插件（如 @lnyanhongyan/dsh-opencode-usage）inject:['webServer','fs','tools']
+      // 硬依赖 webServer 服务；零端口模式下官方 webserver 已禁用，这里在插件树挂载前
+      // 注入内存路由表等价服务（register + dispatch），使插件 apply 无改动激活。
+      try {
+        const { installWebServerCompat } = await import('./compat-webserver.js')
+        await installWebServerCompat(hostCtx)
+      } catch (error) {
+        console.warn('[dsh-desktop] webServer 等价面注入失败:', error)
       }
     },
     options.bareModuleBaseUrl,

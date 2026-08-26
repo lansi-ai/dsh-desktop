@@ -94,6 +94,39 @@ function resolveBuiltinClientBundle(id: string): string {
 }
 
 /**
+ * 解析第三方 scope（非 `@deepseek-ai`）client 插件的装载声明（M1 门禁·第三方无改动装载）。
+ *
+ * 官方自动扫描（`scanClientPackages`）仅覆盖 `node_modules/@deepseek-ai` scope；
+ * 第三方插件（如 `@lnyanhongyan/dsh-opencode-usage`）不在其中，需经此声明装载。
+ *
+ * 读取包 `dsh.client` 声明（platform/inject/external/immediately）解析 bundle 路径，
+ * 与生成图谱行的 boot 语义对齐。对未声明 `dsh.client` 的包回退为仅按
+ * `exports["./client"]` 解析 + 默认立即激活。
+ *
+ * @param id 第三方插件包名（完整包名，如 `@lnyanhongyan/dsh-opencode-usage`）。
+ * @returns 装载声明（id/path/inject/external/immediately）。
+ * @throws 当包无法解析或未声明 `./client` 产物。
+ */
+export function buildThirdPartyBundleDecl(id: string): BootBundleDecl {
+  const require = createRequire(__filename)
+  const pkgPath = require.resolve(`${id}/package.json`)
+  const pkgDir = dirname(pkgPath)
+  const meta = scanClientMeta(id, pkgDir)
+  if (meta === undefined) {
+    // 无 dsh.client 声明：仍按 exports["./client"] 解析 + 默认立即激活（作装载载体）。
+    return { id, path: resolveBuiltinClientBundle(id), inject: [], immediately: true }
+  }
+  return {
+    id,
+    path: meta.clientPath,
+    ...(meta.inject !== undefined ? { inject: meta.inject } : {}),
+    ...(meta.external.length > 0 ? { external: meta.external } : {}),
+    // 第三方插件默认真实激活（immediately 仅控制 prefetch，激活由官方驱动全量触发）。
+    immediately: true,
+  }
+}
+
+/**
  * 解析本地 `src/desktop-shell/web/` 下静态 client bundle（编译产物优先，源码回退）。
  *
  * 编译后 boot-graph 位于 `dist/desktop-host/`，本地 bundle 位于 `dist/desktop-shell/web/`；

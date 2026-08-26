@@ -130,6 +130,32 @@ for (const ref of uniqueRefs) {
 }
 console.log(`   官方 dist 资源引用: ${uniqueRefs.join(', ')} (共 ${uniqueRefs.length} 项，全部落盘)`)
 
+// ── M1 门禁·第三方 client 插件无改动装载（ADR-007 方案 A 协议直读）────────
+// 第三方插件（@lnyanhongyan/dsh-opencode-usage）不在 @deepseek-ai 自动扫描 scope，
+// 经 buildThirdPartyBundleDecl 声明装载：读 dsh.client 声明 + exports["./client"] 解析 bundle。
+const thirdPartyId = '@lnyanhongyan/dsh-opencode-usage'
+const tpHostDecl = bootGraph.buildThirdPartyBundleDecl(thirdPartyId)
+assert.ok(tpHostDecl.path.endsWith(path.join('lib', 'client.js')), `第三方 bundle 应指向 lib/client.js: ${tpHostDecl.path}`)
+assert.ok(fs.existsSync(tpHostDecl.path), `第三方 bundle 缺失: ${tpHostDecl.path}`)
+assert.deepEqual(tpHostDecl.inject, [
+  '@deepseek-ai/dsh-client-runtime',
+  '@deepseek-ai/dsh-client-ui-slots',
+  '@deepseek-ai/dsh-client-ui-settings',
+  '@deepseek-ai/dsh-client-locale',
+], '第三方 dsh.client.inject 应为官方槽位依赖')
+assert.strictEqual(tpHostDecl.immediately, true, '第三方插件应立即激活')
+
+// 图谱应包含第三方条目，且 bundle route 能直读其产物（方案 A 装载路径）
+const tpGraph = bootGraph.generateBootGraph('desktop-m1-ipc-test', [tpHostDecl])
+const tpEntry = tpGraph.entries.find((e) => e.id === thirdPartyId)
+assert.ok(tpEntry, '图谱应包含第三方插件条目')
+assert.equal(tpEntry.url, `/plugins/${thirdPartyId}/client.js?rev=${tpEntry.rev}`)
+const tpBundle = bootGraph.resolveBundleRequest(`/plugins/${thirdPartyId}/client.js`)
+assert.ok(tpBundle, 'bundle route 应返回第三方 bundle')
+assert.ok(tpBundle.body.toString().includes('__ModuleLoader__'), '第三方 bundle 应注册到 __ModuleLoader__')
+assert.ok(tpBundle.body.toString().includes('settings.section'), '第三方 bundle 应注册 settings.section 槽位')
+console.log(`   第三方插件无改动装载: /plugins/${thirdPartyId}/client.js → ${tpBundle.body.length} bytes`)
+
 console.log('✅ 零端口 bundle spike（方案 A）验证通过')
 console.log(`   图谱条目: ${ids.join(', ')}`)
 console.log(`   样例 bundle route: /plugins/${sampleId}/client.js → ${bundle.body.length} bytes`)
