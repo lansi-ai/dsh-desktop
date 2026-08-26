@@ -37,6 +37,23 @@ export function markQuitting(): void {
   quitting = true
 }
 
+/** 兜底图标：内联 32x32 蓝色圆点 PNG（资源缺失时使用）。 */
+const FALLBACK_ICON_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAd0lEQVR4nO3XsQ6AIAyE4T6X7+ZzO0LiQGJEaAleb7iha/9v0mLHeVlwymRC+3ZFlzF/hd0QRHyIQMU/Ech4F4GOvxAZ8QeCBoCON4QAmfF7BBBAAApA+odIAIrfMQUg/SSjOEopznKKhwnF02wHZLrbC4hgQvsqEs3hXEcpkYIAAAAASUVORK5CYII='
+
+/** 加载托盘图标（优先桌面资源 tray-icon.png，超 64px 则缩放；缺失回退 base64）。 */
+function loadTrayIcon(): Electron.NativeImage {
+  const pngPath = join(__dirname, '..', 'desktop-shell', 'web', 'tray-icon.png')
+  let icon = nativeImage.createFromPath(pngPath)
+  if (icon.isEmpty()) {
+    icon = nativeImage.createFromDataURL(FALLBACK_ICON_DATA_URL)
+  } else {
+    const size = icon.getSize()
+    if (size.width > 64 || size.height > 64) icon = icon.resize({ width: 64, height: 64 })
+  }
+  return icon
+}
+
 /**
  * 安装托盘（关窗驻留 + 菜单 + 快速问答）。仅在窗口创建后调用一次。
  *
@@ -59,20 +76,9 @@ export function installDesktopTray(options: DesktopTrayOptions): () => void {
   if (window !== null) window.on('close', onClose)
 
   // ── 托盘图标与菜单 ─────────────────────────────────────────────────
-  // 图标：桌面资源 tray-icon.jpg（copy-web 复制到 dist/desktop-shell/web/）。
-  // JPG 无透明 + 原图较大（发光细节，缩到 16px 显示会糊）：此处先 resize 到 64px
-  // 让系统缩放到通知区更清晰；资源缺失时回退内联 base64 蓝点 PNG。
-  const trayPath = join(__dirname, '..', 'desktop-shell', 'web', 'tray-icon.jpg')
-  let trayIcon = nativeImage.createFromPath(trayPath)
-  if (trayIcon.isEmpty()) {
-    // 兜底：内联 32x32 蓝色圆点 PNG。
-    trayIcon = nativeImage.createFromDataURL(
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAd0lEQVR4nO3XsQ6AIAyE4T6X7+ZzO0LiQGJEaAleb7iha/9v0mLHeVlwymRC+3ZFlzF/hd0QRHyIQMU/Ech4F4GOvxAZ8QeCBoCON4QAmfF7BBBAAApA+odIAIrfMQUg/SSjOEopznKKhwnF02wHZLrbC4hgQvsqEs3hXEcpkYIAAAAASUVORK5CYII=',
-    )
-  } else {
-    const size = trayIcon.getSize()
-    if (size.width > 64 || size.height > 64) trayIcon = trayIcon.resize({ width: 64, height: 64 })
-  }
+  // 图标：桌面资源 tray-icon.png（裁剪放大主体 + 透明底，copy-web 复制到 dist/desktop-shell/web/）。
+  // 已 resize 到 64px（系统缩到通知区 ~16px 更清晰）；资源缺失时回退内联 base64 蓝点 PNG。
+  const trayIcon = loadTrayIcon()
   const tray = new Tray(trayIcon)
 
   const showWindow = (source: string): void => {
