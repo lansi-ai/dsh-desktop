@@ -114,16 +114,17 @@
   <div class="container">
     <div class="header">
       <h1>🚀 激活上下文看板 · dsh-desktop</h1>
-      <span class="badge">M3 阶段 · 多窗口与深度交互</span>
+      <span class="badge">M3-b4 dogfood + M4 分发 · 并行推进</span>
     </div>
 
     <!-- 01. 目标 -->
     <div class="card">
       <h2>🎯 当前迭代目标</h2>
-      <p><strong>版本阶段：</strong><b>M2 已完成</b>（2026-08-26）→ <b>进入 M3（多窗口与深度交互）</b></p>
-      <p><strong>M2 核心价值（已达成）：</strong>桌面能力 = host 插件（<code>ctx.desktop.*</code>）+ 旧 Web 插件 host 半兼容 + 官方 UI 注入桌面设置/面板，成为「可天天用的桌面工具」。</p>
-      <p><strong>M3 目标：</strong>多窗口独立会话 + 命令面板（Ctrl+K）+ <code>dsh://</code> 协议唤起 + 会话审计查询 + 开机自启 → 达到「<b>日常使用 2 周无浏览器</b>」的可用度门禁。</p>
-      <p><strong>M3 推进节奏：</strong>分两波 —— M3-a（多窗口 + 命令面板）→ M3-b（协议 + 审计 + 自启）。M3-a 完成后即启动 dogfood。</p>
+      <p><strong>版本阶段：</strong><b>M3 代码全部完成</b>（2026-08-26）→ <b>M3-b4 dogfood 与 M4 并行推进中</b></p>
+      <p><strong>M3 核心价值（代码侧已达成）：</strong>多窗口独立会话 + 命令面板（Ctrl+K）+ <code>dsh://</code> 协议唤起 + 会话审计查询 + 开机自启。</p>
+      <p><strong>M3-b4 dogfood（进行中）：</strong>2 周实机验收（日常使用无浏览器）+ 全量回归 + <code>netstat</code> 零监听红线再验证。dogfood 结果作为 M3 正式收尾门禁，<b>不阻塞 M4 开发</b>。</p>
+      <p><strong>M4 目标（并行启动 · 2026-08-26）：</strong>分发与更新 —— electron-builder Win 安装包首发（便携包 + SHA256SUMS + 零依赖验证）→ 自动更新通道 → 离线启动 e2e → 外部 ≥3 人安装即用门禁。</p>
+      <p><strong>M4 基线策略：</strong>继续钉 <code>rc.8</code> 先打包（D-4 不变）；rc.12 升级为 M4-d 独立节点（<code>build(upstream)</code> SOP）。</p>
     </div>
 
     <!-- 02. 看板 -->
@@ -216,17 +217,67 @@
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>静默到托盘：--hidden 参数 + dev 模式拦截注册</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 白名单：autostart.setEnabled/getStatus + Schema</span></li>
 
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-b4 M3 门禁</strong></span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>完整 dogfood 验收：2 周无浏览器</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-b4 M3 门禁（🔄 dogfood 进行中 · 与 M4 并行）</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>🐕 完整 dogfood 验收：2 周无浏览器（实机 <code>npm run dev</code> 日常使用，记录问题清单）</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全量回归：M1+M2+M3 全链可用</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>netstat</code> 零监听红线再验证</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>崩溃恢复 + 多窗口组合异常测试</span></li>
+      </ul>
+
+      <!-- M4 并行推进 -->
+      <div class="phase-label active">M4 · 分发与更新 🔄 并行推进（2026-08-26 启动）</div>
+
+      <h3>M4-a 第一波：Win 安装包首发</h3>
+      <ul class="task-list">
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a1 electron-builder 基建</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>依赖安装 + <code>electron-builder.yml</code> 打包配置（appId/产品名/图标/Win nsis target）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>app.isPackaged</code> 路径适配：dist 资源/bareModuleBaseUrl/preload 打包产物内正确解析</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>npm run dist</code> 脚本（build → electron-builder 一条龙）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>Win 安装包 + 便携包（portable）+ <code>SHA256SUMS</code> 校验文件生成</span></li>
+
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a2 R10 协议安全白名单（分发前必补）</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>dsh://</code> 来源校验：open-url/second-instance 参数白名单过滤（R10 收口）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>协议参数 zod 强校验（session id 格式 / query 长度限制）</span></li>
+
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a3 零依赖实机验证</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全新 Win10 x64 干净环境安装即用（零 Node/pnpm 依赖）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>M3-b3 开机自启打包版验证：开关 → 注册表 → 重启登录静默驻留托盘全链</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>dsh-ui:// / IPC 载波 / 审计 / 托盘 / 快捷键打包版全链冒烟</span></li>
+      </ul>
+
+      <h3>M4-b 第二波：自动更新</h3>
+      <ul class="task-list">
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-b1 更新描述符与校验</strong>：latest.yml + SHA256 校验 + 更新回滚</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-b2 更新通道</strong>：stable / rc / off 三通道切换（desktop-settings 注入）</span></li>
+      </ul>
+
+      <h3>M4-c 第三波：离线启动 e2e</h3>
+      <ul class="task-list">
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-c1 离线路径</strong>：网络不可用时 UI 降级 + 历史会话读取 e2e（Playwright + Electron）</span></li>
+      </ul>
+
+      <h3>M4-d 第四波：上游基线升级（rc.12）</h3>
+      <ul class="task-list">
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-d1 rc.8 → rc.12 升级</strong>：先 <code>build(upstream)</code> 迁移登记 diff（ADR-005 SOP），再代码适配 + 回归</span></li>
+      </ul>
+
+      <h3>M4-e M4 门禁</h3>
+      <ul class="task-list">
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span>发布 rc 安装包，外部使用者（≥3 人）安装即用无环境报错</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span>SHA256SUMS 外部可验证</span></li>
       </ul>
     </div>
 
     <!-- 03. 决策 -->
     <div class="card">
       <h2>💡 关键决策与遗留记录</h2>
-      <p><strong>M3 新增决策：</strong></p>
+      <p><strong>M4 新增决策（2026-08-26）：</strong></p>
+      <ul>
+        <li><strong>D-13</strong> M3-b4 dogfood 与 M4 并行推进（dogfood 结果作 M3 收尾门禁，不阻塞 M4 开发）</li>
+        <li><strong>D-14</strong> M4 首发钉 rc.8 基线打包；rc.12 升级为 M4-d 独立节点（build(upstream) SOP）</li>
+        <li><strong>D-15</strong> R10 协议安全 + M3-b3 自启打包验证排入 M4-a（分发前必须补安全面）；M2-c 置后；R6/R7 留 M5</li>
+      </ul>
+      <p style="margin-top: 12px;"><strong>M3 新增决策：</strong></p>
       <ul>
         <li><strong>D-9</strong> 多窗口 = 每个会话独立 BrowserWindow（非 Tab），窗口间广播帧同步</li>
         <li><strong>D-10</strong> 命令面板 = 混合方案（renderer Ctrl+K + 主进程 Ctrl+Shift+P）</li>
@@ -248,24 +299,22 @@
         <li><strong>R6 open</strong> !!js 表达式在 overlay patches 中不被 Cordis Loader 求值</li>
         <li><strong>R7 open</strong> session-persistence-jsonl 硬编码 .runtime/user-data/...</li>
         <li><strong>R9 多窗口资源开销</strong> 3+ 窗口常驻内存 ≤ 400MB（M5 验证）</li>
-        <li><strong>R10 协议安全</strong> dsh:// 协议需校验来源，防恶意链接（M3-b 加白名单）</li>
+        <li><strong>R10 协议安全</strong> dsh:// 协议需校验来源，防恶意链接（<b>已排入 M4-a2</b>，分发前收口）</li>
       </ul>
     </div>
 
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3-a ✅ → M3-b1 ✅ → M3-b2 ✅ → M3-b3 ✅ → <b>M3（多窗口 + 深度交互）🔄 进行中</b></p>
-      <p style="margin:8px 0 0 0;"><strong>M3 第一优先级：</strong> <b>M3-b4 M3 门禁</b>（dogfood 验收 + 全量回归 + netstat 零监听红线再验证 + 崩溃恢复/多窗口组合异常测试）</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">已完成（M3-b3）：</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/types/desktop.ts</code>（autostart Schema: AutostartSetEnabled/AutostartStatus）</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-host/desktop-autostart.ts</code>（开机自启服务：OS 登录项管理 + dev 拦截）</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-shell/web/desktop-settings-client.js</code>（AutoStartSetting Toggle 注入）</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-shell/preload.ts</code>（autostart.setEnabled/getStatus 白名单）</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">✅ <code>src/desktop-shell/argv.ts</code> + <code>main.ts</code>（--hidden 静默到托盘 + 装配/清理）</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">验收提示（M3-b4）：开机自启实际系统注册需在打包版（app.isPackaged）验证，dev 模式仅冒烟 UI Toggle 与状态查询。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>阻塞项：</strong> M2-c 旧插件门禁载体待确认，<b>不阻塞 M3</b>。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">💡 提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
+      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>M3-b4 dogfood 🔄 进行中（与 M4 并行）</b> → <b>M4-a Win 安装包首发 待开发</b></p>
+      <p style="margin:8px 0 0 0;"><strong>M4 第一优先级：</strong> <b>M4-a1 electron-builder 基建</b>（依赖安装 + 打包配置 + <code>app.isPackaged</code> 路径适配 + <code>npm run dist</code> 脚本）</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建/修改的文件（M4-a1）：</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>electron-builder.yml</code>（打包配置，项目根目录）</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>package.json</code>（新增 dist 脚本 + electron-builder devDependency）</p>
+      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/desktop-shell/main.ts</code>（app.isPackaged 打包路径适配：bareModuleBaseUrl/resources 解析）</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">M3-b4 dogfood（并行进行）：实机 <code>npm run dev</code> 日常使用，记录问题清单；每完成一周做一次阶段小结。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>阻塞项：</strong> M2-c 旧插件门禁载体待确认，<b>不阻塞 M3/M4</b>。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">💡 提示：直接在浏览器中打开本 HTML 即可随时查看最新进度；后续会话可提示 "按照 active-context.md 的 M4-a1 继续执行"。</p>
     </div>
   </div>
 </body>
