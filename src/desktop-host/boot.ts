@@ -15,8 +15,16 @@
 
 import { join } from 'node:path'
 import { writeFileSync, mkdirSync } from 'node:fs'
+import { app } from 'electron'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'resolution-mode': 'import' }
 import { getIpcCarrierPatchEntries } from './manifest.js'
+
+// 运行时数据根目录（M4-a1·打包路径适配）：
+// 开发模式 → 项目内 .runtime（随仓库可清理）；打包模式 → 系统 userData 下 .runtime
+// （asar 只读不可写，R7 硬编码路径的打包态收口；完整可配置化留 M5）。
+const RUNTIME_ROOT = app.isPackaged
+  ? join(app.getPath('userData'), '.runtime')
+  : join(__dirname, '..', '..', '.runtime')
 
 /** boot 启动选项（含 Step 6 --serve 兼容模式）。 */
 export interface BootOptions {
@@ -85,9 +93,9 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'settings', name: '@deepseek-ai/dsh-settings-file' },
       { id: 'credentials', name: '@deepseek-ai/dsh-credentials-local' },
       { id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai' },
-      // session-persistence-jsonl: !!js dshHomePath('sessions') → 使用 Electron userData 下的 sessions 目录
-      // userData 在 main.ts 中重定向至 .runtime/user-data
-      { id: 'session-persistence-jsonl', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(__dirname, '..', '..', '.runtime', 'user-data', 'sessions') } },
+      // session-persistence-jsonl: !!js dshHomePath('sessions') → 使用运行时数据根下的 sessions 目录
+      // 开发模式：userData 在 main.ts 中重定向至 .runtime/user-data；打包模式：RUNTIME_ROOT（系统 userData）
+      { id: 'session-persistence-jsonl', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(RUNTIME_ROOT, 'user-data', 'sessions') } },
       { id: 'attachment-local', name: '@deepseek-ai/dsh-attachment-local' },
       { id: 'session-query-sqlite', name: '@deepseek-ai/dsh-session-query-sqlite', config: { path: ':memory:', openAt: 'never' } },
       { id: 'session-projection', name: '@deepseek-ai/dsh-session-projection' },
@@ -215,7 +223,7 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   {
     insert: [
       { id: 'storage', name: '@deepseek-ai/dsh-storage' },
-      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(__dirname, '..', '..', '.runtime', 'user-data', 'storages') } },
+      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(RUNTIME_ROOT, 'user-data', 'storages') } },
       { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
     ],
   },
@@ -240,9 +248,8 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
  * @returns cordis.yml 的绝对路径。
  */
 function createRootConfig(): string {
-  const runtimeDir = join(__dirname, '..', '..', '.runtime')
-  mkdirSync(runtimeDir, { recursive: true })
-  const configPath = join(runtimeDir, 'cordis.yml')
+  mkdirSync(RUNTIME_ROOT, { recursive: true })
+  const configPath = join(RUNTIME_ROOT, 'cordis.yml')
   writeFileSync(configPath, '# dsh-desktop profile root — 所有配置由 desktop-patch.yml overlay 补丁覆盖。\n[]\n')
   return configPath
 }

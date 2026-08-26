@@ -7,6 +7,10 @@ out/
 .tmp/
 .runtime/
 
+# 打包产物与缓存（M4-a1 electron-builder）
+release/
+.electron-builder-cache/
+
 # 环境与密钥
 .env
 .env.*

@@ -1,0 +1,37 @@
+# electron-builder 打包配置（M4-a1·Win 安装包首发）
+# 产物：release/ 下 NSIS 安装包 + 便携包 + SHA256SUMS（由 scripts/make-sums.cjs 生成）
+appId: deepseek-harness.desktop
+productName: DSH Desktop
+copyright: MIT License
+directories:
+  output: release
+  # 打包静态资源根（图标等；当前图标直接引用 src 内资源，build/ 留空占位）
+  buildResources: build
+# 应用负载：编译产物 + 清单（electron-builder 自动追加生产依赖 node_modules 进 asar）
+files:
+  - dist/**/*
+  - package.json
+asar: true
+# 跳过原生模块重编译：node-pty 使用 npm install 时的预编译产物（与 dev 模式行为一致，
+# 避免 node-gyp 在打包机上的工具链/缓存依赖）
+npmRebuild: false
+# node-pty 需解出 asar：winpty/conpty 附属 exe/dll 经真实文件路径加载，asar 内无法访问
+asarUnpack:
+  - "**/node-pty/**"
+# Windows 目标：x64 安装包 + 便携包双产物
+win:
+  icon: src/desktop-shell/web/app-icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  artifactName: ${productName}-${version}-setup.${ext}
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

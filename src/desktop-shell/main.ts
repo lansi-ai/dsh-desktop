@@ -30,7 +30,10 @@ import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy' with { 'resolutio
 
 // userData 重定向到项目内 .runtime/user-data：开发期避开系统 AppData（沙箱/残留垃圾易致
 // Chromium 锁与缓存创建失败），且随仓库可整体清理。必须在 any app 事件前设置。
-app.setPath('userData', join(__dirname, '..', '..', '.runtime', 'user-data'))
+// 打包模式（app.isPackaged）下 asar 只读，跳过重定向，使用 Electron 默认 userData（可写）。
+if (!app.isPackaged) {
+  app.setPath('userData', join(__dirname, '..', '..', '.runtime', 'user-data'))
+}
 
 // 解析启动参数（Step 6·--serve 兼容模式 / 零端口红线切换）。
 // Electron 把命令行参数挂在 app.commandLine，argv[1] 是 script 路径，
