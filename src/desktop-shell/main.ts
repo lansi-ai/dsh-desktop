@@ -64,6 +64,8 @@ function createWindow(): BrowserWindow {
     width: 1200,
     height: 800,
     show: false,
+    // 去掉 Electron 默认原生菜单栏（File/Edit/View/Window），避免与官方 UI 顶部布局冲突
+    autoHideMenuBar: true,
     // 官方 UI 经 dsh-ui:// 自定义协议加载（dist 直读，零 HTTP 端口）
     webPreferences: {
       contextIsolation: true,
@@ -74,6 +76,10 @@ function createWindow(): BrowserWindow {
       allowRunningInsecureContent: false,
     },
   })
+
+  // 移除窗口菜单（含开发默认菜单），彻底隐藏原生菜单栏
+  win.setMenuBarVisibility(false)
+  win.removeMenu()
 
   // 页面加载完成
   win.webContents.on('did-finish-load', () => {
