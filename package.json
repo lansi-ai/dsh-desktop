@@ -1,0 +1,33 @@
+{
+  "name": "dsh-desktop",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 桌面客户端（Electron 主进程内嵌 Cordis Host，零端口 IPC 载波，官方 Web UI 复用主面）",
+  "main": "dist/desktop-shell/main.js",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "dev": "npm run build && electron .",
+    "start": "electron ."
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.3.0",
+    "electron": "^44.0.0",
+    "eslint": "^10.9.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.68.0"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-app-boot": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-web-app": "0.1.0-rc.8",
+    "@deepseek-ai/dsh-web-frontend": "0.1.0-rc.8"
+  }
+}

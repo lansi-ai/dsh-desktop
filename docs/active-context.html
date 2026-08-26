@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>激活上下文与任务看板 · dsh-desktop</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --border: #334155;
+    }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    .container { max-width: 880px; margin: 0 auto; }
+    .header {
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .header h1 { margin: 0; font-size: 1.5rem; color: var(--accent); }
+    .badge {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+    .card h2 { margin-top: 0; font-size: 1.1rem; color: var(--text-main); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .task-list { list-style: none; padding: 0; margin: 0; }
+    .task-item {
+      padding: 8px 12px;
+      margin: 6px 0;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .task-item.sub { margin-left: 24px; font-size: 0.95rem; color: var(--text-muted); }
+    .status-icon { font-weight: bold; font-family: monospace; }
+    .done { color: var(--success); text-decoration: line-through; opacity: 0.7; }
+    .in-progress { color: var(--warning); font-weight: 600; }
+    .todo { color: var(--text-muted); }
+    .highlight-box {
+      background: rgba(56, 189, 248, 0.05);
+      border-left: 4px solid var(--accent);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+    }
+    ul { padding-left: 20px; color: var(--text-muted); }
+    li { margin-bottom: 6px; }
+    strong { color: var(--text-main); }
+    code { background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚀 激活上下文看板 · dsh-desktop</h1>
+      <span class="badge">M0 → M1 阶段</span>
+    </div>
+
+    <!-- 01. 目标 -->
+    <div class="card">
+      <h2>🎯 当前迭代目标</h2>
+      <p><strong>核心价值：</strong>官方 Web UI 桌面内嵌运行（<code>dsh-ui://</code> + IPC 载波，零 HTTP 端口），第三方插件无改动装载，崩溃可自愈。</p>
+      <p><strong>关键交付物：</strong>Electron 骨架 + desktop profile 装配 + IPC 载波四件套 + 零端口 bundle spike 结论 + 崩溃恢复初版。</p>
+      <p><strong>门禁：</strong>官方 UI 可对话 + <code>netstat</code> 无监听。</p>
+    </div>
+
+    <!-- 02. 看板 -->
+    <div class="card">
+      <h2>📋 任务看板 (Task Kanban)</h2>
+      <ul class="task-list">
+        <li class="task-item done">
+          <span class="status-icon">[x]</span>
+          <span><strong>步骤 1: 基础设施与脚手架搭设（2026-08-25 完成）</strong></span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>npm 单包 + Electron 44 + TypeScript strict（Node16）+ ESLint 基线（沙箱限制弃 pnpm）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>.rules/ 与 docs/ 设计基线已就位（含 ADR）；src/desktop-shell/main.ts 编译通过</span>
+        </li>
+        <li class="task-item done">
+          <span class="status-icon">[x]</span>
+          <span><strong>步骤 2: M0 基线核对与事实刷新（2026-08-25 完成）</strong></span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>钉上游 dsh-v0.1.0-rc.8（本地检出权威） + sync-upstream 迁移登记表（ADR-005）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>复核 R3（respond 实现）、dsh-terminal 现行 API、BootSeams/loadBundle 签名</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>patch-invariants 差集基线落盘（spec 随步骤 3 装配落地）</span>
+        </li>
+        <li class="task-item todo">
+          <span class="status-icon">[ ]</span>
+          <span><strong>步骤 3: 装配原型与 dist 协议加载</strong></span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>配置依赖：dsh / dsh-app-boot / dsh-web-app 精确 0.1.0-rc.8（npm install --save-exact）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>官方 dist 发行物就位：dsh-web-frontend@0.1.0-rc.8 携带 dist/（index.html+assets 分块齐全，R4 解除）</span>
+        </li>
+        <li class="task-item todo">
+          <span class="status-icon">[ ]</span>
+          <span><strong>步骤 4: IPC 载波实现（四件套）</strong></span>
+        </li>
+        <li class="task-item todo">
+          <span class="status-icon">[ ]</span>
+          <span><strong>步骤 5: 零端口 bundle spike（方案 A vs 方案 B）</strong></span>
+        </li>
+        <li class="task-item todo">
+          <span class="status-icon">[ ]</span>
+          <span><strong>步骤 6: 零端口验证与崩溃恢复初版</strong></span>
+        </li>
+        <li class="task-item todo">
+          <span class="status-icon">[ ]</span>
+          <span><strong>步骤 7: M1 门禁验收与收尾</strong></span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- 03. 决策 -->
+    <div class="card">
+      <h2>💡 关键决策与遗留记录</h2>
+      <ul>
+        <li><strong>D-1</strong> Electron 主进程内嵌 Cordis Host（非外部子进程）</li>
+        <li><strong>D-2</strong> IPC fetch 载波零端口（--serve 显式兼容）</li>
+        <li><strong>D-3</strong> 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2）</li>
+        <li><strong>D-4</strong> 基线钉本地检出 dsh-v0.1.0-rc.8（rc.12 差异待 M4 核查）</li>
+        <li><strong>D-5</strong> 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）</li>
+        <li><strong>D-6</strong> 兼容层 = ctx.desktopRoutes + fetch 拦截白名单（ADR-007)</li>
+        <li><strong>技术债暂存：</strong>自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入</li>
+        <li><strong>开放风险：</strong>R5（BootSeams/自定义协议真实性，M1-T4 spike 决出）；R4 已解除（dist 由 dsh-web-frontend npm 包携带）</li>
+      </ul>
+    </div>
+
+    <!-- 04. 即时行动 -->
+    <div class="card highlight-box">
+      <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
+      <p style="margin:0;"><strong>当前焦点：</strong>步骤 3 装配原型与 dist 协议加载（boot() desktop profile + dsh-ui:// 协议 + 官方 dist 装载）。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建：<code>src/desktop-host/</code>（boot 装配骨架）、roster/manifest（__DSH_BOOT__ desktop-runtime）、dsh-ui:// 协议注册、<code>tests/patch-invariants.spec.ts</code>。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
+    </div>
+  </div>
+</body>
+</html>

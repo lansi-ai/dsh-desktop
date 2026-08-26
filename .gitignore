@@ -1,0 +1,25 @@
+# 依赖与构建产物
+node_modules/
+dist/
+out/
+*.tsbuildinfo
+.pnpm-store/
+.tmp/
+.runtime/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 本地数据（$DSH_HOME 共享目录通常位于用户目录，此处仅为仓库内兜底）
+.dsh/
+
+# 日志
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
