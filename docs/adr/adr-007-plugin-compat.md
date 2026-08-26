@@ -52,7 +52,14 @@
 
 ## 后果
 - 需维护 `desktopRoutes` 等价面 + fetch 拦截 hook + 零端口 bundle 服务（技术债集中在 `desktop-host-compat` 包）
-- M1 spike 必须先出结论（`dsh-ui://` 协议 vs `BootSeams`，fetch 拦截 vs 协议直读）——阻塞 M1 门禁
+- M1 spike 必须先出结论（`dsh-ui://` 协议 vs `BootSeams`，fetch 拦截 vs 协议直读）—— 阻塞 M1 门禁
+
+### Spike 结论（2026-08-26 · M1-T4）
+- **bundle 装载路径定案：方案 A（`dsh-ui://plugins/<id>/client.js?rev=` 协议直读）**
+  - 已实现：`boot-graph.ts` 组合官方格式 `__DSH_BOOT__`（url=`/plugins/<id>/client.js?rev=`、rev=sha1 前 12 位）、`dsh-ui-protocol` 增补 bundle route、样例插件 + 自动化验证通过（图谱含 client-modules/client-runtime/样例，bundle 可按协议送达）。
+  - 理由：最贴近官方 `<script src>` 到达语义，无需覆写 `loadBundle`；官方基础插件（client-modules/client-runtime）可直接由 `node_modules` 解析 `exports["./client"]`，无需自建构建。
+- **方案 B（`BootSeams.loadBundle` 覆写）留作备选**：官方 `manifest.d.ts` 确认钩子 `loadBundle?: (url) => Promise<void>` 可用，但暂未实测；若方案 A 在真实 file:// 暴露同源/rev 限制再启用对比。
+- **遗留（R5，open）**：官方 dist 资源路径的绝对路径语义（`dsh-ui://index.html/assets/*` → `assets/*`）未在真实 file:// 验证；`FORCE_PLACEHOLDER` 暂保持 true，切官方 dist 前需解决。
 
 ## 备选否决
 - 只做 `--serve`（保留 HTTP 端口）：违背零端口红线与「非套壳」主张

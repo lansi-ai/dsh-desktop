@@ -32,10 +32,10 @@ alwaysApply: true
   - [x] `dsh-ui://` scheme 特权注册 + 占位诊断页 + dist 回退（dsh-ui-protocol.ts）
   - [x] 构建脚本：copy-web.cjs 复制静态资源到 dist
   - [x] 验证通过：renderer → preload → bridge → host 全链路 RPC 通信畅通
-- [ ] **步骤 5: 零端口 bundle spike（方案 A vs 方案 B）**
-  - [ ] 方案 A：`dsh-ui://plugins/<id>/client.js?rev=` 协议直读
-  - [ ] 方案 B：`BootSeams.loadBundle` 覆写
-  - [ ] 双案 2 天出结论并落 ADR-007 后果
+- [x] **步骤 5: 零端口 bundle spike（方案 A 定案，方案 B 备选）**（2026-08-26 方案 A 完成）
+  - [x] 方案 A：`dsh-ui://plugins/<id>/client.js?rev=` 协议直读（`boot-graph.ts` 图谱生成 + `dsh-ui-protocol` bundle route + 样例插件 + 自动化验证通过）
+  - [ ] 方案 B：`BootSeams.loadBundle` 覆写（暂未实测，留作对比兜底；官方 `manifest.d.ts` 已确认 `loadBundle?: (url) => Promise<void>` 钩子可用）
+  - [x] 结论落 ADR-007：方案 A 为默认零端口 bundle 装载路径；R5（官方 dist 资源路径绝对路径语义）仍未验证
 - [ ] **步骤 6: 零端口验证与崩溃恢复初版**
   - [ ] `netstat` 零监听验证（默认模式）+ `--serve` 兼容模式冒烟
   - [ ] 崩溃 relaunch 自愈 v0（有限重启 + 熔断）
@@ -53,16 +53,16 @@ alwaysApply: true
   - D-5 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）
   - D-6 兼容层 = `ctx.desktopRoutes` + fetch 拦截白名单（ADR-007）
 - **风险与技术债记录**：
-  - R5 open：`BootSeams`/`dsh-ui://` 在真实 file:// 环境行为未验证（M1-T4 spike 决出）
+  - R5 open：`dsh-ui://` 在真实 file:// 环境的官方 dist 资源路径绝对路径语义未验证（bundle route 已通过；M1-T4 spike 决出）
   - ~~R4~~ **closed**：dist 构建产物可得性 —— `@deepseek-ai/dsh-web-frontend@0.1.0-rc.8` 直接携带官方 dist 发行物，无需自建构建脚本
   - R6 open：`!!js` 表达式在 overlay patches（JS 对象直传 `boot()`）中不被 Cordis Loader 求值（仅 Include YAML 解析阶段激活）——当前以 TS 直接求值绕过；`dshHomePath()` 等 Cordis 服务需在步骤 4 通过 `prepare` 钩子提供
   - R7 open：`session-persistence-jsonl` / `storage-json` 的 `root` 路径使用硬编码 `.runtime/user-data/...`；待 `dshHomePath` 服务可用后切回 `!!js dshHomePath(...)` 语义
   - 暂存项：自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **当前正在处理**：步骤 4 已完成（2026-08-26）。**下一步 = 步骤 5: 零端口 bundle spike**。
-- **步骤 5 首要任务**：方案 A vs 方案 B 双案 spike，验证第三方 web 插件在零端口模式下的加载路径。
-- **关键阻塞项**：官方 UI 的 DSH 客户端模块系统需要 `@dsh-desktop/ipc-connection` 客户端模块工厂，当前 IPC 载波通过 preload.desktopBridge 独立提供，后续需接入 DSH 模块系统。
+- **当前正在处理**：步骤 5 方案 A 已完成（2026-08-26）。**下一步 = 验证官方 dist 资源路径（R5）+ 步骤 6: 零端口验证与崩溃恢复初版**。
+- **步骤 6 首要任务**：`netstat` 零监听验证（默认模式）+ `--serve` 兼容模式冒烟 + 崩溃 relaunch 自愈 v0（有限重启 + 熔断）。
+- **关键阻塞项**：官方 UI 客户端模块系统需要 `@dsh-desktop/ipc-connection` 客户端模块工厂，当前 IPC 载波经 preload.desktopBridge 独立提供，后续需接入 DSH 模块系统；官方 dist 资源路径绝对路径语义（R5）待验证。
 - **AI 交互指令提示**：后续会话可直接提示 "按照 active-context.md 的下一步继续执行"。
 
 ## 05. 规则自我演进维护
