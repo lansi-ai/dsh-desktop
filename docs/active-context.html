@@ -126,9 +126,9 @@
           <span class="status-icon">[x]</span>
           <span>patch-invariants 差集基线落盘（spec 随步骤 3 装配落地）</span>
         </li>
-        <li class="task-item todo">
-          <span class="status-icon">[ ]</span>
-          <span><strong>步骤 3: 装配原型与 dist 协议加载</strong></span>
+        <li class="task-item done">
+          <span class="status-icon">[x]</span>
+          <span><strong>步骤 3: 装配原型与 dist 协议加载（2026-08-26 完成）</strong></span>
         </li>
         <li class="task-item sub done">
           <span class="status-icon">[x]</span>
@@ -138,9 +138,41 @@
           <span class="status-icon">[x]</span>
           <span>官方 dist 发行物就位：dsh-web-frontend@0.1.0-rc.8 携带 dist/（index.html+assets 分块齐全，R4 解除）</span>
         </li>
-        <li class="task-item todo">
-          <span class="status-icon">[ ]</span>
-          <span><strong>步骤 4: IPC 载波实现（四件套）</strong></span>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>boot() desktop profile 装配最小可运行（overlay patches 禁用 web 传输层；!!js → TS 直接求值；Cordis Host 验证通过）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>dsh-ui:// 自定义协议注册并加载官方 UI（dist 直读 + __DSH_BOOT__ manifest 注入 + Electron 窗口验证通过）</span>
+        </li>
+        <li class="task-item done">
+          <span class="status-icon">[x]</span>
+          <span><strong>步骤 4: IPC 载波实现（四件套）（2026-08-26 完成）</strong></span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>src/types/ zod 契约 + channel 常量 + AppError 码表（channels.ts / contract.ts / errors.ts / index.ts）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>bridge 宿主端：unary 表分发 + respond 回填 + 帧路由 per-window（bridge.ts）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>preload desktopBridge 白名单（rpc/respond/onFrame/onDesktopEvent/windowControl/getPlatformInfo）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>roster/manifest 覆盖：connection/client-runtime 禁用 + IPC 载波服务注册（manifest.ts）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>dsh-ui:// scheme 特权 + 占位诊断页 + dist 回退 + build copy-web 脚本</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span>验证通过：renderer → preload → bridge → host 全链路 RPC 通信畅通</span>
         </li>
         <li class="task-item todo">
           <span class="status-icon">[ ]</span>
@@ -168,15 +200,16 @@
         <li><strong>D-5</strong> 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）</li>
         <li><strong>D-6</strong> 兼容层 = ctx.desktopRoutes + fetch 拦截白名单（ADR-007)</li>
         <li><strong>技术债暂存：</strong>自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入</li>
-        <li><strong>开放风险：</strong>R5（BootSeams/自定义协议真实性，M1-T4 spike 决出）；R4 已解除（dist 由 dsh-web-frontend npm 包携带）</li>
+        <li><strong>开放风险：</strong>R5（BootSeams/自定义协议真实性，M1-T4 spike 决出）；R6（!!js 表达式在 overlay patches 中不被求值，TS 直接求值绕过）；R7（dshHomePath 路径硬编码，待步骤 4 解决）；R4 已解除（dist 由 dsh-web-frontend npm 包携带）</li>
       </ul>
     </div>
 
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前焦点：</strong>步骤 3 装配原型与 dist 协议加载（boot() desktop profile + dsh-ui:// 协议 + 官方 dist 装载）。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建：<code>src/desktop-host/</code>（boot 装配骨架）、roster/manifest（__DSH_BOOT__ desktop-runtime）、dsh-ui:// 协议注册、<code>tests/patch-invariants.spec.ts</code>。</p>
+      <p style="margin:0;"><strong>当前焦点：</strong>步骤 4 已完成（2026-08-26）。<strong>下一步 = 步骤 5: 零端口 bundle spike</strong>。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">方案 A（dsh-ui:// 协议直读）vs 方案 B（BootSeams.loadBundle 覆写）双案验证。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">关键阻塞：官方 UI 的 DSH 客户端模块系统需 @dsh-desktop/ipc-connection 客户端模块工厂接入。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
     </div>
   </div>

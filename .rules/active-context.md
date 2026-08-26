@@ -19,16 +19,19 @@ alwaysApply: true
   - [x] 钉上游 `dsh-v0.1.0-rc.8`（本地检出权威）；`sync-upstream` 迁移登记表建立（ADR-005）
   - [x] 复核 R3（respond 实现）、dsh-terminal 现行 API（`/terminal/stream`）、`BootSeams`/`loadBundle` 签名
   - [x] `patch-invariants` 差集基线落盘（`docs/upstream-migrations.md` B 区；spec 随步骤 3 装配落地）
-- [ ] **步骤 3: 装配原型与 dist 协议加载**
+- [x] **步骤 3: 装配原型与 dist 协议加载**（2026-08-26 完成）
   - [x] 配置依赖：`@deepseek-ai/dsh`/`dsh-app-boot`/`dsh-web-app` 精确 `0.1.0-rc.8`（npm install --save-exact，2026-08-25 完成）
   - [x] 获取官方 web-app dist 发行物（`@deepseek-ai/dsh-web-frontend@0.1.0-rc.8` **直接依赖**声明，index.html+assets 分块齐全；**R4 解除**，无需自建构建脚本）
-  - [ ] `boot()` desktop profile 装配最小可运行（叠加 base + web-app，禁用 webserver/web-runtime）
-  - [ ] `dsh-ui://` 自定义协议注册并加载官方 UI
-- [ ] **步骤 4: IPC 载波实现（四件套）**
-  - [ ] `src/types/` zod 契约 + channel 常量 + AppError 码表
-  - [ ] bridge 宿主端：unary 表分发 + respond 回填 + 帧路由 per-window
-  - [ ] preload `desktopBridge` 白名单（rpc/respond/onFrame/http/runtime）
-  - [ ] roster/manifest 覆盖：`connection`/`client-runtime` → IPC 载波变体（doFetch/openMux/openHost/rpc）
+  - [x] `boot()` desktop profile 装配最小可运行（`src/desktop-host/boot.ts`：overlay patches 禁用 webserver/web-runtime/web-startup/connection/client-*；`!!js` 表达式改为 TS 直接求值；`dshHomePath` 路径在步骤 4 解决）
+  - [x] `dsh-ui://` 自定义协议注册并加载官方 UI（`dsh-ui-protocol.ts`：dist 直读 + `__DSH_BOOT__` manifest 注入 + queueLoader shim；Electron 窗口 `loadURL('dsh-ui://index.html')` 验证通过）
+- [x] **步骤 4: IPC 载波实现（四件套）**（2026-08-26 完成）
+  - [x] `src/types/` zod 契约 + channel 常量 + AppError 码表（channels.ts / contract.ts / errors.ts / index.ts）
+  - [x] bridge 宿主端：unary 表分发 + respond 回填 + 帧路由 per-window（bridge.ts）
+  - [x] preload `desktopBridge` 白名单（rpc/respond/onFrame/onDesktopEvent/windowControl/getPlatformInfo）（preload.ts）
+  - [x] roster/manifest 覆盖：`connection`/`client-runtime` 禁用 + IPC 载波服务注册（manifest.ts）
+  - [x] `dsh-ui://` scheme 特权注册 + 占位诊断页 + dist 回退（dsh-ui-protocol.ts）
+  - [x] 构建脚本：copy-web.cjs 复制静态资源到 dist
+  - [x] 验证通过：renderer → preload → bridge → host 全链路 RPC 通信畅通
 - [ ] **步骤 5: 零端口 bundle spike（方案 A vs 方案 B）**
   - [ ] 方案 A：`dsh-ui://plugins/<id>/client.js?rev=` 协议直读
   - [ ] 方案 B：`BootSeams.loadBundle` 覆写
@@ -52,11 +55,14 @@ alwaysApply: true
 - **风险与技术债记录**：
   - R5 open：`BootSeams`/`dsh-ui://` 在真实 file:// 环境行为未验证（M1-T4 spike 决出）
   - ~~R4~~ **closed**：dist 构建产物可得性 —— `@deepseek-ai/dsh-web-frontend@0.1.0-rc.8` 直接携带官方 dist 发行物，无需自建构建脚本
+  - R6 open：`!!js` 表达式在 overlay patches（JS 对象直传 `boot()`）中不被 Cordis Loader 求值（仅 Include YAML 解析阶段激活）——当前以 TS 直接求值绕过；`dshHomePath()` 等 Cordis 服务需在步骤 4 通过 `prepare` 钩子提供
+  - R7 open：`session-persistence-jsonl` / `storage-json` 的 `root` 路径使用硬编码 `.runtime/user-data/...`；待 `dshHomePath` 服务可用后切回 `!!js dshHomePath(...)` 语义
   - 暂存项：自绘 Desktop UI（U-01~08）按 P2 记账，ADR-006 启用前不投入
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **当前正在处理**：步骤 3 装配原型与 dist 协议加载（`boot()` desktop profile + `dsh-ui://` 协议 + 官方 dist 装载）。
-- **即将创建的文件**：`src/desktop-host/`（boot 装配骨架）、roster/manifest（`__DSH_BOOT__` desktop-runtime）、`dsh-ui://` 协议注册、`tests/patch-invariants.spec.ts`。
+- **当前正在处理**：步骤 4 已完成（2026-08-26）。**下一步 = 步骤 5: 零端口 bundle spike**。
+- **步骤 5 首要任务**：方案 A vs 方案 B 双案 spike，验证第三方 web 插件在零端口模式下的加载路径。
+- **关键阻塞项**：官方 UI 的 DSH 客户端模块系统需要 `@dsh-desktop/ipc-connection` 客户端模块工厂，当前 IPC 载波通过 preload.desktopBridge 独立提供，后续需接入 DSH 模块系统。
 - **AI 交互指令提示**：后续会话可直接提示 "按照 active-context.md 的下一步继续执行"。
 
 ## 05. 规则自我演进维护
