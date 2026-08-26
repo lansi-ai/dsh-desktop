@@ -89,9 +89,10 @@
     <!-- 01. 目标 -->
     <div class="card">
       <h2>🎯 当前迭代目标</h2>
-      <p><strong>核心价值：</strong>官方 Web UI 桌面内嵌运行（<code>dsh-ui://</code> + IPC 载波，零 HTTP 端口），第三方插件无改动装载，崩溃可自愈。</p>
-      <p><strong>关键交付物：</strong>Electron 骨架 + desktop profile 装配 + IPC 载波四件套 + 零端口 bundle spike 结论 + 崩溃恢复初版。</p>
-      <p><strong>门禁：</strong>官方 UI 可对话 + <code>netstat</code> 无监听。</p>
+      <p><strong>版本阶段：</strong><b>M1 已完成</b>（2026-08-26）→ <b>进入 M2（桌面能力插件化）</b></p>
+      <p><strong>M1 核心价值（已达成）：</strong>官方 Web UI 桌面内嵌运行（<code>dsh-ui://</code> + IPC 载波，零 HTTP 端口），第三方插件无改动装载，崩溃可自愈。</p>
+      <p><strong>M2 目标：</strong>桌面能力 = host 插件（<code>ctx.desktop.*</code>）+ 旧 Web 插件 host 半兼容（desktopRoutes 等价面）+ 官方 UI 注入桌面设置/面板 → 成为「可天天用的桌面工具」。</p>
+      <p><strong>M1 门禁（已达成）：</strong>官方 UI 可对话 + <code>netstat</code> 无监听 + 第三方插件无改动装载。</p>
     </div>
 
     <!-- 02. 看板 -->
@@ -226,6 +227,38 @@
           <span class="status-icon">[x]</span>
           <span>docs/active-context.html 看板同步落盘 + 里程碑提交</span>
         </li>
+        <li class="task-item in-progress">
+          <span class="status-icon">[ ]</span>
+          <span><strong>M2: 桌面能力插件化（P0）</strong>（2026-08-26 启动 · Sign-off 已确认）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span><strong>M2-a 地基</strong>：desktop-api 提供 ctx.desktop（core 子集 + 配置接入 settings-file 持久化 + 审计总线 + desktop:event 下行）—— 实机验证通过（ctx.desktop 聚合服务已注入 + Host 就绪）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span><strong>M2-d1 托盘+关窗驻留</strong>：desktop-host-tray（关窗即隐藏驻留、托盘菜单/状态、快速问答唤起）—— 实机装配通过（桌面能力已装配：tray）；托盘图标视觉/关窗驻留交互待桌面点验（图标暂 createEmpty）</span>
+        </li>
+        <li class="task-item sub done">
+          <span class="status-icon">[x]</span>
+          <span><strong>M2-d2 通知闭环</strong>：desktop-host-notify（完成/审批/错误三类 + 点击定位会话）—— 实机装配通过（桌面能力已装配：notify）；通知弹出待桌面点验</span>
+        </li>
+        <li class="task-item sub todo">
+          <span class="status-icon">[ ]</span>
+          <span><s>M2-b compat 完整化</s> <b>置后</b>（desktopRoutes SSE→帧下行、fetch 白名单）</span>
+        </li>
+        <li class="task-item sub todo">
+          <span class="status-icon">[ ]</span>
+          <span><s>M2-c 旧插件门禁</s> <b>置后</b>（载体本地 /plugins/dsh-terminal / dsh-rule-manager / dsh-restart，待启用）</span>
+        </li>
+        <li class="task-item sub todo">
+          <span class="status-icon">[ ]</span>
+          <span><s>M2-d3 shortcuts / clipboard</s> <b>置后</b>（globalShortcut、剪贴板写审批）</span>
+        </li>
+        <li class="task-item sub todo">
+          <span class="status-icon">[ ]</span>
+          <span><s>M2-e 官方 UI 注入</s> <b>置后</b>（desktop-client-settings / desktop-client-panel）</span>
+        </li>
       </ul>
     </div>
 
@@ -255,9 +288,10 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑进度：</strong><b>M1（桌面客户端可行性闭环）已完整完成</b>（2026-08-26）。官方 UI 日常对话全流程 + 第三方 web 插件无改动装载（@lnyanhongyan/dsh-opencode-usage）+ netstat 零监听红线全部达成。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 待启动主项：</strong>第三方/旧插件 host 半完整兼容扩展（desktopRoutes 等价面：SSE 流式路由 → 帧下行、inject:['webServer'] 的 patch 层改指、dsh-terminal/dsh-rule-manager/dsh-restart 生态抽样回归）；桌面能力宿主插件化（desktop-tray/hotkey/notify/settings/restart，ctx.desktop.*）+ 自绘 Desktop UI（U-01~08，ADR-006 暂缓）；dshHomePath 服务接入（R6/R7 收口）。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>无（官方 UI 对话链路已打通；compat fetch 端到端（renderer 点选 → 协议 → host）需用户实机 UI 点验确认，逻辑层已单测通过）。</p>
+      <p style="margin:0;"><strong>当前里程碑进度：</strong><b>M1（桌面客户端可行性闭环）已完整完成</b>（2026-08-26）；<b>M2（桌面能力插件化）已启动</b>。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 首个攻坚（进行中）：</strong>desktop-host-core + desktop-api —— src/desktop-host/desktop-api.ts 提供 ctx.desktop Cordis 服务（core 子集：onAction/emitAction/log/readConfig/writeConfig/sendDesktopEvent），boot.ts prepare 注入；zod schema 放 src/types/desktop.ts、desktop:event 纳入 IPC_CHANNELS。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>M2 后续主项：</strong>compat 完整化（desktopRoutes：SSE→帧下行/fetch 白名单）+ 旧插件门禁（ADR-007）+ 首批桌面插件（tray/notify/shortcuts/clipboard）+ desktop-client-settings/panel。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>关键阻塞项：</strong>M2-b/c 需确认旧插件（dsh-terminal / dsh-rule-manager / dsh-restart）的真实载体来源。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">提示：直接在浏览器中打开本 HTML 即可随时查看最新进度。</p>
     </div>
   </div>
