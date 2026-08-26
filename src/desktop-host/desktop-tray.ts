@@ -58,8 +58,12 @@ export function installDesktopTray(options: DesktopTrayOptions): () => void {
   if (window !== null) window.on('close', onClose)
 
   // ── 托盘图标与菜单 ─────────────────────────────────────────────────
-  // 图标资源待 M2 补充（无资源时 Tray 可能不显示图标但功能可用）。
-  const tray = new Tray(nativeImage.createEmpty())
+  // 占位图标：内联 32x32 蓝色圆点 PNG（base64），避免依赖外部资源文件/构建复制。
+  // 正式品牌图标（tray-icon.png/svg）后续替换时直接改此 data URL 或改走 createFromPath。
+  const trayIcon = nativeImage.createFromDataURL(
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAd0lEQVR4nO3XsQ6AIAyE4T6X7+ZzO0LiQGJEaAleb7iha/9v0mLHeVlwymRC+3ZFlzF/hd0QRHyIQMU/Ech4F4GOvxAZ8QeCBoCON4QAmfF7BBBAAApA+odIAIrfMQUg/SSjOEopznKKhwnF02wHZLrbC4hgQvsqEs3hXEcpkYIAAAAASUVORK5CYII=',
+  )
+  const tray = new Tray(trayIcon)
 
   const showWindow = (source: string): void => {
     const win = getWindow()
