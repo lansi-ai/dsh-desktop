@@ -219,6 +219,7 @@
 
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-b4 M3 门禁（🔄 dogfood 进行中 · 与 M4 并行）</strong></span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>🐕 完整 dogfood 验收：2 周无浏览器（实机 <code>npm run dev</code> 日常使用，记录问题清单）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #1（2026-08-27）</strong>：冷会话未挂载（点新会话无反应）→ <code>session-rewarm.ts</code> 启动预热（坑 11）；<code>commands/list</code> 404 → typertGateway fallback（坑 12）；终端降噪 <code>DSH_VERBOSE</code> 门控。遗留：<code>dsh-cordis-host-runner</code> 未装载（非阻断，M5 评估）</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全量回归：M1+M2+M3 全链可用</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>netstat</code> 零监听红线再验证</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>崩溃恢复 + 多窗口组合异常测试</span></li>
@@ -320,12 +321,13 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>M3-b4 dogfood 🔄 进行中（与 M4 并行）</b> → <b>M4-a1 electron-builder 基建 ✅（2026-08-26）</b> → <b>M4-a2 R10 协议安全 待开发</b></p>
+      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>M3-b4 dogfood 🔄 进行中（与 M4 并行 · 2026-08-27 修复问题 #1：冷会话预热 + typert gateway fallback，见坑 11/12）</b> → <b>M4-a1 electron-builder 基建 ✅（2026-08-26）</b> → <b>M4-a2 R10 协议安全 待开发</b></p>
       <p style="margin:8px 0 0 0;"><strong>M4 第一优先级：</strong> <b>M4-a2 R10 协议安全白名单</b>（<code>dsh://</code> 来源校验 + 协议参数 zod 强校验）</p>
       <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建/修改的文件（M4-a2）：</p>
       <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/types/protocol.ts</code>（dsh:// URL 契约 zod Schema：action 白名单/session id 格式/query 长度上限）</p>
       <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/desktop-host/dsh-protocol.ts</code>（入口校验：非法 URL 拒绝 + 审计记录）</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">M3-b4 dogfood（并行进行）：实机日常使用打包版（<code>release/DSH Desktop-0.1.0-portable.exe</code>）或 <code>npm run dev</code>，记录问题清单。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">M3-b4 dogfood（并行进行）：实机日常使用打包版（<code>release/DSH Desktop-0.1.0-portable.exe</code>）或 <code>npm run dev</code>，记录问题清单；排障时 <code>$env:DSH_VERBOSE='1'</code> 开全量日志。</p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:#f59e0b;">技术债（M3-b4 发现）：<code>dsh-cordis-host-runner</code> 未装载 → <code>dynamicCordisRunner/*</code> service-unavailable，MVP 非阻断，留 M5 评估装载链。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>阻塞项：</strong> M2-c 旧插件门禁载体待确认，<b>不阻塞 M3/M4</b>。</p>
       <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">💡 提示：直接在浏览器中打开本 HTML 即可随时查看最新进度；后续会话可提示 "按照 active-context.md 的 M4-a2 继续执行"。</p>
     </div>

@@ -6,6 +6,7 @@ import { registerIpcBridge, cleanupWindowState, removeIpcHandlers, registerWindo
 import type { WindowManager } from '../desktop-host/window-manager.js'
 import { createWindowManager } from '../desktop-host/window-manager.js'
 import { registerIpcCarrierServices } from '../desktop-host/manifest.js'
+import { isVerbose } from '../desktop-host/log.js'
 import {
   installMainCrashHandlers,
   installRendererCrashRecovery,
@@ -164,7 +165,9 @@ function createWindow(): BrowserWindow {
 
   // 捕获 renderer 日志转发到主进程
   // Electron console-message level: 0=verbose, 1=info, 2=warning, 3=error
+  // 终端降噪：默认仅转发 WARN/ERROR；设 DSH_VERBOSE=1 时全量转发（排障用）
   win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (!isVerbose() && level < 2) return
     const prefix = level === 3 ? '[renderer-ERROR]' : level === 2 ? '[renderer-WARN]' : level === 1 ? '[renderer-INFO]' : '[renderer-VERBOSE]'
     console.log(`${prefix} ${message} (line ${line}, ${sourceId})`)
   })
@@ -242,20 +245,39 @@ async function bootstrap(): Promise<void> {
       if (!result.ok) throw new Error(result.error?.message ?? `api 调用失败 (${result.error?.code ?? 'unknown'})`)
       return result.value
     }
-    setApiProxyHandler(async (request: RpcRequest) => {
+    // 统一 host RPC 调用入口：桥 fallback 与启动期预热共用同一通路
+    // Typert remote 端点（commands/list、fileReferences/list 等）不在 apiProxy
+    // unary 表内（上游经 connection.rpc.intercept('/api') 认领），零端口下由
+    // typert-gateway.invokeRpc 兜底，避免 HTTP 404。
+    const typertGateway = (hostCtx as { get(name: string): unknown }).get('typertGateway') as
+      | { invokeRpc(endpoint: string, payload: unknown, signal?: AbortSignal): Promise<{ ok: boolean; value?: unknown; error?: { code?: string; message?: string } }> }
+      | undefined
+    const callApi = async (method: string, params: unknown): Promise<unknown> => {
       const envelope = {
         type: 'client-request' as const,
-        rpcId: request.rpcId,
-        method: request.method,
-        payload: request.params,
+        rpcId: `rewarm-${method}-${Date.now()}`,
+        method,
+        payload: params,
       }
       // 官方 toFetchHandler 内部用 new URL(req.url) 取 pathname，相对路径会抛
       // "Failed to parse URL"；这里用 http://local 作虚拟 base，fetch 只读 pathname。
       const res = await apiFetch.fetch(
-        new Request(`http://local/api/${request.method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
+        new Request(`http://local/api/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
       )
+      if (res.status === 404 && typertGateway !== undefined) {
+        // Typert remote 形态：payload 为 {args}，返回 {ok, value | error}
+        const result = await typertGateway.invokeRpc(method, params)
+        if (result.ok) return result.value
+        throw new Error(result.error?.message ?? `typert 调用失败 (${result.error?.code ?? 'unknown'})`)
+      }
       return await unpackServerResponse(res)
-    })
+    }
+    setApiProxyHandler(async (request: RpcRequest) => callApi(request.method, request.params))
+
+    // 4.5 持久化会话预热：冷会话仅 session-scoped 懒路径可恢复，清单中的会话
+    // （含 blank 复用路径）需要 live agent；启动后统一经 session.create 重挂载。
+    const { rewarmPersistedSessions } = await import('../desktop-host/session-rewarm.js')
+    await rewarmPersistedSessions(callApi)
 
     // 5. 注册 IPC 载波服务到 Cordis 上下文
     registerIpcCarrierServices(hostCtx, {

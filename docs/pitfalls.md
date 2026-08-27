@@ -104,6 +104,25 @@
   - "能加载 ≠ 在清单里"：装载与清单两条路径必须共用同一配置来源。
   - pitfalls 落档时机 = **实机验证通过后**，仅"数据正确"而未确认 UI 闭环不得提前记录（教训：首轮只修到 inventory 数据就写字，被实机打回）。
 
+## 坑 11 · 冷会话在清单中但未挂载：点「新会话」无反应（blank 复用跳过 session.create）
+
+- **现象**（M3-b4 dogfood 发现）：点击「新会话」无任何反应，无网络请求；进入旧会话后 `skill.list` 报 `session "session-xxx" not found (not attached)`；`session.list` 正常返回含该会话。
+- **根因**：上游 `session.list` 会把持久化冷会话列入清单（`summarizeCold`），客户端 `connectWorkspace`（dsh-client-runtime client.js:9857）**优先复用清单中的 blank session 直接返回，跳过 `session.create`**；但冷会话在 Host 侧无 live agent，仅 `agentFor` 解析器路径（session.prompt 等）会懒恢复，`ctx.agents.get()` 直读的方法（skill.list/cancel 等）全部 `not attached`。死锁点：客户端以为会话可用（在清单里），Host 认为不存在（没挂载），且**没有任何一方会主动触发重挂载**。
+- **解法**：Host 启动后主动预热——`session-rewarm.ts` 遍历 `session.list`，对每个带 cwd 的非 subagent 会话调 `session.create { sessionId, cwd }`（走上游 `ensureSession → checkPersistedIdentity → agents.resume` 官方重挂载语义）；单会话失败仅告警不阻断启动。main.ts 抽取统一 `callApi` 入口供桥 fallback 与预热共用。
+- **复盘**：
+  - 「清单可见 ≠ 可交互」：冷/热会话双态是上游显式设计，桌面端零端口载体必须补上「启动期重挂载」这一环（上游 HTTP 部署同样存在此窗口，但其 web-startup 可能有预热，桌面 profile 自装配需自行兜底）。
+  - 排障判据：`[dsh-bridge] 未命中 unary 表 fallback apiProxy: session.create` 日志**该出现而未出现** = 请求根本没离开 renderer，从客户端运行时（fixture/复用/守卫分支）找断点，而不是查主进程。
+
+## 坑 12 · Typert remote 端点 404：apiProxy 不认领 `commands/list`（零端口缺 gateway 拦截链）
+
+- **现象**：新会话可创建，但输入 `/` 无命令列表，终端 `[dsh-bridge] RPC 失败 (commands/list): api 调用失败: HTTP 404`。
+- **根因**：`commands/list`、`commands/execute`、`fileReferences/list`、`goals/*`、`dynamicCordisRunner/*` 等是 **Typert remote** 端点（`@deepseek-ai/dsh-commands` 等），不走 apiProxy 的 domain 方法表；上游 HTTP 部署由 `typert-gateway`（`TypertGatewayService`）经 `connection.rpc.intercept('/api', ...)` 认领分发。桌面零端口下客户端 connection 被替换为 IPC 载波，`ctx.connection` 这条拦截链不存在，apiProxy 对这些端点返回 404。
+- **解法**：main.ts `callApi` 在 apiProxy 返回 404 时 fallback 到 `hostCtx.get('typertGateway').invokeRpc(method, params)`（协议逐字对齐上游：payload 为 `{args}`、返回 `{ok, value|error}`）。
+- **复盘**：
+  - **Cordis service 注册名 ≠ cordis 条目 id**：`TypertGatewayService` 构造器 `super(ctx, "typertGateway")`（camelCase 服务名），而 boot-graph 里条目 id 是 `typert-gateway`（kebab-case）——`ctx.get()` 必须用服务名；首轮用错名拿到 undefined，fallback 静默失效，二轮才定位。
+  - 上游分发有三条通道：apiProxy domain 方法（session.*）、Typert gateway（commands/*、goals/*）、connection 直拦截——等价面必须逐条核对 `dsh-api-remotes/lib/client.js` 的 descriptor 表确认归属，不能假设全走 `/api` 一种语义。
+  - `dsh-cordis-host-runner`（`dynamicCordisRunner/*` 的宿主）依赖 `tools` 服务链，桌面 MVP 未装载，其 404→service-unavailable 属已知限制，登记后续补。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -112,6 +131,9 @@
 4. **zod 边界别比上游契约更严**（rpcId 示例）。
 5. **Cordis 服务注入必须 `extends Service`**，普通对象赋值无效。
 6. **官方双面插件要分清 node 面（注册服务）与 client 面（渲染）**，装配两条线都要覆盖。
+7. **高频日志走 verbose 门控**（`DSH_VERBOSE=1`），失败必显——刷屏的成功日志会淹没唯一重要的那条错误。
+8. **`ctx.get()` 用 service 注册名（camelCase）**，不是 cordis 条目 id（kebab-case），两者常差一个命名风格。
+9. **「清单可见 ≠ 可交互」**：冷会话需显式重挂载（session.create 带 sessionId），清单项不保证 live agent。
 
 ## 结论
 
