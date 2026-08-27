@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
-import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundleDecl } from '../desktop-host/manifest.js'
+import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundles } from '../desktop-host/manifest.js'
 import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
 
 /**
@@ -100,16 +100,11 @@ function resolveRelative(url: URL, root: string): string | undefined {
   return rel
 }
 
-/** 第三方 client 插件装载清单（M1 门禁·第三方无改动装载）：经 `dsh.client` 声明装载。 */
-const THIRD_PARTY_BUNDLES = ['@lnyanhongyan/dsh-opencode-usage']
-
 /** Full boot manifest 注入脚本（含 IPC 载波 roster 条目 + queueLoader shim）。 */
 function bootManifestScript(useDist: boolean): string {
-  // 官方 dist 模式：额外装载第三方 client 插件（无改动，经 dsh.client 声明 + 协议直读）；
+  // 官方 dist 模式：额外装载第三方 client 插件（清单见 boot-graph.THIRD_PARTY_CLIENT_IDS）；
   // 占位页回退模式：注入最小样例 client 插件作为零端口装载路径验证载体。
-  const extraBundles = useDist
-    ? THIRD_PARTY_BUNDLES.map((id) => buildThirdPartyBundleDecl(id))
-    : [{ id: 'dsh-spike-sample', path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js') }]
+  const extraBundles = useDist ? buildThirdPartyBundles() : [{ id: 'dsh-spike-sample', path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js') }]
   return generateFullBootScript('desktop-m1-ipc', extraBundles)
 }
 

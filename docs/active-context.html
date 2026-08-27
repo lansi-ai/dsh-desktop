@@ -309,6 +309,7 @@
       </ul>
       <p style="margin-top: 12px;"><strong>风险与技术债：</strong></p>
       <ul>
+        <li><s><strong>R8</strong> <strong>closed</strong>（实机点验通过）</s> 插件列表 + agent 预设实机点验（插件列表 Tab 读 <code>pluginInventory/list</code> 等价面；第三方插件清单与 HTML 注入共享唯一源码）</li>
         <li><strong>R6 open</strong> !!js 表达式在 overlay patches 中不被 Cordis Loader 求值</li>
         <li><strong>R7 open</strong> session-persistence-jsonl 硬编码 .runtime/user-data/...</li>
         <li><strong>R9 多窗口资源开销</strong> 3+ 窗口常驻内存 ≤ 400MB（M5 验证）</li>

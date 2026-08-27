@@ -74,6 +74,36 @@
 - **解法**：解包前先 `if (!res.ok) throw new Error(...)`，避免对错误响应做 JSON 解析。
 - **复盘**：任何跨层解包先判 HTTP 状态；「not found」纯文本不能被当 JSON。
 
+## 坑 9 · Cordis Service 子类构造器未转发 ctx → `Cannot read properties of undefined (reading 'reflect')`
+
+- **现象**：启动报 `[dsh-desktop] ctx.desktop 聚合服务注入失败: TypeError: ... (reading 'reflect')`，栈指向 cordis 库 `new Service`（基类 constructor 内 `self.ctx.reflect.provide(name, self, ...)`）；而同为 prepare 阶段注入的 `compat-webserver` 却正常。
+- **根因**：`desktop-api.ts` 实例化写成了
+  `new (DesktopCoreService as any)(options?.auditLogPath)(ctx, 'desktop')`
+  —— JS 实际解析为 `(new DesktopCoreService(auditLogPath))(ctx, 'desktop')`：子类只收到自定义参数，以**无参 `super()`** 调基类；Cordis `Service` 基类 `constructor(ctx, name)` 中 `this.ctx === undefined`，执行 `this.ctx.reflect.provide` 立即抛 TypeError。尾部 `(ctx, 'desktop')` 是对返回实例的误调用，毫无注册效果。
+- **解法**：子类构造器签名对齐基类并把 ctx/name 显式转发：
+  `constructor(ctx, name?, auditLogPath?) { super(ctx, name); ... }`，
+  调用点改为 `new (DesktopCoreService as any)(ctx, 'desktop', options?.auditLogPath)`（与 compat-webserver.ts 已验证模式一致）。
+- **复盘**：
+  - Cordis `Service` 的注册动作发生在**基类构造内**（`ctx.reflect.provide`），`extends Service` 的子类**必须**把 `(ctx, name)` 作为前两个参数转发给 `super`；自定义参数一律排在之后。"先 new 再对实例补调用"是错误范式。
+  - `(expr)(argsA)(argsB)` 两段实参拼起来"看起来像"正确签名，再叠加 `as any` 绕过类型检查，极具迷惑性；凡是 `extends Service` 的调用点，先确认 `super()` 是否真拿到了 ctx。
+  - 排障捷径：在同一代码库搜同构用法（本次即 diff compat-webserver.ts 与 desktop-api.ts 的实例化行），最快锁定差异。
+
+## 坑 10 · 插件列表不显示：inventory 等价面缺 `pluginInventory/list` + 第三方清单两线不同源
+
+- **现象**：官方 UI 设置页「插件列表」Tab（`dsh-client-ui-settings-plugin-inventory`）读不到插件，主进程日志 `[dsh-bridge] RPC 未命中 unary 表，fallback apiProxy: pluginInventory/list`（随后 apiProxy 404）；且即使 `dynamicCordisRunner/inventory` 有数据，第三方插件也不在列表。
+- **根因**（两层问题叠加）：
+  1. **registerMethod 只覆盖了一个 remote endpoint**：`cordis-inventory.ts` 只注册了 `dynamicCordisRunner/inventory`（ui-cordis 插件面板用），而设置页「插件列表」Tab 走的是另一个官方 remote `pluginInventory/list`（`dsh-host-plugin-inventory` 包的 descriptor），未注册 → fallback apiProxy → apiProxy 无该 domain → 404 → 面板报「暂时无法读取插件」。评判"等价面是否齐"要看**消费方调用的每个 endpoint**，不能只看自己注册了哪个。
+  2. **第三方清单两线不同源**：HTML 注入线（`dsh-ui-protocol.ts` 私有 `THIRD_PARTY_BUNDLES`）与 inventory 线（`buildCordisInventory()` 调 `generateBootGraph()` 未传 extraBundles）各持一份；即使 endpoint 命中，inventory 行也不含第三方插件。
+- **解法**：
+  - 收敛第三方清单为唯一源码：`boot-graph.ts` 导出 `THIRD_PARTY_CLIENT_IDS` + 安全解析 `buildThirdPartyBundles()`（单包解析失败 try-catch 跳过，不拖垮启动），`dsh-ui-protocol.ts` 与 `cordis-inventory.ts` 共用；`buildCordisInventory()` 改调 `generateBootGraph(undefined, buildThirdPartyBundles())`。
+  - 补齐 `pluginInventory/list` 等价面：新增 `buildPluginInventorySnapshot()`（对齐官方 `PluginInventorySnapshot.entries` 契约：`entryId/moduleName/enabled/fiberPhase`，`fiberPhase: 'active'`），在 `registerCordisInventoryCompat()` 一并注册。
+  - 实机验证通过：设置页「插件列表」显示 44 个插件（含 `@lnyanhongyan/dsh-opencode-usage`）。
+- **复盘**：
+  - 排障从 renderer 的**实际日志**定位 endpoint（本例 `pluginInventory/list`），不要停留在"我以为的入口"（`dynamicCordisRunner/inventory`）。
+  - 官方 typert remote 每个包的 descriptor 是权威契约来源（`dsh-api-remotes/lib/client.js` 的 `TYPERT_REMOTE*` 表），实现等价面前先查它确认结果 schema（`{entries:[...]}` 而非数组）。
+  - "能加载 ≠ 在清单里"：装载与清单两条路径必须共用同一配置来源。
+  - pitfalls 落档时机 = **实机验证通过后**，仅"数据正确"而未确认 UI 闭环不得提前记录（教训：首轮只修到 inventory 数据就写字，被实机打回）。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。

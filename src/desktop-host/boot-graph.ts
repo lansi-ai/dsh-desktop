@@ -134,6 +134,25 @@ export function buildThirdPartyBundleDecl(id: string): BootBundleDecl {
   }
 }
 
+/** 第三方 client 插件装载清单（M1 门禁·第三方无改动装载）：经 `dsh.client` 声明装载。 */
+export const THIRD_PARTY_CLIENT_IDS = ['@lnyanhongyan/dsh-opencode-usage']
+
+/**
+ * 解析全部第三方插件的装载声明（HTML 注入与插件清单两条装配线共用的唯一来源）。
+ * 单个包解析失败不阻断整体（跨包边界：某包缺失/未声明 ./client 不应拖垮启动）。
+ */
+export function buildThirdPartyBundles(): BootBundleDecl[] {
+  const decls: BootBundleDecl[] = []
+  for (const id of THIRD_PARTY_CLIENT_IDS) {
+    try {
+      decls.push(buildThirdPartyBundleDecl(id))
+    } catch (error) {
+      console.warn(`[boot-graph] 第三方插件 ${id} 装载声明解析失败，已跳过:`, error)
+    }
+  }
+  return decls
+}
+
 /**
  * 解析本地 `src/desktop-shell/web/` 下静态 client bundle（编译产物优先，源码回退）。
  *
