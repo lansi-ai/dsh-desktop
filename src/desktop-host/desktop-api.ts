@@ -78,8 +78,9 @@ export async function installDesktopCore(ctx: unknown, options?: InstallDesktopC
     /** 审计日志写入队列（串行化写盘）。 */
     private writeQueue: Promise<void> = Promise.resolve()
 
-    constructor(auditLogPath?: string) {
-      super()
+    /** 基类签名 (ctx, name)：必须转发 ctx，否则基类 `ctx.reflect.provide` 抛 undefined。 */
+    constructor(ctx: unknown, name?: string, auditLogPath?: string) {
+      super(ctx, name)
       this.auditLogPath = auditLogPath ?? null
     }
 
@@ -192,6 +193,6 @@ export async function installDesktopCore(ctx: unknown, options?: InstallDesktopC
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  new (DesktopCoreService as any)(options?.auditLogPath)(ctx, 'desktop')
+  new (DesktopCoreService as any)(ctx, 'desktop', options?.auditLogPath)
   console.log('[dsh-desktop] ctx.desktop 聚合服务已注入（core 子集：onAction/emitAction/log/readConfig/writeConfig/sendDesktopEvent，config→settings 持久化）')
 }
