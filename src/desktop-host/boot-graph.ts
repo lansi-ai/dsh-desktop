@@ -332,8 +332,10 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // M2-e 官方 UI 注入：桌面设置页面 + 桌面面板容器 + 命令面板（经 Slot 系统注入官方 UI）
     { id: '@dsh-desktop/desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
     { id: '@dsh-desktop/desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
-    // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口
-    { id: '@dsh-desktop/desktop-cmdpalette', path: resolveLocalWebBundle('desktop-cmdpalette-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口（纯 DOM 浮层 + 官方运行时导航——坑 13/14/15）
+    // entry.inject 是信息性包名依赖边（非服务注入）；服务等待只看插件返回对象的 exports.inject，
+    // 故此处恒 []，ctx.sessions/workspaces 由插件 apply 后经 ctx.get 软查找。
+    { id: '@dsh-desktop/desktop-cmdpalette', path: resolveLocalWebBundle('desktop-cmdpalette-client.js'), inject: [], immediately: true },
     // M3-b2 审计查看器：会话审计日志查询 UI
     { id: '@dsh-desktop/desktop-audit-viewer', path: resolveLocalWebBundle('desktop-audit-viewer-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
     ...(extraBundles ?? []),

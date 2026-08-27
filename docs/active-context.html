@@ -179,17 +179,13 @@
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话绑定持久化（重启恢复所有会话窗口）</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口 Z-order 记忆与恢复（按 zIndex 排序）</span></li>
 
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a4 命令面板（Ctrl+K 混合方案）</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>renderer 内 Ctrl+K 面板（会话列表/插件开关/设置快捷）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>desktop-cmdpalette-client.js</code>: Slot 注入 + IPC 桥接</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>主进程全局快捷键: Cmd/Ctrl+Shift+P 快速提问</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>desktop-cmdpalette.ts</code>: host 插件（快捷键 + 窗口管理）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 新增 openCommandPalette/quickAsk 白名单</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>boot-graph 图谱注入命令面板 client 脚本</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-a4 命令面板（Ctrl+K 混合方案）⏸️ 暂停（2026-08-27 用户决策：面板价值有限，已隐藏入口）</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>已隐藏</strong>：<code>desktop-cmdpalette-client.js</code> 改为禁用壳（Ctrl+K 不再注册）；仅保留 quick-ask 事件（Ctrl+Shift+P 快速提问）。恢复 = revert 该文件</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>修复过程记录：假 slot <code>app.overlay</code>（坑 13）→ 纯 DOM 浮层；数据源/导航（坑 14）；<code>exports.inject</code> PENDING（坑 15）→ 软查找（会话列表仍空，根因未结）</span></li>
 
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-a5 M3-a 门禁</strong></span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>多窗口实机验证：3+ 会话窗口 → 独立对话 → 同步 → 恢复</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>命令面板冒烟：Ctrl+K + 切换 + 插件 + Ctrl+Shift+P</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>多窗口实机验证 ⏸️ 暂停（2026-08-27 用户决策：价值存疑，与命令面板一并挂起，不阻塞 dogfood；全量回归时仅验「不崩不干扰」）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>命令面板冒烟已随 M3-a4 暂停（门禁时仅验 Ctrl+Shift+P）</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>🐕 Dogfood 启动：M3-a 完成后即启动 2 周日常使用</span></li>
       </ul>
 
@@ -322,6 +318,7 @@
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
       <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>M3-b4 dogfood 🔄 进行中（与 M4 并行 · 2026-08-27 修复问题 #1：冷会话预热 + typert gateway fallback，见坑 11/12）</b> → <b>M4-a1 electron-builder 基建 ✅（2026-08-26）</b> → <b>M4-a2 R10 协议安全 待开发</b></p>
+      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">⏸️ M3-a4 命令面板 + M3-a5 多窗口验证已暂停（2026-08-27 用户决策）：Ctrl+K 入口已隐藏（禁用壳，仅保留快速提问），恢复路径见看板对应节。</p>
       <p style="margin:8px 0 0 0;"><strong>M4 第一优先级：</strong> <b>M4-a2 R10 协议安全白名单</b>（<code>dsh://</code> 来源校验 + 协议参数 zod 强校验）</p>
       <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建/修改的文件（M4-a2）：</p>
       <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/types/protocol.ts</code>（dsh:// URL 契约 zod Schema：action 白名单/session id 格式/query 长度上限）</p>
