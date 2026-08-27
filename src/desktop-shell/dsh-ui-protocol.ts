@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundles } from '../desktop-host/manifest.js'
 import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
+import { logVerbose } from '../desktop-host/log.js'
 
 /**
  * dsh-ui:// 自定义协议：
@@ -143,7 +144,7 @@ export function registerDshUiProtocol(): void {
     try {
       const useDist = checkDistAvailable()
       const root = useDist && distRoot !== null ? distRoot : PLACEHOLDER_ROOT
-      console.log(`[dsh-ui-protocol] 使用 ${useDist ? '官方 dist' : '占位页面'}，根目录: ${root}`)
+      logVerbose('dsh-ui-protocol', `使用 ${useDist ? '官方 dist' : '占位页面'}，根目录: ${root}`)
 
       const url = new URL(request.url)
 
@@ -151,7 +152,7 @@ export function registerDshUiProtocol(): void {
       // 必须在 resolveRelative 之前判断（绝对路径 /plugins/ 不依赖 host）。
       const bundle = resolveBundleRequest(url.pathname)
       if (bundle !== undefined) {
-        console.log(`[dsh-ui-protocol] 200 (bundle route) ${request.url}`)
+        logVerbose('dsh-ui-protocol', `200 (bundle route) ${request.url}`)
         return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
       }
 
@@ -166,13 +167,13 @@ export function registerDshUiProtocol(): void {
           headers: Object.fromEntries(request.headers.entries()),
           body: Buffer.from(await request.arrayBuffer()),
         })
-        console.log(`[dsh-ui-protocol] compat route ${request.method} ${url.pathname} → ${compatResult.status}`)
+        logVerbose('dsh-ui-protocol', `compat route ${request.method} ${url.pathname} → ${compatResult.status}`)
         return new Response(compatResult.body, { status: compatResult.status, headers: compatResult.headers })
       }
 
       const rel = resolveRelative(url, root)
       if (rel === undefined) {
-        console.log(`[dsh-ui-protocol] 403 ${request.url} (越界)`)
+        console.warn(`[dsh-ui-protocol] 403 ${request.url} (越界)`)
         return new Response('forbidden', { status: 403 })
       }
 
@@ -181,11 +182,11 @@ export function registerDshUiProtocol(): void {
       const contentType = MIME_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
       const isIndex = rel.endsWith('index.html')
       const body = isIndex ? injectBootManifest(data.toString('utf8'), useDist) : data
-      console.log(`[dsh-ui-protocol] 200 ${request.url} → ${rel} (${contentType})`)
+      logVerbose('dsh-ui-protocol', `200 ${request.url} → ${rel} (${contentType})`)
       return new Response(body, { headers: { 'content-type': contentType } })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      console.log(`[dsh-ui-protocol] 404 ${request.url} (${message})`)
+      console.warn(`[dsh-ui-protocol] 404 ${request.url} (${message})`)
       return new Response(`not found: ${message}`, { status: 404 })
     }
   })

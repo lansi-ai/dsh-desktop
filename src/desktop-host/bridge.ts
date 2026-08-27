@@ -27,6 +27,7 @@ import type {
   Frame,
 } from '../types/contract.js'
 import { AppError, ErrorCodes } from '../types/errors.js'
+import { logVerbose } from './log.js'
 
 // ── 类型定义 ─────────────────────────────────────────────────────────
 
@@ -143,7 +144,7 @@ export function registerIpcBridge(options?: BridgeOptions): void {
 
   // ── dsh:rpc — 上行 client-request ────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.RPC, async (event, raw: unknown): Promise<RpcSuccess | RpcError> => {
-    console.log(`[dsh-bridge] 收到 RPC 请求:`, typeof raw === 'object' && raw !== null ? (raw as { method?: string }).method : String(raw))
+    logVerbose('dsh-bridge', '收到 RPC 请求:', typeof raw === 'object' && raw !== null ? (raw as { method?: string }).method : String(raw))
     // 校验请求格式
     const parsed = rpcRequestSchema.safeParse(raw)
     if (!parsed.success) {
@@ -162,21 +163,23 @@ export function registerIpcBridge(options?: BridgeOptions): void {
       const handler = methodTable.get(request.method)
       if (handler !== undefined) {
         const result = await handler(request.params, { windowId })
-        console.log(`[dsh-bridge] RPC 成功: ${request.method}`)
+        logVerbose('dsh-bridge', `RPC 成功: ${request.method}`)
         return { rpcId: request.rpcId, data: result }
       }
-      console.warn(`[dsh-bridge] RPC 未命中 unary 表，fallback apiProxy: ${request.method}`)
+      logVerbose('dsh-bridge', `RPC 未命中 unary 表，fallback apiProxy: ${request.method}`)
 
       // fallback 到默认 apiProxy 处理器
       if (defaultApiProxyHandler !== null) {
         const result = await defaultApiProxyHandler(request)
-        console.log(`[dsh-bridge] RPC (apiProxy) 成功: ${request.method}`)
+        logVerbose('dsh-bridge', `RPC (apiProxy) 成功: ${request.method}`)
         return { rpcId: request.rpcId, data: result }
       }
 
       // 无处理器
       throw new AppError(ErrorCodes.METHOD_NOT_FOUND, `未找到 RPC 方法: ${request.method}`)
     } catch (error) {
+      // 失败必显：终端只保留错误，便于定位断链
+      console.error(`[dsh-bridge] RPC 失败 (${request.method}):`, error)
       return makeRpcError(error, request.rpcId)
     }
   })

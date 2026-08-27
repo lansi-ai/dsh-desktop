@@ -33,6 +33,7 @@ import {
 } from '../types/window.js'
 import { IPC_CHANNELS } from '../types/channels.js'
 import { broadcastWindowEvent, cleanupWindowState } from './bridge.js'
+import { isVerbose } from './log.js'
 import type { DownlinkEventStream, DownlinkRelay } from './carrier-relay.js'
 import { startDownlinkRelay } from './carrier-relay.js'
 
@@ -340,8 +341,9 @@ function createBrowserWindow(
     console.error(`[dsh-window-manager] 会话窗口加载失败 (${errorCode}): ${errorDescription} URL: ${validatedURL}`)
   })
 
-  // 渲染进程日志转发
+  // 渲染进程日志转发（终端降噪：默认仅 WARN/ERROR，DSH_VERBOSE=1 全量）
   win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (!isVerbose() && level < 2) return
     const prefix = level === 3 ? '[renderer-ERROR]' : level === 2 ? '[renderer-WARN]' : level === 1 ? '[renderer-INFO]' : '[renderer-VERBOSE]'
     console.log(`${prefix} ${message} (line ${line}, ${sourceId})`)
   })

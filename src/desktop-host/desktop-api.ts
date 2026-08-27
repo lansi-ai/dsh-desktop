@@ -18,6 +18,7 @@
 import { BrowserWindow, type WebContents } from 'electron'
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import { isVerbose } from './log.js'
 import { IPC_CHANNELS } from '../types/channels.js'
 import {
   desktopActionEventSchema,
@@ -133,9 +134,10 @@ export async function installDesktopCore(ctx: unknown, options?: InstallDesktopC
       try {
         const logger = coreCtx.get('logger') as { info?: (msg: string, meta: unknown) => void } | undefined
         if (logger?.info !== undefined) logger.info('[desktop/action]', record)
-        else console.log('[desktop/action]', JSON.stringify(record))
+        else if (isVerbose()) console.log('[desktop/action]', JSON.stringify(record))
       } catch {
-        console.log('[desktop/action]', JSON.stringify(record))
+        // 终端降噪：审计落盘为主，终端回显仅在 verbose 下输出
+        if (isVerbose()) console.log('[desktop/action]', JSON.stringify(record))
       }
       // M3-b2：异步写入 JSONL 审计日志文件
       if (this.auditLogPath !== null) {

@@ -52,7 +52,7 @@ const BROWSER_GLOBALS = {
 }
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', '.runtime/', 'docs/active-context.html'] },
+  { ignores: ['dist/', 'node_modules/', '.runtime/', '.electron-builder-cache/', 'docs/active-context.html'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
