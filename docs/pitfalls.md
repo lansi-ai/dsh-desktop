@@ -16,7 +16,7 @@
 
 - **现象**：`404 dsh-ui://app/api/host.describe` + `[web-runtime] connection lost, retry #2 (dsh-client-connection/client.js)`。
 - **根因**：官方 web boot 驱动（`index-*.js` 的 BootRunner）对图谱**每个条目**执行 `loader.create()` 全量激活；`immediately` 仅控制 prefetch 时机，**与激活无关**。所以「client-connection 入图但不置 immediately 即可不激活」是**伪命题**——入图必被激活，其 apply 抢先提供 Web 传输 connection。
-- **解法**：`@deepseek-ai/dsh-client-connection` **不入图谱**，改为图谱外**预载注册**（`PRELOAD_ONLY_IDS` + `registerPreloadOnly`，注入脚本带出 preload script），仅注册 factory 供 `ipc-connection` require 继承基类；connection 服务由 `@dsh-desktop/ipc-connection` 独占。
+- **解法**：`@deepseek-ai/dsh-client-connection` **不入图谱**，改为图谱外**预载注册**（`PRELOAD_ONLY_IDS` + `registerPreloadOnly`，注入脚本带出 preload script），仅注册 factory 供 `ipc-connection` require 继承基类；connection 服务由 `@lansi-ai/dsh-ipc-connection` 独占。
 - **复盘**：官方 `dsh.client` 的 inject 是**模块加载依赖**（完整包名），与 Cordis 插件 apply 内的**服务注入**（服务名）是两层，不能混为一谈；剔除图谱前必须确认官方驱动激活语义。
 
 ## 坑 2 · host `apiProxy` 没有 `.handleRpc`（RPC 入口接错）
@@ -123,6 +123,70 @@
   - 上游分发有三条通道：apiProxy domain 方法（session.*）、Typert gateway（commands/*、goals/*）、connection 直拦截——等价面必须逐条核对 `dsh-api-remotes/lib/client.js` 的 descriptor 表确认归属，不能假设全走 `/api` 一种语义。
   - `dsh-cordis-host-runner`（`dynamicCordisRunner/*` 的宿主）依赖 `tools` 服务链，桌面 MVP 未装载，其 404→service-unavailable 属已知限制，登记后续补。
 
+## 坑 16 · overlay 补丁不带 insert 键 = 静默 no-op：dsh-agent-presets 从未装载（设置页 Agent 预设纯空白）
+
+- **现象**（M3-b4 dogfood 发现）：设置页「Agent 预设」导航入口可见，点进去内容区**纯空白**——无报错、无 loading、无任何文案；终端无 `[dsh-bridge]` 相关 RPC 失败日志（请求成功返回了空数据面或组件直接 return null）。
+- **根因**：cordis-plugin-include 的 `applyEntryPatches`（lib/index.js）对**非 insert 补丁**（`{id, name, config}` 形态）只做「按 id 覆盖已存在条目」；条目不存在时 `warn("patch: entry %C not found")` 后**静默跳过**，绝不插入新条目。桌面根配置是空 `[]`（所有条目全靠 insert 进树），boot.ts §4 的 `agent-presets` 条目（携带 name/config 但**不带 insert 键**）因此从 desktop-patch.yml 迁移起就是 no-op——`dsh-agent-presets` 插件从未装载，`ctx.get('agentPresets')` 为 undefined。而官方 UI 侧（dsh-client-ui-agent-preset）对「空 roster」与「服务未装载」两种态**均渲染 null 不报错**（空 roster 是上游认定的合法部署态），把装配层断点完全吞掉。apiProxy 的 agentPret handler 虽会报 "this deployment composes no agent presets"，但只在显式调用时触发，页面空态先短路。
+- **解法**：
+  - 把 `agent-presets` 条目并入 §4 的 `insert` 数组（与 storage 三件套同列），经 insert 真正进插件树；
+  - main.ts bootstrap 加启动期诊断探针（第 3.5 步）：Host 就绪后 `ctx.get('agentPresets')`（camelCase 服务名）实扫一次 `list()`，服务缺失 / 扫描为空 / 抛错三种异常 `console.error` 必显——空白类问题以后终端即第一现场。
+- **复盘**：
+  - **「补 name 即装载」是伪心智模型**：include 补丁的 id-覆盖与 insert 是两条不相交路径，空根配置下非 insert 补丁 100% 无效；写补丁时先问「这个条目经哪条路径进树」。R8 当年「agent 预设点验通过」实系误判（很可能只验了页面可进未验内容）。
+  - **页面「合法空态」是装配 bug 的最佳掩体**：上游把「无预设」设计为合法部署（return null），桌面端任何装配断点都会被折叠成同一种纯空白；对这类静默空态面，必须在宿主侧加「扫描结果必显」探针对冲。
+  - 排障判据：**服务装载类断点不要从 renderer 找**——空 roster / 未装载 / 渲染异常三者在页面侧同形，直接在主进程 `ctx.get(服务名)` 一测即分叉。
+
+## 坑 17 · 注入脚本模板字符串嵌套反引号 = TS 编译错误（titlebar 自绘注入面）
+
+- **现象**：`src/desktop-host/titlebar.ts` 的注入脚本（`executeJavaScript` 字符串）内使用模板字符串内插（如 `${BORDER}`）且脚本体里再写反引号，`tsc` 直接报语法错误，编译失败。
+- **根因**：注入脚本是「字符串里的代码」，存在两层解析——外层 TS 模板字符串的 `` ` ``/`${}` 先被主进程编译器消费；脚本体内再出现反引号或 `${` 会被当成外层模板的终止符/内插表达式，产生嵌套冲突。写入的是 renderer 侧代码，但解析错误发生在主进程编译期。
+- **解法**：注入脚本内的常量（颜色、尺寸等）不使用内插，直接写字面量（如 `rgba(0,0,0,0.10)`）拼进脚本字符串；确需内插时外层改普通字符串拼接或对 `${` 转义（`\${`）。
+- **复盘**：「字符串即代码」的注入面（`executeJavaScript` / `insertCSS` / bundle factory 源码）写模板字符串前先问**两层解析归属**——哪些 `${}` 归主进程编译期、哪些归 renderer 运行期；编译期报错是最好的保险，同理推断：若嵌套冲突侥幸过编，错误会延迟到 renderer 运行期才炸，更难定位。
+
+## 坑 18 · 同文件多处编辑并发覆盖：CLIENT_EXCLUDE_IDS 排除项静默丢失（实机双注册冲突）
+
+- **现象**：M6-P3 侧栏壳实机验证报 `failed to apply loader entry (@deepseek-ai/dsh-client-ui-sidebar): single slot "sidebar" already has a registration (registered by B5)`——官方 ui-sidebar 未被排除仍激活，与新壳双注册冲突。dist 产物反查：`boot-graph.js` 有 desktop-sidebar 注册但 **CLIENT_EXCLUDE_IDS 无 ui-sidebar**，而源码当时的两次编辑都「报告成功」。
+- **根因**：对**同一文件**的多处 SearchReplace 编辑在同一批次并发执行时相互覆盖——各编辑基于同一初始快照独立写回，后写者覆盖先写者，且先写者的「成功」报告是假象。本会话累计发生 5 次（active-context.html ×3、active-context.md ×1、boot-graph.ts ×1），全部为静默失败：typecheck/lint 不报（语法合法），仅运行期或产物核验才暴露。
+- **解法**：同一文件的多处编辑**严格串行执行**，每处编辑后立即 Read 复核目标区域；多编辑任务收尾用构建产物（dist）grep 反查源码状态（产物有/没有某符号 = 源码编辑是否真落盘）。
+- **复盘**：编辑工具的并发写覆盖是「静默失败」类别——所有常规质量门禁（typecheck/lint/测试）都测的是「代码逻辑对不对」，测不出「编辑是否真的落盘」；**落盘核验（Read 反查 + 产物 grep）是独立且必须的第三类自检**。批量编辑任务的时间收益远低于一次静默丢失的排查成本。
+
+## 坑 19 · 官方运行时动态样式覆盖同特异性规则：#root 内缩「规则在却不生效」（右底边距失效 + 底部溢出 32px）
+
+- **现象**（M3-c3/M6-P3 实机验证）：主区右/底 15px 边距完全失效，底部设置行与输入框被窗口裁切（溢出量 ≈32px）；而 `#root{position:fixed;top:32px;...}` 在插件 CSS 与 HTML 骨架**两处都存在**且注入顺序占优，却「不生效」。
+- **根因**：官方 UI **运行时动态注入**的样式表（JS append 到 head 末尾，晚于插件 style 与 head 内骨架 `<style>`）以**同特异性**覆盖 `#root` 的 position → fixed 被改为 relative/默认。指纹特征：`top:32px` 在 relative 下作为偏移仍「生效」（内容整体下移 32px，疑似标题栏让位正常），但 `bottom/right` 失效 → 内容 = 100% 高 + 32px 偏移 = 底部恰好溢出约 32px。截图里「内容下移 + 底部截断」组合就是该指纹。
+- **解法**：规则强化为 `html body>#root{position:fixed!important;top:32px!important;...width:auto!important;height:auto!important}`（后代前缀提特异性 + important 双保险）；插件 `injectStyles()` 与 `LAYOUT_SKELETON_CSS` 两处同步。
+- **复盘**：①**「规则存在 ≠ 规则生效」**——CSS 层叠胜负 = 注入时机 × 特异性 × important，宿主页面的官方样式要假定会以动态 style 随时追加，自绘样式一律 important 化或提特异性；②截图证据要精读：「内容整体下移 + 底部恰好溢出等量」是 position 被降级的指纹，不是「边距没写」。
+
+## 坑 20 · 不要用 CSS 覆盖官方 #root 的定位/缩放（破坏官方案例自适应，窗口放大布局不变）
+
+- **现象**（M3-c5 实机）：窗口放大后布局**不跟随**，内容被压缩在左上、右侧/下缘大片空白；DevTools 实测 `#root` 尺寸锁死（876×960，不随窗口）+ 布局 frame 宽度 `frameW=0`（ResizeObserver 读不到真实宽 → 永不重算列宽）。
+- **根因**：官方 `html,body,#root{height:100%}` 让 `#root` **原生自适应窗口缩放**（这是官方案例设计好的）。早期为做「托盘边距/圆角」，用 `position:fixed`+`inset` 强制定位 `#root`，反而**覆盖掉了它官方的 `height:100%` 自适应逻辑** → `#root` 尺寸不再随窗口重算 → 布局 frame 收不到新宽度 → 放大不变。后续又试「`#dsh-root` 套壳 B-0」（再包一层接管缩放）——**过度**，用户纠正「官方根容器没问题，不需要动」。
+- **解法**：**回归官方 `#root` 原生自适应**——不碰它的定位，只做视觉垫层：`html body>#root{box-sizing:border-box!important;padding:calc(var(--dsd-titlebar-h) + 8px) var(--dsd-frame-gap) var(--dsd-frame-gap) var(--dsd-frame-gap)!important;margin:0!important}` + 内层卡片 `#root>div:first-child{border-radius:12px;overflow:hidden}`。托盘边距用 `padding`（不改变文档流/定位），圆角用内层选择器——**官方 `#root` 照常缩放，布局跟随**。
+- **复盘**：
+  - **官方「挂载骨架」是提前设计好的自适应机制，不要用 CSS 强制定位去覆盖它**——尤其 `position/fixed/height`。要加边距/圆角这类视觉，优先用 `padding`/内层选择器/`box-sizing`，**不改变官方容器的定位与尺寸逻辑**。
+  - **「放大布局不跟随」的判据**：`#root` 尺寸恒定（不随窗口重算）+ 内容被压左上 + 四周空白 = 官方 `#root` 的自适应被我们覆盖破坏了；应回退到「官方自适应 + 视觉垫层」，而非再包一层。
+  - **「适配器/不改官方」不等于「不能碰官方元素」**——可以给官方 `#root` 加视觉（padding/圆角），但**不能改它的定位/缩放/结构**；改定位=破坏它设计好的行为，改结构=侵入。边界是「只加不破坏」。
+
+## 坑 21 · 外观服务注入无单位 CSS 变量：`var(--dsd-*)` 解析非法 → 高度退化 auto（标题栏/按钮变小）
+
+- **现象**（2026-08-28 布局/titlebar 调整）：把 `--dsd-titlebar-h` 设为 50 后，标题栏与窗控三钮反而**比原来还小**（`height` 变成内容高）；且窗口放大时 titlebar 变大、侧栏/对话区高度不变。
+- **根因**：`desktop-appearance.ts` 的 `resolveVars()` 用 `String(cfg.titlebarH ?? 50)` 注入，`--dsd-titlebar-h` 被写成 **`50`（无单位）**。CSS 里 `height: var(--dsd-titlebar-h, 50px)`：var 已定义（值为非法的 `50`），所以 **`50px` 兜底不会触发**；`height: 50` 是非法长度 → 属性回退初始值 `auto`（按内容高）→ 标题栏/按钮被内容高度撑小。同理 `--dsd-card-radius`（`12` 无单位 → 圆角失效）、`--dsd-frame-gap`（`15` 无单位 → 边距失效）。骨架 `:root` 的 `50px` 被外观 `html:root{--dsd-titlebar-h:50}`（无单位、特异性更高）覆盖。
+- **解法**：`resolveVars()` 对长度类变量加单位——`const px = (v) => typeof v === 'number' ? `${v}px` : String(v)`，`cardRadius/frameGap/titlebarH` 一律走 `px()`（产出 `50px`/`12px`/`15px`）。
+- **复盘**：① **`var(--x, fallback)` 的 fallback 只在变量「未定义」时生效；变量「已定义但值非法」（如无单位长度）时 fallback 不触发**，属性直接取非法值 → 回退初始值。排查"CSS 变量长度不生效"先检查注入的变量值**是否带单位**。② "窗口放大后 titlebar 变大 / 内容区不伸缩"直观像 grid 布局问题，根因常是某个 `height: var()` 解析失败退回 auto；**先用 DevTools 看 computed height** 再改布局结构，避免误判（本会话先怀疑 grid 排列，实为变量无单位）。
+
+## 坑 22 · `apiProxy` 整体对象 vs `apiProxy.events` 传参混淆致 `TypeError: options.events.mux is not a function`
+
+- **现象**：应用启动即崩溃，终端报 `TypeError: options.events.mux is not a function`，堆栈指向 `theme-sync.js:79 installThemeSync`。
+- **根因**：`main.ts` 调用 `installThemeSync` 时传 `events: apiProxy as unknown as DownlinkEventStream['events']`——把完整 `apiProxy` 对象（结构 `{ events: { mux, host }, ... }`）直接强转成 `events` 参数。`theme-sync.ts` 内部调 `options.events.mux(...)` 实际变成 `apiProxy.mux(...)`，而 `apiProxy.mux` 是 undefined（正确路径为 `apiProxy.events.mux`）。强转 `as unknown as` 绕过了 TS 类型检查，编译不报但运行时炸。
+- **解法**：`main.ts` 改为 `events: apiProxy.events`，直接传递 `{ mux, host }` 结构；去掉 `as unknown as` 强转（TypeScript 能自动校验结构匹配）。
+- **复盘**：① 跨模块传递嵌套结构时，**先在脑中（或写在注释里）确认「我传的是哪一层」**——`apiProxy.events`（层 1）vs `apiProxy`（层 0），差一层就全错。② `as unknown as T` 双强转 = 把类型系统当瞎子用；如果必须用，先写清楚目标类型 `T` 和源类型 `S` 的结构差异，确认字段存在。③ 主题同步（`theme-sync.ts`）从单路订阅改为双路（`mux + host`），因为 `settings/document-updated` 是 Host 级事件，可能通过 `host` 流传递而非 `mux` 流。排查事件"不触发"时，检查事件在哪条流（`carrier-relay.ts` 有明确注释：`mux = 会话事件流，host = 宿主流`）。
+
+## 坑 23 · 标题栏跨槽位渲染品牌崩溃：`renderSlot('sidebar.brand.*')` 违反槽位所有权（左上角 DeepSeek 品牌消失）
+
+- **现象**（M6-P2 自绘 titlebar）：把品牌区（logo + 品牌名）从 sidebar 迁到自绘标题栏后，**左上角 DeepSeek 鲸鱼 logo + harness 字样消失/空白**；标题栏其余部分（窗控/折叠）正常。
+- **根因**：初版 titlebar 用 `renderSlot('sidebar.brand.mark', ...)` / `renderSlot('sidebar.brand.name', ...)` 渲染品牌——但 `renderSlot` 的 `SlotOwnershipError` 检查规定：**一个槽位组件只能渲染它自己在 children 声明里声明的子槽位**。`titlebar` 槽 children 未声明 `sidebar.brand.mark/name`（那是被排除的官方 `ui-sidebar` 声明的子槽位），跨槽位调用直接抛 `SlotOwnershipError` 崩溃 → 品牌区不渲染。品牌在「哪个槽位可用」由槽位所有权决定，与品牌组件是否已注册无关。
+- **解法**：不再经槽位，改为**直接 require 官方品牌组件渲染**——`getOfficialBrand()` 内 `require('@deepseek-ai/dsh-client-ui-primitives')` 取 `FishLogo`（鲸鱼 logo）+ `BrandWordmark`（DeepSeek 字标），渲染到标题栏品牌区；`BrandWordmark` 用 `includeMark:false`（mark 已单独渲染，避免重复）。该模块必被 loader 注册（被激活的官方 `dsh-client-ui-brand-official` bundle 引用它），`require` 即可解析。解析失败回退内置占位（深色圆角块 + 品牌名），不崩标题栏。
+- **复盘**：① **自有插件接管某槽位后，若想展示不属于自己 children 声明的官方子槽位内容，应「直接集成官方组件」，不要用 `renderSlot` 跨槽位**——槽位所有权是渲染面红线，`renderSlot` 只能渲染本槽自己声明的子槽位（坑 23）。② 官方品牌组件来自 `@deepseek-ai/dsh-client-ui-primitives`（被 `ui-brand-official` 消费，注册 `sidebar.brand.*` / `conversation.hero.brand.mark` 三个槽位，见其 `client.js`），跨槽位/跨插件复用官方品牌元素直接 require 该包最省事。③ 排查自绘插件渲染空白：先看是否有 `SlotOwnershipError`/`StaleAuthorizationError` 被 catch 吞掉——跨槽位调用常以「组件崩溃 → 区域空白」呈现，非报错红字。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -134,6 +198,12 @@
 7. **高频日志走 verbose 门控**（`DSH_VERBOSE=1`），失败必显——刷屏的成功日志会淹没唯一重要的那条错误。
 8. **`ctx.get()` 用 service 注册名（camelCase）**，不是 cordis 条目 id（kebab-case），两者常差一个命名风格。
 9. **「清单可见 ≠ 可交互」**：冷会话需显式重挂载（session.create 带 sessionId），清单项不保证 live agent。
+10. **overlay 补丁写法先问路径**：非 insert 补丁只覆盖已存在条目，空根配置下必是 no-op；新条目必须走 insert（坑 16）。
+11. **上游「合法空态」= 装配断点掩体**：页面把空数据当正常态静默渲染 null 时，宿主侧要加「扫描结果必显」探针对冲（坑 16）。
+12. **注入脚本先分两层解析归属**：`executeJavaScript`/bundle 源码里的模板字符串，主进程编译期消费一层、renderer 运行期消费一层；嵌套反引号/`${}` 必炸编译，常量直接写字面量（坑 17）。
+13. **同文件多处编辑必须串行 + 落盘反查**：并发编辑同一文件会相互覆盖且「成功」报告不可信；每处编辑后 Read 复核，收尾用 dist 产物 grep 反查源码状态——typecheck/lint 测不出「编辑未落盘」（坑 18）。
+14. **自绘样式对宿主页一律 important 化/提特异性**：官方 UI 运行时会动态追加样式表覆盖同特异性规则；「规则存在 ≠ 生效」，内容整体下移 N px + 底部等量溢出 = position 被降级的指纹（坑 19）。
+15. **`renderSlot` 只能渲染本槽声明的子槽位（槽位所有权）**：跨槽位渲染官方子槽位直接抛 `SlotOwnershipError` 崩溃；要展示非本槽 children 里的官方元素（如品牌 logo），**直接 require 官方组件渲染**，不用 `renderSlot` 走槽位（坑 23）。
 
 ## 结论
 
