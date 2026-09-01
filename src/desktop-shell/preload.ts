@@ -62,6 +62,8 @@ interface WindowControl {
   focus(): Promise<void>
   minimize(): Promise<void>
   close(): Promise<void>
+  /** 最大化/还原切换（自绘标题栏窗控）。 */
+  maximize(): Promise<void>
 }
 
 /** 快捷键操作接口。 */
@@ -251,6 +253,13 @@ function createDesktopBridge(): DesktopBridge {
         return ipcRenderer.invoke(IPC_CHANNELS.RPC, {
           rpcId: generateUuid(),
           method: 'desktop.windowControl.close',
+          params: undefined,
+        })
+      },
+      maximize(): Promise<void> {
+        return ipcRenderer.invoke(IPC_CHANNELS.RPC, {
+          rpcId: generateUuid(),
+          method: 'desktop.windowControl.maximize',
           params: undefined,
         })
       },

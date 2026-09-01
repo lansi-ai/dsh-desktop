@@ -1,10 +1,10 @@
-import { app, BrowserWindow, nativeImage } from 'electron'
+import { app, BrowserWindow, nativeImage, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { registerDshUiProtocol, registerDshUiScheme } from './dsh-ui-protocol'
 import { parseArgv } from './argv'
 import { registerIpcBridge, cleanupWindowState, removeIpcHandlers, registerWindowManagerMethods } from '../desktop-host/bridge.js'
 import type { WindowManager } from '../desktop-host/window-manager.js'
-import { createWindowManager } from '../desktop-host/window-manager.js'
+import { createWindowManager, attachWindowMaximizedStateBroadcast } from '../desktop-host/window-manager.js'
 import { registerIpcCarrierServices } from '../desktop-host/manifest.js'
 import { isVerbose } from '../desktop-host/log.js'
 import {
@@ -16,6 +16,7 @@ import {
 import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
 import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
+import { refreshTrayIcon } from '../desktop-host/desktop-tray.js'
 import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy' with { 'resolution-mode': 'import' }
 
 /**
@@ -106,7 +107,14 @@ let desktopShortcutsHandle: (() => void) | null = null
 let desktopClipboardHandle: (() => void) | null = null
 let desktopCmdPaletteHandle: (() => void) | null = null
 let desktopAuditViewerHandle: (() => void) | null = null
+/** 开机自启句柄（退出前清理）。 */
 let desktopAutostartHandle: (() => void) | null = null
+
+/** 骨架外观句柄（宿主面：:root 外观变量注入，主窗口 + 会话窗口共用）。 */
+let desktopAppearanceHandle: import('../desktop-host/desktop-appearance.js').DesktopAppearanceHandle | null = null
+
+/** 主题联动句柄（退出前清理，M3-b4 主题体验）。 */
+let themeSyncHandle: import('../desktop-host/theme-sync.js').ThemeSyncHandle | null = null
 
 /** 窗口管理器句柄（M3·多窗口）。 */
 let windowManager: WindowManager | null = null
@@ -114,10 +122,22 @@ let windowManager: WindowManager | null = null
 /** M3-b1：待处理的 dsh:// 协议 URL（second-instance/open-url 先缓存，bootstrap 完成后路由）。 */
 let pendingDshUrl: string | null = null
 
-/** 应用/窗口图标（优先桌面资源 app-icon.png，缺失回退 tray-icon.png）。 */
+/** 应用/窗口图标（官方 harness logo，黑白双版随 nativeTheme 切换；缺失回退另一版）。 */
 function loadAppIcon(): Electron.NativeImage {
-  const appIcon = nativeImage.createFromPath(join(__dirname, 'web', 'app-icon.png'))
-  return appIcon.isEmpty() ? nativeImage.createFromPath(join(__dirname, 'web', 'tray-icon.png')) : appIcon
+  const dark = nativeTheme.shouldUseDarkColors
+  const primary = nativeImage.createFromPath(join(__dirname, 'web', dark ? 'app-icon-dark.png' : 'app-icon-light.png'))
+  const fallback = nativeImage.createFromPath(join(__dirname, 'web', dark ? 'app-icon-light.png' : 'app-icon-dark.png'))
+  return primary.isEmpty() ? fallback : primary
+}
+
+/** 主题切换时刷新全部窗口/托盘图标（黑白双版，与官方 favicon 行为对齐）。 */
+function refreshAppIcons(): void {
+  const icon = loadAppIcon()
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.setIcon(icon)
+  }
+  if (process.platform === 'darwin') app.dock?.setIcon(icon)
+  refreshTrayIcon()
 }
 
 function createWindow(): BrowserWindow {
@@ -125,8 +145,11 @@ function createWindow(): BrowserWindow {
     width: 1200,
     height: 800,
     show: false,
-    // 窗口/任务栏图标（透明度鲸鱼应用图标）
+    // 窗口/任务栏图标（官方 harness logo 黑白双版）
     icon: loadAppIcon(),
+    // 自绘标题栏（M3-b4：去 Windows 原生标题栏；拖拽条+窗控由 titlebar.ts 注入，
+    // 保留系统窗控语义——双击拖拽条最大化、Win+方向键、任务栏交互均正常）
+    titleBarStyle: 'hidden',
     // 去掉 Electron 默认原生菜单栏（File/Edit/View/Window），避免与官方 UI 顶部布局冲突
     autoHideMenuBar: true,
     // 官方 UI 经 dsh-ui:// 自定义协议加载（dist 直读，零 HTTP 端口）
@@ -179,6 +202,9 @@ function createWindow(): BrowserWindow {
   win.on('closed', () => {
     cleanupWindowState(win.id)
   })
+  // 主窗口也需挂载最大化状态广播（自绘标题栏最大化/还原图标切换依赖它），
+  // 否则主窗口最大化后事件不下发、图标不切换（会话窗口由 window-manager 自带）。
+  attachWindowMaximizedStateBroadcast(win)
   // 官方 dist 资源使用根绝对路径（/assets/...）。页面用固定虚拟 host dsh-ui://app 布局，
   // 使这些绝对路径解析为 dsh-ui://app/assets/...；resolveRelative 仅取 pathname 映射到
   // dist 根（R5 修复：空 host 会被 Electron 规范化为 dsh-ui://index.html/ 导致资源 404）。
@@ -191,8 +217,12 @@ async function bootstrap(): Promise<void> {
   try {
     await app.whenReady()
 
-    // 0. 应用图标：Windows 任务栏分组标识 + macOS dock 图标（同鲸鱼图标）。
-    app.setAppUserModelId('deepseek-harness.desktop')
+    // 0. 应用图标：Windows 任务栏分组标识 + macOS dock 图标（同 harness logo）。
+    // dev 模式跳过 AUMID：系统里不存在携带该 AUMID 的快捷方式（打包版才由 NSIS
+    // 安装生成），此时 Windows 任务栏会回退显示宿主 exe（electron.exe）的
+    // Electron 图标、忽略窗口图标；dev 不设 AUMID 可让任务栏直接用窗口图标
+    // （harness logo 黑白双版）。代价仅 dev 态系统通知显示为 Electron 归属，可接受。
+    if (app.isPackaged) app.setAppUserModelId('deepseek-harness.desktop')
     if (process.platform === 'darwin') app.dock?.setIcon(loadAppIcon())
 
     // 1. 协议注册（必须在 boot 前：boot 期间可能触发 dsh-ui:// 加载）
@@ -222,6 +252,28 @@ async function bootstrap(): Promise<void> {
       auditLogPath: auditLogFilePath,
     })
     console.log('[dsh-desktop] Cordis Host 已就绪:', hostCtx)
+
+    // 3.5 启动期 Agent 预设诊断（失败必显）：设置页 Agent 预设空白类问题的第一现场。
+    // 服务注册名是 camelCase "agentPresets"（坑 12 纪律），list() 为纯目录扫描可安全重入；
+    // 页面侧对"空 roster"与"渲染异常"均静默不渲染，只有这里能留下终端痕迹。
+    try {
+      const presetsService = (hostCtx as { get(name: string): unknown }).get('agentPresets') as
+        | { list(): Promise<Array<{ id: string; broken?: string }>> }
+        | undefined
+      if (presetsService === undefined) {
+        console.error('[dsh-boot] Agent 预设服务未装载（agentPresets undefined）——设置页 Agent 预设将为空白')
+      } else {
+        const scanned = await presetsService.list()
+        console.log(
+          `[dsh-boot] Agent 预设扫描：${scanned.length} 个 [${scanned.map((p) => p.id + (p.broken !== undefined ? '(broken)' : '')).join(', ')}]`,
+        )
+        if (scanned.length === 0) {
+          console.error('[dsh-boot] Agent 预设扫描结果为空——设置页将为纯空白，请检查构建产物 dist/resources/agent-presets')
+        }
+      }
+    } catch (error) {
+      console.error('[dsh-boot] Agent 预设扫描探针失败:', error)
+    }
 
     // 4. 连接 IPC 桥与 Cordis Host 的 apiProxy
     const { setApiProxyHandler } = await import('../desktop-host/bridge.js')
@@ -274,6 +326,22 @@ async function bootstrap(): Promise<void> {
     }
     setApiProxyHandler(async (request: RpcRequest) => callApi(request.method, request.params))
 
+    // 4.5 宿主骨架外观：先安装句柄（主窗口 + 会话窗口共用），窗口创建后 attach。
+    // :root 外观变量注入（托盘色/圆角/边距），二开可经配置或插件覆盖，宿主源码零改动。
+    const { installDesktopAppearance } = await import('../desktop-host/desktop-appearance.js')
+    desktopAppearanceHandle = installDesktopAppearance()
+
+    // 4.6 主题联动：ui-theme 偏好 → nativeTheme.themeSource（标题栏/原生菜单/
+    // renderer prefers-color-scheme 全部跟随应用内主题）；nativeTheme 变化时
+    // 刷新窗口/托盘黑白双版图标。建窗前 await ready，保证首帧即正确主题。
+    const { installThemeSync } = await import('../desktop-host/theme-sync.js')
+    themeSyncHandle = installThemeSync({
+      callApi,
+      events: apiProxy.events,
+      onNativeThemeChanged: () => refreshAppIcons(),
+    })
+    await themeSyncHandle.ready
+
     // 4.5 持久化会话预热：冷会话仅 session-scoped 懒路径可恢复，清单中的会话
     // （含 blank 复用路径）需要 live agent；启动后统一经 session.create 重挂载。
     const { rewarmPersistedSessions } = await import('../desktop-host/session-rewarm.js')
@@ -304,6 +372,9 @@ async function bootstrap(): Promise<void> {
     // 6. 创建窗口并加载官方 UI
     const win = createWindow()
 
+    // 6.1 骨架外观注入主窗口（:root 外观变量；did-finish-load 后生效，已加载则立即注入）
+    desktopAppearanceHandle?.attach(win)
+
     // 7. 获取下行帧代理（供 WindowManager 和主窗口中继共用）
     const downlinkProxy = apiProxy as unknown as import('../desktop-host/carrier-relay.js').DownlinkEventStream
 
@@ -311,9 +382,11 @@ async function bootstrap(): Promise<void> {
     const windowStateFilePath = join(app.getPath('userData'), 'window-state.json')
     windowManager = createWindowManager({
       getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
-      getAppIconPath: () => join(__dirname, 'web', 'app-icon.png'),
+      getAppIconPath: () => join(__dirname, 'web', nativeTheme.shouldUseDarkColors ? 'app-icon-dark.png' : 'app-icon-light.png'),
       apiProxy: downlinkProxy,
       getStateFilePath: () => windowStateFilePath,
+      // 会话窗口创建后附加骨架外观注入（:root 外观变量，多窗口一致）
+      onSessionWindowCreated: (sessionWin) => desktopAppearanceHandle?.attach(sessionWin),
     })
     windowManager.initialize()
     // 注册窗口管理方法到 bridge
@@ -438,8 +511,10 @@ app.on('before-quit', async () => {
     await windowManager.saveState()
   }
   windowManager?.dispose()
+  themeSyncHandle?.stop()
   desktopAuditViewerHandle?.()
   desktopAutostartHandle?.()
+  desktopAppearanceHandle?.dispose()
   desktopCmdPaletteHandle?.()
   desktopClipboardHandle?.()
   desktopShortcutsHandle?.()

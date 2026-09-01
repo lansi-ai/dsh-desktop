@@ -13,7 +13,7 @@
  */
 
 import { join } from 'node:path'
-import { Tray, Menu, BrowserWindow, app, nativeImage } from 'electron'
+import { Tray, Menu, BrowserWindow, app, nativeImage, nativeTheme } from 'electron'
 import type { DesktopCore } from '../types/desktop.js'
 
 // ── 类型 ───────────────────────────────────────────────────────────
@@ -41,17 +41,22 @@ export function markQuitting(): void {
 const FALLBACK_ICON_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAd0lEQVR4nO3XsQ6AIAyE4T6X7+ZzO0LiQGJEaAleb7iha/9v0mLHeVlwymRC+3ZFlzF/hd0QRHyIQMU/Ech4F4GOvxAZ8QeCBoCON4QAmfF7BBBAAApA+odIAIrfMQUg/SSjOEopznKKhwnF02wHZLrbC4hgQvsqEs3hXEcpkYIAAAAASUVORK5CYII='
 
-/** 加载托盘图标（优先桌面资源 tray-icon.png，超 64px 则缩放；缺失回退 base64）。 */
+/** 当前托盘实例（主题切换时 setImage 刷新用）。 */
+let tray: Tray | null = null
+
+/** 加载托盘图标（官方 harness logo 黑白双版随 nativeTheme；缺失回退 base64）。 */
 function loadTrayIcon(): Electron.NativeImage {
-  const pngPath = join(__dirname, '..', 'desktop-shell', 'web', 'tray-icon.png')
+  const dark = nativeTheme.shouldUseDarkColors
+  const pngPath = join(__dirname, '..', 'desktop-shell', 'web', dark ? 'tray-icon-dark.png' : 'tray-icon-light.png')
   let icon = nativeImage.createFromPath(pngPath)
-  if (icon.isEmpty()) {
-    icon = nativeImage.createFromDataURL(FALLBACK_ICON_DATA_URL)
-  } else {
-    const size = icon.getSize()
-    if (size.width > 64 || size.height > 64) icon = icon.resize({ width: 64, height: 64 })
-  }
+  if (icon.isEmpty()) icon = nativeImage.createFromDataURL(FALLBACK_ICON_DATA_URL)
   return icon
+}
+
+/** 主题切换时刷新托盘图标（main.ts refreshAppIcons 调用；托盘未装时 no-op）。 */
+export function refreshTrayIcon(): void {
+  if (tray === null || tray.isDestroyed()) return
+  tray.setImage(loadTrayIcon())
 }
 
 /**
@@ -76,10 +81,11 @@ export function installDesktopTray(options: DesktopTrayOptions): () => void {
   if (window !== null) window.on('close', onClose)
 
   // ── 托盘图标与菜单 ─────────────────────────────────────────────────
-  // 图标：桌面资源 tray-icon.png（裁剪放大主体 + 透明底，copy-web 复制到 dist/desktop-shell/web/）。
-  // 已 resize 到 64px（系统缩到通知区 ~16px 更清晰）；资源缺失时回退内联 base64 蓝点 PNG。
+  // 图标：官方 harness logo 黑白双版（copy-web 复制到 dist/desktop-shell/web/），
+  // 64px 供系统缩到通知区 ~16px 保持清晰；主题切换经 refreshTrayIcon 刷新；
+  // 资源缺失时回退内联 base64 蓝点 PNG。
   const trayIcon = loadTrayIcon()
-  const tray = new Tray(trayIcon)
+  tray = new Tray(trayIcon)
 
   const showWindow = (source: string): void => {
     const win = getWindow()
@@ -122,6 +128,7 @@ export function installDesktopTray(options: DesktopTrayOptions): () => void {
   // ── 清理 ─────────────────────────────────────────────────────────
   return () => {
     if (window !== null) window.removeListener('close', onClose)
-    tray.destroy()
+    tray?.destroy()
+    tray = null
   }
 }

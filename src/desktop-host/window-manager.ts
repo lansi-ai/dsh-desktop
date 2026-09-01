@@ -143,6 +143,11 @@ export interface WindowManagerOptions {
    * 若未提供则跳过持久化功能。
    */
   getStateFilePath?: () => string
+  /**
+   * 会话窗口创建后的回调（main.ts 注入：给新窗口附加骨架外观注入等）。
+   * 主进程能力经此注入，window-manager 不直接依赖宿主模块。
+   */
+  onSessionWindowCreated?: (win: BrowserWindow) => void
 }
 
 // ── 内部状态 ────────────────────────────────────────────────────────
@@ -288,6 +293,39 @@ function broadcastSessionListUpdated(): void {
   })
 }
 
+/**
+ * 为任意窗口挂载「最大化状态」事件广播（主窗口也复用）。
+ *
+ * 背景（修复最大化/还原图标不切换）：自绘标题栏的最大化/还原图标依赖
+ * `window/state-changed` 下行事件驱动切换。此前该事件只在 window-manager 创建的
+ * 会话窗口（createBrowserWindow）上挂载，主窗口（main.createWindow）未挂载，
+ * 导致主窗口最大化后图标仍是单框（还原图标不出现）。本函数统一挂载
+ * maximize/unmaximize/restore 三个事件，经 broadcastWindowEvent 广播到 renderer。
+ *
+ * @param win 需要监听最大化状态的窗口。
+ */
+export function attachWindowMaximizedStateBroadcast(win: BrowserWindow): void {
+  const broadcast = (maximized: boolean): void => {
+    const frame = {
+      type: WindowEvent.WINDOW_STATE_CHANGED,
+      payload: { windowId: win.id, maximized },
+      ts: Date.now(),
+    }
+    // 直达本窗口（关键）：bridge 的广播依赖 windowStates，而主窗口就绪态常为空
+    // （renderer 官方 UI 不发 dsh:ready，导致 ready-windows=0、broadcast 丢失），
+    // 因此必须对 win 自己 webContents 直接 send 才能驱动渲染端图标切换。
+    if (!win.webContents.isDestroyed()) {
+      win.webContents.send(IPC_CHANNELS.WINDOW_EVENT, frame)
+    }
+    // 仍保留桥广播：若其他窗口已就绪（windowStates 非空），一并同步状态
+    broadcastWindowEvent(frame)
+  }
+
+  win.on('maximize', () => broadcast(true))
+  win.on('unmaximize', () => broadcast(false))
+  win.on('restore', () => broadcast(false))
+}
+
 // ── 创建/销毁浏览器窗口 ────────────────────────────────────────────
 
 /**
@@ -312,6 +350,8 @@ function createBrowserWindow(
     y: bounds.y,
     show: false,
     icon: options.getAppIconPath(),
+    // 自绘标题栏（与主窗口一致，M3-b4 去原生标题栏）
+    titleBarStyle: 'hidden',
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -373,10 +413,40 @@ function createBrowserWindow(
 
   win.on('minimize', () => {
     updateWindowState(win.id, WindowState.MINIMIZED)
+    // 广播最小化状态
+    broadcastToAllWindows({
+      type: WindowEvent.WINDOW_STATE_CHANGED,
+      payload: { windowId: win.id, maximized: false },
+      ts: Date.now(),
+    })
   })
 
   win.on('restore', () => {
     updateWindowState(win.id, WindowState.INACTIVE)
+    // 广播还原状态（从最大化/最小化恢复）
+    broadcastToAllWindows({
+      type: WindowEvent.WINDOW_STATE_CHANGED,
+      payload: { windowId: win.id, maximized: false },
+      ts: Date.now(),
+    })
+  })
+
+  win.on('maximize', () => {
+    // 广播最大化状态
+    broadcastToAllWindows({
+      type: WindowEvent.WINDOW_STATE_CHANGED,
+      payload: { windowId: win.id, maximized: true },
+      ts: Date.now(),
+    })
+  })
+
+  win.on('unmaximize', () => {
+    // 广播取消最大化状态
+    broadcastToAllWindows({
+      type: WindowEvent.WINDOW_STATE_CHANGED,
+      payload: { windowId: win.id, maximized: false },
+      ts: Date.now(),
+    })
   })
 
   // 窗口移动/缩放时更新 bounds 并触发 debounce 持久化
@@ -414,6 +484,9 @@ function createBrowserWindow(
     windowRelays.set(win.id, relay)
     console.log(`[dsh-window-manager] 窗口下行帧中继已启动: windowId=${win.id}`)
   }
+
+  // 会话窗口创建完成回调（main.ts 注入：附加骨架外观注入等宿主能力）
+  options.onSessionWindowCreated?.(win)
 
   return win
 }

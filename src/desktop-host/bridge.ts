@@ -113,6 +113,15 @@ function registerDesktopMethods(): void {
       win.close()
     }
   })
+
+  // desktop.windowControl.maximize（自绘标题栏用：已最大化则还原）
+  methodTable.set('desktop.windowControl.maximize', async (_params: unknown, context: { windowId: number }): Promise<void> => {
+    const win = BrowserWindow.fromId(context.windowId)
+    if (win !== null) {
+      if (win.isMaximized()) win.unmaximize()
+      else win.maximize()
+    }
+  })
 }
 
 // ── IPC 处理器注册 ───────────────────────────────────────────────────
