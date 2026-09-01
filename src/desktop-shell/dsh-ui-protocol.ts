@@ -101,19 +101,34 @@ function resolveRelative(url: URL, root: string): string | undefined {
   return rel
 }
 
-/** Full boot manifest 注入脚本（含 IPC 载波 roster 条目 + queueLoader shim）。 */
+/** Full boot manifest 注入脚本（含 IPC 载波 roster 条目 + queueLoader shim + 基线版本全局）。 */
 function bootManifestScript(useDist: boolean): string {
   // 官方 dist 模式：额外装载第三方 client 插件（清单见 boot-graph.THIRD_PARTY_CLIENT_IDS）；
   // 占位页回退模式：注入最小样例 client 插件作为零端口装载路径验证载体。
   const extraBundles = useDist ? buildThirdPartyBundles() : [{ id: 'dsh-spike-sample', path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js') }]
-  return generateFullBootScript('desktop-m1-ipc', extraBundles)
+  const boot = generateFullBootScript('desktop-m1-ipc', extraBundles)
+  // 注入当前实际安装的 DSH 基线版本全局，供自绘 UI（如标题栏）渲染展示。
+  const baseVersion = resolveDshBaseVersion()
+  const versionScript = `<script>window.__DSH_BASE_VERSION__ = ${JSON.stringify(baseVersion)}</script>`
+  return boot + versionScript
+}
+
+/** 读取当前实际安装的 `@deepseek-ai/dsh` 基线版本（主进程侧，require 已安装包）。 */
+function resolveDshBaseVersion(): string {
+  try {
+    const version = nodeRequire('@deepseek-ai/dsh/package.json').version
+    return typeof version === 'string' && version !== '' ? version : 'unknown'
+  } catch (error) {
+    console.warn('[dsh-ui-protocol] 解析 DSH 基线版本失败:', error)
+    return 'unknown'
+  }
 }
 
 /** 将 boot manifest 注入到 index.html 的 <head> 之后（对齐官方 IndexTap 语义）。 */
 function injectBootManifest(html: string, useDist: boolean): string {
   const headEnd = html.indexOf('</head>')
   const script = bootManifestScript(useDist)
-  if (headEnd === -1) return `${script}${html}`
+  if (headEnd === -1) return script + html
   return `${html.slice(0, headEnd)}${script}${html.slice(headEnd)}`
 }
 

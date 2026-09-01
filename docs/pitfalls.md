@@ -8,9 +8,10 @@
 
 - **现象**：`npm run dev` 启动即报
   `TRAE Sandbox Error: Not allow operate files: ...\SogouPY\LOG\IME\electron_*.log`，且 `Start-Process` 拉独立 PowerShell 报 `0x800700e8 (ERROR_NO_TOKEN)`。
-- **根因**：搜狗输入法注入到 Electron 进程，启动时写自家 IME 日志，被 TRAE 沙箱拦截；沙箱内 `Start-Process` 无创建新 GUI 进程的 Windows 令牌。
-- **解法**：Electron 是 GUI 应用，必须在**系统 PowerShell（沙箱外）**运行 `npm run dev`；日志经终端输出或重定向 `npm run dev *> app.log 2>&1` 后读取。
-- **复盘**：沙箱内无法代跑 Electron GUI，只能让用户外部运行并贴日志；诊断数据靠加临时日志 + 用户回传。
+  同类实例（2026-09-01，版本号显示任务验证启动时）：报 `Not allow operate files: ...\Tencent\WeType\MM_TIP_*.xlog, ...\spool\drivers\color\sRGB Color Space Profile.icm`——**微信输入法（WeType）写自家 `.xlog` + Chromium 读系统色彩配置也各自触发同一拦截**。
+- **根因**：搜狗/微信输入法注入到 Electron 进程，启动时写自家 IME 日志，被 TRAE 沙箱拦截；Chromium 渲染时读取 Windows 系统色彩配置（`sRGB Color Space Profile.icm`）同样被拦（非输入法场景也可能触发）；沙箱内 `Start-Process` 无创建新 GUI 进程的 Windows 令牌。
+- **解法**：Electron 是 GUI 应用，必须在**系统 PowerShell（沙箱外）**运行 `npm run dev`；日志经终端输出或重定向 `npm run dev *> app.log 2>&1` 后读取。构建/编译（`npm run build`）在沙箱内正常，仅**运行时**被拦。
+- **复盘**：沙箱内无法代跑 Electron GUI，只能让用户外部运行并贴日志；诊断数据靠加临时日志 + 用户回传。拦截文件可能来自多套输入法（搜狗/微信）或系统色彩配置，任一触发即启动退出——先看报错尾部第一个被拦路径判定来源。
 
 ## 坑 1 · 官方驱动「全量激活图谱条目」导致 client-connection 抢占 connection
 

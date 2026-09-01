@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
 
     const React = require('react')
     const h = React.createElement
-    const { useState, useEffect, useCallback } = React
+    const { useState, useEffect } = React
 
     /** SVG 图标常量（viewBox 24，Windows/Fluent 风格，离线内联图标集）。 */
     const ICON_MINIMIZE = 'M 5 12.5 H 19'
@@ -130,6 +130,16 @@ window.__ModuleLoader__.load({
   text-overflow: ellipsis;
   color: var(--dsw-alias-label-primary, #1a1a24);
 }
+.dsh-desktop-titlebar-brand-version {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-secondary, #6b6b76);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .dsh-desktop-titlebar-collapse {
   display: flex;
   align-items: center;
@@ -215,7 +225,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 标题栏槽位内容：左侧品牌区 + 右侧窗控。 */
-    function TitlebarRoot({ collapsed, toggleSidebar, startSession }) {
+    function TitlebarRoot({ collapsed, toggleSidebar }) {
       const [isMaximized, setIsMaximized] = useState(false)
 
       // 监听窗口状态事件，更新最大化/还原图标。
@@ -243,14 +253,14 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'dsh-desktop-titlebar' },
         // 左侧品牌区
         h('div', { className: 'dsh-desktop-titlebar-left' },
-          // Logo（官方 FishLogo / 占位兜底）
-          h('div', { className: 'dsh-desktop-titlebar-brand',
-            title: '新建会话',
-            onClick: () => startSession?.(),
-          },
+          // Logo（官方 FishLogo / 占位兜底）。品牌区仅作展示，不触发新建会话。
+          h('div', { className: 'dsh-desktop-titlebar-brand', title: 'DSH Desktop' },
             brand ? h(brand.mark, { size: 24 }) : h(BrandLogo, { size: 24 }),
             h('span', { className: 'dsh-desktop-titlebar-brand-name' },
               brand ? h(brand.name, { includeMark: false }) : 'DeepSeek'),
+            // DSH 基线版本号（由主机注入的 __DSH_BASE_VERSION__ 全局供给）
+            h('span', { className: 'dsh-desktop-titlebar-brand-version' },
+              window.__DSH_BASE_VERSION__ || ''),
           ),
           // 折叠按钮
           h('button', {
@@ -270,7 +280,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    exports.inject = ['slots', 'layout', 'workspaces']
+    exports.inject = ['slots', 'layout']
 
     exports.apply = (ctx) => {
       injectStyles()
@@ -279,7 +289,6 @@ window.__ModuleLoader__.load({
         id: 'desktop-titlebar',
         inject: () => ({
           toggleSidebar: () => ctx.layout.toggleSidebar(),
-          startSession: () => ctx.workspaces.startSession(),
         }),
       }, TitlebarRoot)
       return () => dispose()
