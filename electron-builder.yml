@@ -20,7 +20,9 @@ asarUnpack:
   - "**/node-pty/**"
 # Windows 目标：x64 安装包 + 便携包双产物
 win:
-  icon: src/desktop-shell/web/app-icon.png
+  # exe/安装包图标：官方 harness logo 黑色版（浅色态官方原貌）；运行期任务栏图标
+  # 由 main.ts 按 nativeTheme 动态切换黑白双版（见 scripts/make-icons.cjs）
+  icon: src/desktop-shell/web/app-icon-light.png
   target:
     - target: nsis
       arch:

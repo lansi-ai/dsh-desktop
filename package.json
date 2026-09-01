@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "dev": "npm run build && electron .",
     "start": "electron .",
-    "dist": "npm run build && electron-builder --win --publish never && node scripts/make-sums.cjs"
+    "dist": "npm run build && electron-builder --win --publish never && node scripts/make-sums.cjs",
+    "icons": "node scripts/make-icons.cjs"
   },
   "license": "MIT",
   "devDependencies": {
@@ -24,6 +25,7 @@
     "electron-builder": "^26.15.3",
     "eslint": "^10.9.1",
     "jimp": "^0.22.12",
+    "sharp": "^0.35.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.68.0"
   },
