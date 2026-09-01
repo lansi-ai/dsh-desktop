@@ -222,6 +222,25 @@
   - **排除一个注入型插件要连其消费方一起**：若某插件被其他插件的 `dsh.client.inject` 当服务依赖（如 ui-cordis 用 runner 的 `dynamicCordisRunner` 面），单独排除提供方会崩消费方；判断标准=对方 `apply()` 是否**直接 `ctx[服务]` / `ctx.get()` 该服务**（`inject` 仅是拓扑顺序提示，不等于服务存在）。
   - **官方 dist 无 CSP 的 Security Warning**：Electron 明确「打包后不出现」，属 dev 专属提示；不要在官方 dist 上硬加 CSP 破坏动态模块系统（需 unsafe-eval），转发层过滤该已知消息即可。
 
+## 坑 26 · ui-* 双面包装配不全：host 半漏装（settings namespace 未注册）+ theme/change 消费者丢失（切外观无效果/深色显示错误）
+
+- **现象**（0.1.2 升级后链式三连，2026-09-01）：
+  ① 设置页切外观报 `settings namespace "ui-theme" is not registered`（`[dsh-bridge] RPC 失败 (settings/mutate)`）；
+  ② 补装后不再报错，但点击切换界面零变化；
+  ③ 再补后主卡（官方 UI）正常切深，titlebar 行 + 侧栏列仍是浅色（侧栏会话文字发灰难读）。
+- **根因**（三层独立缺口，逐层暴露）：
+  ① `ui-theme` namespace 由官方 `dsh-client-ui-theme` 的 **host 半** `apply()` 注册（`settings.register('ui-theme', ThemeSettingsSchema)`）。boot.ts §1 只补了 `ui-settings-general`（ui-onboarding），漏装同类 4 个双面包 host 半：`ui-theme`/`locale`/`ui-chat`/`ui-conversation`（官方 web-app cordis.patch.yml L177-199 全有）。client 半经 settings.mutate 写偏好 → host `dsh-settings` 注册表查无此 ns → 拒绝。
+  ② 官方 theme 链路是**发布/应用分离**：`ui-theme` client 半只做 settings 读写 + 发布 `theme/change` 事件；把主题应用到 DOM（根 `color-scheme`、body `data-ds-dark-theme`、`--dsh-content-font-size`、token 变量、theme-color meta）的是**官方 `ui-layout` 的 ThemePresenter**（订阅 `theme/change`）。M6-P1 自研布局接管 root 槽位排除 `dsh-client-ui-layout` 时，ThemePresenter 被连带丢掉 → 事件发布后无消费者。
+  ③ titlebar 行/侧栏列本身透明，透出宿主托盘底色 `--dsd-tray-bg`（硬编码浅色）；自绘 CSS 另有多处硬编码黑色系 + 侧栏根声明 `color-scheme: light dark`（改随 OS 偏好而非应用主题）。
+- **解法**：
+  ① boot.ts §1 补装 4 个 host 半条目（`ui-theme`/`locale`/`ui-chat`/`ui-conversation`；排查口径=全库 grep `settings.register(`）。
+  ② `desktop-layout-client.js` 增设等价 `ThemePresenter`（初始 `ctx.theme.getTheme()` + `ctx.on('theme/change')` 实时应用 + dispose 回撤），`inject: ['slots','theme']` 原已声明。
+  ③ 托盘底色与自绘硬编码色全改 CSS `light-dark()` 双值（`--dsd-tray-bg: light-dark(rgb(242 243 245),rgb(28 28 30))`，boot-graph 骨架 + desktop-appearance 两处同源；titlebar/sidebar hover/边框/标签色同步）；删除侧栏根 `color-scheme: light dark` 声明，继承 presenter 写在根元素的主题方案。
+- **复盘**：
+  - **「双面包」插件两条装配线都要点名**：官方 ui-* 多为 node+client 双半；client 半由渲染图谱自动扫描，**host 半必须在 boot.ts 显式 insert**——升级/迁移时对照官方 cordis.patch.yml 的 insert 段逐行核对，不能只补报错的那一个（同口径一次性补齐同类）。
+  - **排除官方插件 = 排除它的全部职责**：接管 root 槽位排除 ui-layout 前，要盘点它承载的所有 effect（root 注册 + ThemePresenter + …），被排除的职责须在自研件中等价补齐；「事件有人发」不等于「有人消费」。
+  - **壳层配色不要硬编码单值**：自绘 CSS 一律用 `light-dark()` 双值或官方 token；并避免元素级 `color-scheme` 声明劫持主题跟随（会改随 OS 偏好）。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -241,6 +260,7 @@
 15. **`renderSlot` 只能渲染本槽声明的子槽位（槽位所有权）**：跨槽位渲染官方子槽位直接抛 `SlotOwnershipError` 崩溃；要展示非本槽 children 里的官方元素（如品牌 logo），**直接 require 官方组件渲染**，不用 `renderSlot` 走槽位（坑 23）。
 16. **官方传输的 wire 契约要逐层对齐**：走官方 connection/typert 时，端点须用「斜杠 `domain/method`」、payload 须是「恰好一个 plain-object `args` 字段 `{args}`」、`args` 内字段名须匹配端点签名参数（`_request`/`request` 等）；持续 404 / `arguments-invalid` 优先查这三层 wire 形态，**不要先归因「启动时序」加盲目重试**（坑 24）。
 17. **宿主禁用 ≠ 渲染端不会跑（两条正交装配线）**：host 补丁禁用的 Web 基础设施（如 client-hmr / cordis-runner），其 client 半点仍会被渲染图谱自动扫描激活，对端缺席 → 持续 404 噪音；必须同时把它加进 `CLIENT_EXCLUDE_IDS`。排除一个被他人当服务依赖的插件要连消费方一起排除（判断=对方是否 `ctx.get` 该服务，`inject` 只是顺序提示）（坑 25）。
+18. **双面包插件两条装配线都要点名 + 排除即承接全部职责**：官方 ui-* 的 host 半须在 boot.ts 显式 insert（对照官方 cordis.patch.yml 逐行核对，同口径一次补齐）；排除官方插件（如 ui-layout）前盘点其全部 effect，被排除职责（如 ThemePresenter）须在自研件中等价补齐——「事件有人发 ≠ 有人消费」。壳层配色用 `light-dark()` 双值/官方 token，不硬编码单值（坑 26）。
 
 ## 结论
 

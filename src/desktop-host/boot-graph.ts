@@ -18,6 +18,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { bootGraphSchema, type BootEntry, type BootGraph, type BootBatch } from '../types/boot.js'
+import { log } from './log.js'
 
 // ── 类型定义 ─────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ export function buildThirdPartyBundles(): BootBundleDecl[] {
     try {
       decls.push(buildThirdPartyBundleDecl(id))
     } catch (error) {
-      console.warn(`[boot-graph] 第三方插件 ${id} 装载声明解析失败，已跳过:`, error)
+      log.warn(`[boot-graph] 第三方插件 ${id} 装载声明解析失败，已跳过:`, error)
     }
   }
   return decls
@@ -476,7 +477,9 @@ export function resolveBundleRequest(pathname: string): { body: Buffer; contentT
  * 会以同特异性覆盖 position 导致底部溢出（实机 2026-08-27）。
  */
 const LAYOUT_SKELETON_CSS = [
-  ':root{--dsd-tray-bg:rgb(242 243 245);--dsd-card-radius:12px;--dsd-frame-gap:15px;--dsd-titlebar-h:50px}',
+  // 托盘底色 light-dark() 双值：presenter 设根 color-scheme 后明暗自动跟随
+  // （浅色 rgb(242 243 245) 沿用原值；深色取略浅于主卡的深灰以保留托盘/卡片层次）。
+  ':root{--dsd-tray-bg:light-dark(rgb(242 243 245),rgb(28 28 30));--dsd-card-radius:12px;--dsd-frame-gap:15px;--dsd-titlebar-h:50px}',
   // background 必须 !important：官方运行时动态样式表晚于此（body{background:--dsw-alias-bg-base,#fff}）
   // 会用同特异性把托盘色盖成白色（实机 2026-08-27：整窗白、卡片不浮起）。
   'html,body{background:var(--dsd-tray-bg)!important}',

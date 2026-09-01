@@ -94,3 +94,46 @@
 
   - 宿主侧 `boot.ts` §3 本就禁用 client-hmr/cordis-client-runner/cordis-host-runner，此修复补齐渲染端排除。
 
+### #6 · 设置页切外观报 `settings namespace "ui-theme" is not registered`
+
+- 环境：打包版（`npm run start`，dist/desktop-shell/main.js）
+
+- 第一现场：
+
+  ```
+  14:25:56 [dsh-bridge] RPC 失败 (settings/mutate): Error: settings namespace "ui-theme" is not registered
+      at unpackServerResponse (dist/desktop-shell/main.js:284)
+      at async callApi (dist/desktop-shell/main.js:314)
+      at async dist/desktop-host/bridge.js:137
+  ```
+
+- 状态：**verified**（2026-09-01，用户实机确认）→ 坑 26 ——boot.ts §1 补装 `ui-theme`/`locale`/`ui-chat`/`ui-conversation` 四个 host 半条目
+
+- 根因：`ui-theme` namespace 由官方 `@deepseek-ai/dsh-client-ui-theme` 的 **host 半** `apply()` 注册（`settings.register('ui-theme', ...)`），boot.ts §1 host 装配清单漏装该条目（官方 web-app cordis.patch.yml L177-199 有；M4-d3 迁移时只补了 `ui-settings-general` 同类条目，漏掉同类其余 3 个）。排查同口径：`dsh-client-locale`（locale）、`dsh-client-ui-chat`（ui-chat）、`dsh-client-ui-conversation`（ui-conversation）同为「双面包缺 host 半」，一并补装。
+
+### #7 · 设置页切外观不再报错，但界面无任何变化（写入成功、应用丢失）
+
+- 环境：打包版（`npm run start`，dist/desktop-shell/main.js）
+
+- 第一现场：`settings/mutate` RPC 成功（#6 修复后），偏好已持久化，但明暗切换零视觉反馈
+
+- 状态：**verified**（2026-09-01，用户实机确认）→ 坑 26 ——`desktop-layout-client.js` 补 ThemePresenter 等价实现
+
+- 根因：官方 `dsh-client-ui-theme` client 半只负责 settings 读写 + 发布 `theme/change` 事件；真正把主题应用到 DOM（根 `color-scheme`、body `data-ds-dark-theme` 属性、`--dsh-content-font-size` 字号轴、token 变量、theme-color meta）的是**官方** **`ui-layout`** **的 ThemePresenter**（订阅 `theme/change`）。M6-P1 自研布局接管 root 槽位排除 `dsh-client-ui-layout` 时，ThemePresenter 随之丢失（无消费者）→ 坑 26。修复：自研 `@lansi-ai/dsh-desktop-layout` 增设等价 `ThemePresenter`（初始 `ctx.theme.getTheme()` + 订阅 `theme/change`，dispose 回撤），`inject: ['slots','theme']` 原已声明 theme 依赖。
+
+### #8 · 深色主题下 titlebar 与侧栏仍是浅色（主区已正常切深）
+
+- 环境：打包版（`npm run start`）
+
+- 第一现场：切深色后主卡（官方 UI）正常变深，titlebar 行 + 侧栏列保持白/浅灰；侧栏会话条目文字发灰难读
+
+- 状态：**verified**（2026-09-01，用户实机确认）→ 坑 26
+
+- 根因：titlebar 行与侧栏列本身透明，透出的是宿主托盘底色 `--dsd-tray-bg`（硬编码浅色 `rgb(242 243 245)`）；另自绘 titlebar/sidebar CSS 有多处硬编码黑色系 hover/边框，侧栏根还声明了 `color-scheme: light dark`（会改随 OS 偏好而非应用主题）。修复（CSS `light-dark()` 双值，Electron 44 全支持）：
+
+  - `--dsd-tray-bg` 默认值改 `light-dark(rgb(242 243 245),rgb(28 28 30))`（boot-graph 骨架 + desktop-appearance 两处同源）；presenter 写根 `color-scheme` 后明暗自动跟随
+
+  - titlebar 品牌区 hover/版本号底/折叠钮 hover → light-dark 双值（窗控 hover 原本已是）
+
+  - sidebar 新会话按钮边框/hover、rail 标签色 → light-dark 双值；删除根 `color-scheme: light dark` 声明（继承 presenter 的根方案，保证 light-dark 与全局主题一致）
+

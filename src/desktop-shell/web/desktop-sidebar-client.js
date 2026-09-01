@@ -40,7 +40,8 @@ window.__ModuleLoader__.load({
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  color-scheme: light dark;
+  /* 不声明 color-scheme：继承 presenter 写在根元素上的主题方案，
+     保证壳内 light-dark() 与全局主题一致（声明 light dark 会改随 OS 偏好）。 */
 }
 .dsh-desktop-sidebar-new-session {
   display: flex;
@@ -49,7 +50,7 @@ window.__ModuleLoader__.load({
   margin: 4px 10px 8px;
   padding: 8px 12px;
   background: transparent;
-  border: 1px solid rgba(0, 0, 0, 0.10);
+  border: 1px solid light-dark(rgba(0, 0, 0, 0.10), rgba(255, 255, 255, 0.14));
   border-radius: 10px;
   cursor: pointer;
   font: inherit;
@@ -57,7 +58,7 @@ window.__ModuleLoader__.load({
   color: inherit;
 }
 .dsh-desktop-sidebar-new-session:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.08));
 }
 .dsh-desktop-sidebar-region {
   flex: 1;
@@ -76,7 +77,7 @@ window.__ModuleLoader__.load({
 }
 .dsh-desktop-sidebar-rail-label {
   font-size: 10px;
-  color: rgba(0, 0, 0, 0.45);
+  color: light-dark(rgba(0, 0, 0, 0.45), rgba(255, 255, 255, 0.50));
 }
 `
 

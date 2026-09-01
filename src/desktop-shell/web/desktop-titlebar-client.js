@@ -120,7 +120,7 @@ window.__ModuleLoader__.load({
   transition: background-color 120ms ease;
 }
 .dsh-desktop-titlebar-brand:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.10));
 }
 .dsh-desktop-titlebar-brand-name {
   font-size: 13px;
@@ -136,7 +136,7 @@ window.__ModuleLoader__.load({
   color: var(--dsw-alias-label-secondary, #6b6b76);
   padding: 1px 6px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.04);
+  background: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08));
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -155,7 +155,7 @@ window.__ModuleLoader__.load({
   padding: 0;
 }
 .dsh-desktop-titlebar-collapse:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.10));
 }
 
 /* 右侧窗控区 */

@@ -450,6 +450,64 @@ window.__ModuleLoader__.load({
       document.head.appendChild(tag)
     }
 
+    // ── ThemePresenter（等价官方 ui-layout 实现）─────────────────────────
+
+    /** Body 属性：选中深色调色板（token 样式表据此切换明暗）。 */
+    const DARK_ATTRIBUTE = 'data-ds-dark-theme'
+    /** Body 变量：用户内容字号（px）。 */
+    const CONTENT_FONT_SIZE_VARIABLE = '--dsh-content-font-size'
+
+    /**
+     * 把主题快照应用到文档；每插件实例一个（对齐官方 ui-layout ThemePresenter）。
+     * 背景：ui-theme client 半只负责 settings 读写 + 发布 `theme/change` 事件，
+     * DOM 应用（color-scheme / 深色属性 / token 变量 / 字号轴 / theme-color meta）
+     * 官方由 ui-layout 的 ThemePresenter 承担——M6-P1 接管 root 槽位排除官方
+     * ui-layout 时被一并丢掉，导致设置页切外观「写入成功但界面无变化」（坑 26）。
+     */
+    class ThemePresenter {
+      constructor() {
+        /** 上次 apply 写入的 token 变量名（回撤清单）。 */
+        this.appliedTokens = []
+        /** 本实例唯一的 theme-color meta 节点。 */
+        this.themeColorMeta = document.createElement('meta')
+        this.themeColorMeta.name = 'theme-color'
+      }
+
+      /**
+       * 把快照投影到文档：按 active.colorScheme（非偏好 id——`system` 已在上游解析）
+       * 设置根 color-scheme 与 body 深色属性，发布字号轴，再以 active.tokens
+       * 整体替换上次写入的 token 变量；随后按 body 计算背景色刷新 theme-color meta。
+       * @param snapshot ctx.theme 的已解析快照。
+       */
+      apply(snapshot) {
+        const scheme = snapshot.active.colorScheme
+        document.documentElement.style.colorScheme = scheme
+        const body = document.body
+        if (scheme === 'dark') body.setAttribute(DARK_ATTRIBUTE, '')
+        else body.removeAttribute(DARK_ATTRIBUTE)
+        body.style.setProperty(CONTENT_FONT_SIZE_VARIABLE, `${snapshot.fontSize}px`)
+        for (const name of this.appliedTokens) body.style.removeProperty(name)
+        this.appliedTokens = []
+        for (const [name, value] of Object.entries(snapshot.active.tokens)) {
+          body.style.setProperty(name, value)
+          this.appliedTokens.push(name)
+        }
+        this.themeColorMeta.content = getComputedStyle(body).backgroundColor
+        if (!this.themeColorMeta.isConnected) document.head.append(this.themeColorMeta)
+      }
+
+      /** 回撤根 color-scheme、深色属性、token 变量、字号轴与自有 meta 节点。 */
+      dispose() {
+        document.documentElement.style.removeProperty('color-scheme')
+        const body = document.body
+        body.removeAttribute(DARK_ATTRIBUTE)
+        body.style.removeProperty(CONTENT_FONT_SIZE_VARIABLE)
+        for (const name of this.appliedTokens) body.style.removeProperty(name)
+        this.appliedTokens = []
+        this.themeColorMeta.remove()
+      }
+    }
+
     // ── 插件导出 ──────────────────────────────────────────────────
 
     exports.inject = ['slots', 'theme']
@@ -460,6 +518,14 @@ window.__ModuleLoader__.load({
 
       // 注入样式
       injectStyles()
+
+      // 主题呈现：初始应用当前快照 + 订阅 theme/change（等价官方 ui-layout 的
+      // "ui-layout: theme presenter" effect；inject: ['theme'] 保证 ui-theme 先装载）。
+      const presenter = new ThemePresenter()
+      presenter.apply(ctx.theme.getTheme())
+      const offThemeChange = ctx.on('theme/change', (snapshot) => {
+        presenter.apply(snapshot)
+      })
 
       const disposeRegistration = ctx.slots.register({
         name: 'root',
@@ -478,6 +544,8 @@ window.__ModuleLoader__.load({
       }, AppFrame)
 
       return () => {
+        offThemeChange()
+        presenter.dispose()
         disposeRegistration()
         disposeService()
       }

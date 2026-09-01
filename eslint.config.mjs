@@ -52,6 +52,7 @@ const BROWSER_GLOBALS = {
   requestAnimationFrame: 'readonly',
   cancelAnimationFrame: 'readonly',
   ResizeObserver: 'readonly',
+  getComputedStyle: 'readonly',
 }
 
 export default tseslint.config(

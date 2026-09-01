@@ -214,6 +214,14 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       // 供官方 UI 的内测声明/onboarding 写入（client 面经 settings.mutate 打到 host settings，
       // 缺此 namespace 会报 "settings namespace ui-onboarding is not registered" 拦截进入）。
       { id: 'ui-settings-general', name: '@deepseek-ai/dsh-client-ui-settings-general' },
+      // 同类「双面包」host 半条目（对齐官方 web-app cordis.patch.yml ui-* 段）：
+      // client 半在渲染图谱（boot-graph），host 半在此注册各自 settings namespace；
+      // 缺条目 → 设置页写偏好时报 "settings namespace <ns> is not registered"
+      // （ui-theme 缺失实机 2026-09-01 定位：设置页切外观报错）。
+      { id: 'ui-theme', name: '@deepseek-ai/dsh-client-ui-theme' },               // ui-theme：外观偏好/字号
+      { id: 'locale', name: '@deepseek-ai/dsh-client-locale' },                   // locale：语言偏好
+      { id: 'ui-chat', name: '@deepseek-ai/dsh-client-ui-chat' },                 // ui-chat：聊天界面偏好
+      { id: 'ui-conversation', name: '@deepseek-ai/dsh-client-ui-conversation' }, // ui-conversation：busyEnter 等
       { id: 'system-prompt', name: '@deepseek-ai/dsh-system-prompt', config: { persona: '' } },
       { id: 'agent-loop', name: '@deepseek-ai/dsh-agent-loop', config: { agents: [] } },
       { id: 'fs-sandbox', name: '@deepseek-ai/dsh-fs-sandbox' },

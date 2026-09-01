@@ -18,6 +18,8 @@
 
 import type { BrowserWindow } from 'electron'
 
+import { log } from './log.js'
+
 /** 骨架外观契约：宿主暴露的可覆盖变量名（二开文档即此清单）。 */
 export const APPEARANCE_VARS = {
   trayBg: '--dsd-tray-bg',
@@ -58,7 +60,9 @@ function resolveVars(cfg: AppearanceConfig = {}): Record<string, string> {
   // 会回退为初始值（如 height:auto），导致标题栏/按钮被内容高度撑小（实机 2026-08-28）。
   const px = (v: number | string | undefined): string => (typeof v === 'number' ? `${v}px` : String(v))
   return {
-    [APPEARANCE_VARS.trayBg]: cfg.trayBg ?? 'rgb(242 243 245)',
+    // light-dark() 双值：随 presenter 设定的根 color-scheme 明暗自动切换
+    // （与 boot-graph LAYOUT_SKELETON_CSS 的 :root 默认值保持同源）。
+    [APPEARANCE_VARS.trayBg]: cfg.trayBg ?? 'light-dark(rgb(242 243 245),rgb(28 28 30))',
     [APPEARANCE_VARS.cardRadius]: px(cfg.cardRadius ?? 12),
     [APPEARANCE_VARS.frameGap]: px(cfg.frameGap ?? 15),
     [APPEARANCE_VARS.titlebarH]: px(cfg.titlebarH ?? 50),
@@ -85,7 +89,7 @@ function injectAppearanceVars(win: BrowserWindow, vars: Record<string, string>):
   } catch (err) { console.error('[dsh-appearance] inject failed:', err) }
 })()`
   wc.executeJavaScript(js).catch((error) => {
-    console.error('[dsh-appearance] executeJavaScript failed:', error)
+    log.error('[dsh-appearance] executeJavaScript failed:', error)
   })
 }
 
