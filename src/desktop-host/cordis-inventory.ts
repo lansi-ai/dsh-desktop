@@ -46,7 +46,7 @@ export interface PluginInventoryEntry {
 const INFRA_IDS = new Set([
   '@deepseek-ai/dsh-client-modules',
   '@deepseek-ai/dsh-client-runtime',
-  '@dsh-desktop/ipc-connection',
+  '@lansi-ai/dsh-ipc-connection',
 ])
 
 /**

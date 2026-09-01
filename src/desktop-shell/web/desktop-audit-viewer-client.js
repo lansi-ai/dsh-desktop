@@ -1,5 +1,5 @@
 /**
- * @dsh-desktop/desktop-audit-viewer —— 审计查看器 renderer 注入（M3·b2 审计查询）。
+ * @lansi-ai/dsh-desktop-audit-viewer —— 审计查看器 renderer 注入（M3·b2 审计查询）。
  *
  * 通过官方 Cordis Slots 机制注入审计查看器面板，提供：
  *   - 审计日志查看（按时间倒序）
@@ -13,7 +13,7 @@
  * 注：本文件为浏览器侧 bundle（含 window 全局），不参与 Node 编译。
  */
 window.__ModuleLoader__.load({
-  id: '@dsh-desktop/desktop-audit-viewer',
+  id: '@lansi-ai/dsh-desktop-audit-viewer',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports

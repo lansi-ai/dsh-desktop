@@ -1,5 +1,5 @@
 /**
- * @dsh-desktop/desktop-settings —— 桌面设置页面注入（M2·e 官方 UI 注入）。
+ * @lansi-ai/dsh-desktop-settings —— 桌面设置页面注入（M2·e 官方 UI 注入）。
  *
  * 通过官方 Cordis Slots 机制向设置面板注册「桌面」section，提供：
  *   - 托盘行为开关（trayEnabled）
@@ -12,7 +12,7 @@
  * 注：本文件为浏览器侧 bundle（含 window 全局），不参与 Node 编译。
  */
 window.__ModuleLoader__.load({
-  id: '@dsh-desktop/desktop-settings',
+  id: '@lansi-ai/dsh-desktop-settings',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports
@@ -50,7 +50,7 @@ window.__ModuleLoader__.load({
         id: 'desktop',
         order: 10,
         label: () => '\u684c\u9762',
-        locale: '@dsh-desktop/desktop-settings',
+        locale: '@lansi-ai/dsh-desktop-settings',
         // 注意：不要声明 children（子 slot 名全局唯一，官方 general 已占用
         // settings.general.item；再声明会抛 "already declared" 使 section 注册失败）
       }, function DesktopSettingsSection() {

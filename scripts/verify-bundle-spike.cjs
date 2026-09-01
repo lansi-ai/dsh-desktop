@@ -67,7 +67,7 @@ for (const must of [
   '@deepseek-ai/dsh-api-gateway',
   '@deepseek-ai/dsh-api-remotes',
   '@deepseek-ai/dsh-client-runtime',
-  '@dsh-desktop/ipc-connection',
+  '@lansi-ai/dsh-ipc-connection',
 ]) {
   entryOf(must)
 }
@@ -77,8 +77,8 @@ for (const must of [
 assert.deepEqual(entryOf('@deepseek-ai/dsh-api-gateway').inject, ['@deepseek-ai/dsh-typert-registry', '@deepseek-ai/dsh-client-connection'], 'api-gateway inject 应为官方声明 [typert-registry, client-connection]')
 assert.deepEqual(entryOf('@deepseek-ai/dsh-api-remotes').inject, ['@deepseek-ai/dsh-api-gateway'], 'api-remotes inject 应为 [api-gateway]')
 // ipc-connection：external 依赖 client-connection/client（基类继承），且应 immediately 激活
-assert.deepEqual(entryOf('@dsh-desktop/ipc-connection').external, ['@deepseek-ai/dsh-client-connection/client'], 'ipc-connection external 应指向 client-connection/client')
-assert.strictEqual(entryOf('@dsh-desktop/ipc-connection').immediately, true, 'ipc-connection 应 immediately 激活')
+assert.deepEqual(entryOf('@lansi-ai/dsh-ipc-connection').external, ['@deepseek-ai/dsh-client-connection/client'], 'ipc-connection external 应指向 client-connection/client')
+assert.strictEqual(entryOf('@lansi-ai/dsh-ipc-connection').immediately, true, 'ipc-connection 应 immediately 激活')
 
 // 自动扫描应含全部 ui-* 客户端插件（官方 UI 渲染必需：ui-renderer 提供 mountApp 的服务）
 const uiIds = graph.entries.map((e) => e.id).filter((id) => id.toLowerCase().includes('ui-'))

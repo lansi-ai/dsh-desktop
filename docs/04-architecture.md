@@ -118,11 +118,11 @@ interface DesktopRoutes {      // webServer 等价面（ADR-007）
 ### 5.4 配置面（desktop profile 的 patch 行，示意）
 ```yaml
 - insert:
-    - id: desktop-core        name: '@dsh-desktop/desktop-host-core'
-    - id: desktop-tray        name: '@dsh-desktop/desktop-host-tray'
-    - id: desktop-shortcuts   name: '@dsh-desktop/desktop-host-shortcuts'
-    - id: desktop-compat      name: '@dsh-desktop/desktop-host-compat'   # desktopRoutes + 零端口 bundle 服务
-    - id: desktop-runtime     name: '@dsh-desktop/desktop-host-runtime'  # IPC 桥宿主端+dist 资产供给
+    - id: desktop-core        name: '@lansi-ai/dsh-desktop-host-core'
+    - id: desktop-tray        name: '@lansi-ai/dsh-desktop-host-tray'
+    - id: desktop-shortcuts   name: '@lansi-ai/dsh-desktop-host-shortcuts'
+    - id: desktop-compat      name: '@lansi-ai/dsh-desktop-host-compat'   # desktopRoutes + 零端口 bundle 服务
+    - id: desktop-runtime     name: '@lansi-ai/dsh-desktop-host-runtime'  # IPC 桥宿主端+dist 资产供给
 - id: webserver
   disabled: true
 - id: web-runtime

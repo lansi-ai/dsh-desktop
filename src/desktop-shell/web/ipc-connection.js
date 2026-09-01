@@ -1,5 +1,5 @@
 /**
- * @dsh-desktop/ipc-connection —— 零端口 IPC 载波客户端模块（路线 A）。
+ * @lansi-ai/dsh-ipc-connection —— 零端口 IPC 载波客户端模块（路线 A）。
  *
  * 继承官方 @deepseek-ai/dsh-client-connection 打包的 AbstractApiClient，
  * 覆写三个传输抽象点，把官方四象限 RPC 经 preload desktopBridge 转发到
@@ -8,14 +8,14 @@
  *   - openMux/openHost → desktopBridge.onFrame 帧路由（下行 server-request 帧）
  *
  * 生命周期（官方客户端模块系统 Lazy CJS）：
- *   bundle 经 `dsh-ui://plugins/@dsh-desktop/ipc-connection/client.js` 协议直读执行，
+ *   bundle 经 `dsh-ui://plugins/@lansi-ai/dsh-ipc-connection/client.js` 协议直读执行，
  *   仅调用 window.__ModuleLoader__.load({id, factory}) 注册 factory；
  *   factory 在首次 materialize 时运行（此处 require 官方 connection 拿基类）。
  *
  * 注：本文件为浏览器侧 bundle（含 window 全局），不参与 Node 编译。
  */
 window.__ModuleLoader__.load({
-  id: '@dsh-desktop/ipc-connection',
+  id: '@lansi-ai/dsh-ipc-connection',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports

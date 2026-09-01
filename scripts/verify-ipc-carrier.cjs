@@ -102,11 +102,11 @@ for (const src of [readClientConnectionSrc(), readIpcConnectionSrc()]) {
   sandboxRef = { window: w }
 }
 assert.ok(facts.has('@deepseek-ai/dsh-client-connection'), 'client-connection 工厂已注册')
-assert.ok(facts.has('@dsh-desktop/ipc-connection'), 'ipc-connection 工厂已注册')
+assert.ok(facts.has('@lansi-ai/dsh-ipc-connection'), 'ipc-connection 工厂已注册')
 
 // ── materialize ipc-connection：其中的 require('@deepseek-ai/dsh-client-connection/client')
 //    经 makeRequire 解析到 client-connection 工厂并拿到 AbstractApiClient ──
-const ipcFactory = facts.get('@dsh-desktop/ipc-connection')
+const ipcFactory = facts.get('@lansi-ai/dsh-ipc-connection')
 const ipcExports = ipcFactory(makeRequire(facts))
 
 assert.equal(typeof ipcExports.apply, 'function', 'ipc-connection 应导出 apply')

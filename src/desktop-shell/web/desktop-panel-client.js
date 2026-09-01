@@ -1,5 +1,5 @@
 /**
- * @dsh-desktop/desktop-panel —— 桌面面板容器注入（M2·e 官方 UI 注入）。
+ * @lansi-ai/dsh-desktop-panel —— 桌面面板容器注入（M2·e 官方 UI 注入）。
  *
  * 通过官方 Cordis Slots 机制向侧边栏底部注册「桌面面板」触发按钮，
  * 点击后打开桌面功能面板（悬浮模态框，显示快捷键/剪贴板等桌面能力入口）。
@@ -10,7 +10,7 @@
  * 注：本文件为浏览器侧 bundle（含 window 全局），不参与 Node 编译。
  */
 window.__ModuleLoader__.load({
-  id: '@dsh-desktop/desktop-panel',
+  id: '@lansi-ai/dsh-desktop-panel',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports
@@ -131,7 +131,7 @@ window.__ModuleLoader__.load({
         name: 'sidebar.footer.action',
         id: 'desktop-panel',
         order: 0,
-        locale: '@dsh-desktop/desktop-panel',
+        locale: '@lansi-ai/dsh-desktop-panel',
       }, SidebarDesktopButton))
 
       // 监听 IPC 驱动的面板打开/关闭

@@ -1,5 +1,5 @@
 /**
- * @dsh-desktop/desktop-cmdpalette —— 命令面板 renderer 注入（M3·a4 命令面板）。
+ * @lansi-ai/dsh-desktop-cmdpalette —— 命令面板 renderer 注入（M3·a4 命令面板）。
  *
  * ⏸️ 功能暂停（2026-08-27 用户决策）：本文件整体禁用——Ctrl+K 面板不再注册，
  * factory 直接返回空插件（apply 为空操作），恢复功能时 revert 本文件的禁用壳即可。
@@ -10,7 +10,7 @@
  */
 /* global Event */
 window.__ModuleLoader__.load({
-  id: '@dsh-desktop/desktop-cmdpalette',
+  id: '@lansi-ai/dsh-desktop-cmdpalette',
   factory: () => {
     const module = { exports: {} }
     const exports = module.exports
