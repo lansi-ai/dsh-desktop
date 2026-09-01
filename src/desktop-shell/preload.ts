@@ -35,6 +35,12 @@ const IPC_CHANNELS = {
   WINDOW_EVENT: 'desktop:window-event',
   /** 下行：会话上下文注入（窗口就绪后推送 sessionId → renderer onSessionContext）。 */
   SESSION_CONTEXT: 'desktop:session-context',
+  /** 上行：打开逻辑流载波（renderer openStream → host typertGateway.wireStream.open）。 */
+  STREAM_OPEN: 'dsh:stream-open',
+  /** 下行：逻辑流帧（stream-item 的 value → renderer openStream yield）。 */
+  STREAM_FRAME: 'dsh:stream-frame',
+  /** 下行：逻辑流结束/错误（renderer openStream 终止）。 */
+  STREAM_CLOSE: 'dsh:stream-close',
 } as const
 
 /**
@@ -161,6 +167,14 @@ export interface DesktopBridge {
   respond(rpcId: string, body: unknown): Promise<{ accepted: boolean }>
   /** 注册下行帧监听器（session/event、approval 等）。返回注销函数。 */
   onFrame(cb: (frame: unknown) => void): () => void
+  /** 打开逻辑流载波（0.1.2 __DSH_TRANSPORT__.openStream 的 IPC 背板）。 */
+  openStream(streamId: string, endpoint: string, payload: unknown): Promise<void>
+  /** 注册逻辑流帧监听。收到归入对应 streamId 的 yield 值。 */
+  onStreamFrame(cb: (frame: { streamId: string; value: unknown }) => void): () => void
+  /** 注册逻辑流关闭监听（正常结束或带错误 message）。 */
+  onStreamClose(cb: (frame: { streamId: string; message: string | null }) => void): () => void
+  /** 关闭逻辑流（renderer 侧 abort/GC）。 */
+  closeStream(streamId: string): void
   /** 注册桌面事件监听器。返回注销函数。 */
   onDesktopEvent(cb: (event: { action: string; payload?: unknown }) => void): () => void
   /** 窗口控制（当前窗口）。 */
@@ -220,6 +234,33 @@ function createDesktopBridge(): DesktopBridge {
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.FRAME, handler)
       }
+    },
+
+    // ── 逻辑流载波（0.1.2 __DSH_TRANSPORT__.openStream 背板）───────
+    async openStream(streamId: string, endpoint: string, payload: unknown): Promise<void> {
+      await ipcRenderer.invoke(IPC_CHANNELS.STREAM_OPEN, { streamId, endpoint, payload })
+    },
+    onStreamFrame(cb: (frame: { streamId: string; value: unknown }) => void): () => void {
+      const handler = (_event: Electron.IpcRendererEvent, frame: { streamId: string; value: unknown }): void => {
+        cb(frame)
+      }
+      ipcRenderer.on(IPC_CHANNELS.STREAM_FRAME, handler)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM_FRAME, handler)
+      }
+    },
+    onStreamClose(cb: (frame: { streamId: string; message: string | null }) => void): () => void {
+      const handler = (_event: Electron.IpcRendererEvent, frame: { streamId: string; message: string | null }): void => {
+        cb(frame)
+      }
+      ipcRenderer.on(IPC_CHANNELS.STREAM_CLOSE, handler)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.STREAM_CLOSE, handler)
+      }
+    },
+    closeStream(streamId: string): void {
+      // 尽力而为：host 侧已持有该流；重复关闭/未知 id 静默忽略。
+      ipcRenderer.invoke(IPC_CHANNELS.STREAM_OPEN, { streamId, endpoint: '__abort__', payload: undefined }).catch(() => {})
     },
 
     // ── 桌面事件监听 ──────────────────────────────────────────────

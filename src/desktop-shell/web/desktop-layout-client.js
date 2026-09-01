@@ -18,7 +18,9 @@ window.__ModuleLoader__.load({
 
     const React = require('react')
     const { useRef, useEffect, useLayoutEffect, useState, useCallback } = React
-    const runtime = require('@deepseek-ai/dsh-client-runtime/client')
+    // 0.1.2：defineStore 从已删除的 @deepseek-ai/dsh-client-runtime 迁至
+    // @deepseek-ai/dsh-client-store（引擎与签名不变，仅发行位置迁移）。
+    const runtime = require('@deepseek-ai/dsh-client-store')
 
     // ── 常量 ──────────────────────────────────────────────────
 
@@ -178,8 +180,11 @@ window.__ModuleLoader__.load({
 
     /**
      * 桌面版 AppFrame：三列布局根组件。
+     * 0.1.2：details 槽位为 strict session scope，须经 SessionProvider 提供 scope
+     * 绑定（对齐官方 ui-layout AppFrame 的 `<SessionProvider>{renderSlot('details')}</SessionProvider>`），
+     * 否则报 "strict session slot 'details' rendered without a scope binding"。
      */
-    function AppFrame({ useStore, useSessions, actions, renderSlot }) {
+    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider }) {
       const panels = useStore(s => s)
       const detailsSession = useSessions(s => {
         const current = s.current
@@ -294,7 +299,8 @@ window.__ModuleLoader__.load({
                 key: 'details',
                 className: 'dsh-desktop-layout-details',
                 style: { gridColumn: 3 },
-                children: renderSlot('details', {}),
+                // 0.1.2：strict session 槽位须经 SessionProvider 绑定 scope。
+                children: React.createElement(SessionProvider, {}, renderSlot('details', {})),
               }),
             ],
           }),

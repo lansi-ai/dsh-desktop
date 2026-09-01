@@ -1,5 +1,5 @@
 /**
- * dsh-desktop 主题联动（M3-b4 dogfood 主题体验收口）。
+ * dsh-desktop 主题联动（0.1.2 迁移 · host 事件直订阅）。
  *
  * 官方 Web UI 的主题偏好持久化在 Host settings 的 `ui-theme` namespace
  * （`preference` 字段：light/dark/system，默认 system，dsh-client-ui-theme 注册）。
@@ -7,7 +7,8 @@
  * prefers-color-scheme）由 nativeTheme 决定，默认跟随 OS——与应用内主题设置
  * 是两套系统。本模块把两者接通：
  *   1. 启动期经 `settings.describe` 读 ui-theme.preference → `nativeTheme.themeSource`；
- *   2. 订阅 apiProxy mux 流的 `settings/document-updated`（官方转发事件逐字语义）
+ *   2. 订阅 host 侧 Cordis 事件 `settings/document-updated`（官方转发白名单成员，
+ *      主进程同进程 host 直订阅，替代旧 apiProxy.events.mux/host 帧流）
  *      → 偏好变更时重新同步；
  *   3. nativeTheme 变化回调 `onNativeThemeChanged`（窗口/托盘黑白双版图标切换用）。
  *
@@ -21,10 +22,9 @@ import { nativeTheme } from 'electron'
 export interface ThemeSyncOptions {
   /** 统一 host RPC 调用入口（main.ts callApi）。 */
   callApi(method: string, params: unknown): Promise<unknown>
-  /** host apiProxy 事件流（订阅 mux + host 帧监听 settings 更新）。 */
-  events: {
-    mux(request: unknown, signal: AbortSignal): AsyncIterable<{ rpcId: string; payload: unknown }>
-    host(request: unknown, signal: AbortSignal): AsyncIterable<{ rpcId: string; payload: unknown }>
+  /** 0.1.2 Cordis Host 上下文（用于 host 事件直订阅）。 */
+  hostCtx: {
+    on(event: 'settings/document-updated', listener: (ns: string, revision: number) => void): () => boolean
   }
   /** nativeTheme 变化回调（参数 = 当前应为深色图标形态）。 */
   onNativeThemeChanged?(dark: boolean): void
@@ -67,7 +67,7 @@ async function readThemePreference(callApi: ThemeSyncOptions['callApi']): Promis
  * @returns 句柄（app 退出前 stop）。
  */
 export function installThemeSync(options: ThemeSyncOptions): ThemeSyncHandle {
-  const ac = new AbortController()
+  let stopped = false
 
   // 同步偏好 → nativeTheme.themeSource（system 态直传，保留 OS 跟随）。
   const sync = async (): Promise<void> => {
@@ -81,30 +81,13 @@ export function installThemeSync(options: ThemeSyncOptions): ThemeSyncHandle {
   }
   const ready = sync()
 
-  // 订阅 mux + host 帧：settings/document-updated → 重新读偏好（settings 写入都会发此事件，
-  // 重新 describe 一次代价可忽略，且免依赖帧内 ns 参数形态）。
-  // 注意：settings/document-updated 可能在 host 流（Host 级事件）或 mux 流中，双路订阅确保不漏。
-  const createPump = (stream: AsyncIterable<{ rpcId: string; payload: unknown }>): (() => void) => {
-    let stopped = false
-    const pump = async (): Promise<void> => {
-      try {
-        for await (const envelope of stream) {
-          if (stopped) break
-          const frame = envelope.payload as { type?: unknown } | null
-          if (frame !== null && frame.type === 'settings/document-updated') {
-            console.log('[dsh-theme] 收到 settings/document-updated，重新同步主题偏好')
-            await sync()
-          }
-        }
-      } catch {
-        // 流关闭（应用退出）——保持静默。
-      }
-    }
-    void pump()
-    return () => { stopped = true }
-  }
-  const stopMux = createPump(options.events.mux({}, ac.signal))
-  const stopHost = createPump(options.events.host({}, ac.signal))
+  // 0.1.2 host 事件直订阅：settings/document-updated → 重新读偏好。
+  // （settings 写入都会发此事件，重新 describe 一次代价可忽略，且免依赖帧内 ns 参数形态。）
+  const offSettings = options.hostCtx.on('settings/document-updated', () => {
+    if (stopped) return
+    console.log('[dsh-theme] 收到 settings/document-updated，重新同步主题偏好')
+    void sync()
+  })
 
   // nativeTheme 变化 → 图标形态回调（themeSource 同步与 OS 切换都会触发）。
   const onThemeUpdated = (): void => {
@@ -115,9 +98,8 @@ export function installThemeSync(options: ThemeSyncOptions): ThemeSyncHandle {
   return {
     ready,
     stop: (): void => {
-      ac.abort()
-      stopMux()
-      stopHost()
+      stopped = true
+      offSettings()
       nativeTheme.removeListener('updated', onThemeUpdated)
     },
   }

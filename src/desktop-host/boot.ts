@@ -17,7 +17,6 @@ import { join } from 'node:path'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { app } from 'electron'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'resolution-mode': 'import' }
-import { getIpcCarrierPatchEntries } from './manifest.js'
 
 // 运行时数据根目录（M4-a1·打包路径适配）：
 // 开发模式 → 项目内 .runtime（随仓库可清理）；打包模式 → 系统 userData 下 .runtime
@@ -73,11 +72,26 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'typert', name: '@deepseek-ai/dsh-typert-registry' },
       { id: 'typert-loader', name: '@deepseek-ai/dsh-typert-loader' },
       { id: 'typert-gateway', name: '@deepseek-ai/dsh-api-gateway' },
-      // apiProxy 服务（ctx.apiProxy）：官方 UI 对话的 host 会话事件→下行帧流来源
-      // （events.mux/host）。ApiProxyService.inject 需 agents/attachments/directoryPicker/
-      // llm/sessions/subagents/sessionQuery/tools/userQuestions/workspaceRegistry，
-      // 均在下方或 base 补丁装配。api-gateway 为 host-apiproxy 的 Cordis 条目名。
-      { id: 'api-gateway', name: '@deepseek-ai/dsh-host-apiproxy' },
+      // 0.1.2 传输背板：host 侧 connection(HostConnectionHandle) + api-remotes($events 源)。
+      //   connection：官方 host 半提供 `ctx.connection.createSharedFetchHandler('/api')` 等
+      //     （桌面经 bridge 转发 unary/逻辑流，见 main.ts 第 4 步）；
+      //   api-remotes：注册 `$events` forwarded Remote 事件源（api-gateway 消费），
+      //     host 端事件（api-session/*、settings/document-updated、approval/request 等）
+      //     经它泵给 renderer 的 ClientRemoteEvents。inject ['typertGateway']。
+      { id: 'api-remotes', name: '@deepseek-ai/dsh-api-remotes' },
+      // host 侧 connection（官方 `@deepseek-ai/dsh-client-connection` 的 host 半）：
+      // 提供 `ctx.connection.createSharedFetchHandler('/api')`（unary 面）。inject 需
+      // webServer（由 prepare 钩子注入的 compat 等价面提供）+ credentials（base 已装）。
+      // 官方 host connection 不绑定端口（只在 webServer 注册 /api 前缀路由，零监听 stub）。
+      { id: 'host-connection', name: '@deepseek-ai/dsh-client-connection' },
+      // 0.1.2 API controllers（web-app bundle L91-101 等价行）：typertGateway 解析
+      // session/*、settings/*、credentials/*、workspace/* Remote endpoint 的前提。
+      // 缺此三行 → createSharedFetchHandler 对这些端点返回 404、流端点 "no active Remote
+      // method"（实机 2026-09-01 定位）。依赖服务（agents/llm/session/settings/credentials/
+      // workspaceRegistry/typert 等）均已在上方或 base 补丁装配。
+      { id: 'session-controller', name: '@deepseek-ai/dsh-api-session-controller' },
+      { id: 'settings-controller', name: '@deepseek-ai/dsh-api-settings-controller' },
+      { id: 'workspace-controller', name: '@deepseek-ai/dsh-api-workspace-controller' },
       // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer
       // （已禁用），改为在 prepare 钩子直接实例化 native 版注入（见 boot() 内注释），
       // 此处不设 cordis 条目，避免 auto 版因缺 webServer 激活失败。
@@ -167,6 +181,11 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'tool-subagent', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', toolName: 'subagent', backgroundMode: 'continuable' } },
       { id: 'tool-subagent-fork', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'fork', toolName: 'subagent_fork', backgroundMode: 'one-shot' } },
       { id: 'tool-subagent-report', name: '@deepseek-ai/dsh-tool-subagent-report' },
+      // 0.1.2：subagent 模型选择设置（Host 平面顶层，对齐官方 web-app insert）。
+      // 缺此服务时，任何带 `modelSelectionSettings: true` 的 tool-subagent 装载
+      // （含恢复历史会话）会抛 "requires @deepseek-ai/dsh-tool-subagent/model-selection-settings
+      // in the Host scope"（实机 2026-09-01 定位）。依赖 settings（settings-file 已装）。
+      { id: 'subagent-model-selection-settings', name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings' },
       { id: 'workflow-worker-thread', name: '@deepseek-ai/dsh-workflow-worker-thread', config: { provider: 'spawn' } },
       { id: 'tool-workflow', name: '@deepseek-ai/dsh-tool-workflow' },
       { id: 'timeout-policy', name: '@deepseek-ai/dsh-tool-call-timeout-policy' },
@@ -191,10 +210,9 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'agent-loop', name: '@deepseek-ai/dsh-agent-loop', config: { agents: [] } },
       { id: 'fs-sandbox', name: '@deepseek-ai/dsh-fs-sandbox' },
       { id: 'llm-deepseek', name: '@deepseek-ai/dsh-llm-deepseek' },
-      // 第三方 web 插件（M1 门禁·无改动装载）：host 半经 ctx.webServer 等价面激活。
-      // 仅 INSERT 条目（对齐其 cordis.patch.yml），不修改插件代码；apply 依赖的
-      // webServer 由 prepare 钩子注入的 compat 等价服务提供（见 boot() 内注释）。
-      { id: 'opencode-usage', name: '@lnyanhongyan/dsh-opencode-usage' },
+      // 注：第三方插件 @lnyanhongyan/dsh-opencode-usage 因 peer 锁 rc.7 与 0.1.2 不兼容，
+      // 已在 M4-d3 升级轮移除（package.json 依赖 + 本 insert + THIRD_PARTY_CLIENT_IDS）。
+      // 待其升版后按 M1 门禁 ADR-007 重新装载。
     ],
   },
 
@@ -202,17 +220,20 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   { id: 'system-prompt', config: { persona: 'You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.' } },
   { id: 'session-query-sqlite', config: { path: ':memory:', openAt: 'never' } },
 
-  // ── §3 禁用 Web 传输层 + 启用 IPC 载波变体（步骤 4 实现）────────────
+  // ── §3 禁用 Web 传输层 + 启用 0.1.2 IPC 载波变体 ────────────────
+  // 零端口：禁用官方 webserver/web-runtime/web-startup/modules（host 传输层绑定端口）。
+  // api-remotes 不再禁用——0.1.2 中它是 $events 转发源（renderer 经 __DSH_TRANSPORT__
+  // 逻辑流拉取），必须激活（§1 已 insert，此处不再打 disabled）。
   { id: 'webserver', disabled: true },
   { id: 'web-runtime', disabled: true },
   { id: 'web-startup', disabled: true },
   { id: 'modules', disabled: true },
   { id: 'client-hmr', disabled: true },
-  { id: 'api-remotes', disabled: true },
   { id: 'cordis-client-runner', disabled: true },
   { id: 'cordis-host-runner', disabled: true },
-  // IPC 载波替换：connection + client-runtime → IPC 载波变体（doFetch/openMux/openHost/rpc）
-  ...getIpcCarrierPatchEntries(),
+  // 0.1.2 IPC 载波替换：不再禁用 connection（官方 host connection 提供
+  // createSharedFetchHandler，是桌面传输背板的核心）；client-runtime 已删（无此行）。
+  // 历史补丁条目（getIpcCarrierPatchEntries）已废弃，见 manifest.ts。
 
   // ── §4 桌面特定条目（storage + agent-presets）────────────────────────────
   // storage-json: root 用项目 .runtime/user-data/storages（R7：dshHomePath 服务可用前

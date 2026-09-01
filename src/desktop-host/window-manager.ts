@@ -34,8 +34,6 @@ import {
 import { IPC_CHANNELS } from '../types/channels.js'
 import { broadcastWindowEvent, cleanupWindowState } from './bridge.js'
 import { isVerbose } from './log.js'
-import type { DownlinkEventStream, DownlinkRelay } from './carrier-relay.js'
-import { startDownlinkRelay } from './carrier-relay.js'
 
 // ── 配置常量 ────────────────────────────────────────────────────────
 
@@ -136,8 +134,6 @@ export interface WindowManagerOptions {
   getMainWindow: () => BrowserWindow | null
   /** 获取应用图标路径。 */
   getAppIconPath: () => string
-  /** 宿主 apiProxy（用于 per-window 下行帧中继）。 */
-  apiProxy?: DownlinkEventStream
   /**
    * 获取窗口状态持久化文件路径（绝对路径）。
    * 若未提供则跳过持久化功能。
@@ -157,9 +153,6 @@ const windowRegistry = new Map<number, WindowRecord>()
 
 /** 会话绑定表：sessionId → windowId。 */
 const sessionToWindow = new Map<string, number>()
-
-/** 窗口下行帧中继句柄表：windowId → DownlinkRelay。 */
-const windowRelays = new Map<number, DownlinkRelay>()
 
 /** 管理器是否已初始化。 */
 let initialized = false
@@ -334,14 +327,12 @@ export function attachWindowMaximizedStateBroadcast(win: BrowserWindow): void {
  * @param sessionId 绑定的会话 ID。
  * @param bounds 初始边界。
  * @param options 管理器选项。
- * @param apiProxy 宿主 apiProxy（可选，用于 per-window 帧中继）。
  * @returns 新创建的 BrowserWindow。
  */
 function createBrowserWindow(
   sessionId: string,
   bounds: WindowBounds,
   options: WindowManagerOptions,
-  apiProxy?: DownlinkEventStream,
 ): BrowserWindow {
   const win = new BrowserWindow({
     width: bounds.width,
@@ -463,12 +454,6 @@ function createBrowserWindow(
   win.on('closed', () => {
     const rec = windowRegistry.get(win.id)
     if (rec !== undefined) {
-      // 清理中继
-      const relay = windowRelays.get(win.id)
-      if (relay !== undefined) {
-        relay.stop()
-        windowRelays.delete(win.id)
-      }
       removeWindow(win.id)
       cleanupWindowState(win.id)
       console.log(`[dsh-window-manager] 窗口已关闭: ${rec.sessionId} (windowId=${win.id})`)
@@ -477,13 +462,6 @@ function createBrowserWindow(
 
   // 加载官方 UI
   void win.loadURL('dsh-ui://app/index.html')
-
-  // 启动 per-window 下行帧中继
-  if (apiProxy !== undefined) {
-    const relay = startDownlinkRelay(apiProxy, win.webContents)
-    windowRelays.set(win.id, relay)
-    console.log(`[dsh-window-manager] 窗口下行帧中继已启动: windowId=${win.id}`)
-  }
 
   // 会话窗口创建完成回调（main.ts 注入：附加骨架外观注入等宿主能力）
   options.onSessionWindowCreated?.(win)
@@ -582,7 +560,7 @@ function createSessionWindow(
 
   // 创建新窗口
   const bounds = request.bounds ?? cascadeBounds()
-  const win = createBrowserWindow(sessionId, bounds, options, options.apiProxy)
+  const win = createBrowserWindow(sessionId, bounds, options)
 
   // 注册到注册表
   const now = Date.now()
@@ -705,10 +683,6 @@ function initializeWithOptions(options: WindowManagerOptions): void {
 function dispose(): void {
   // 先保存当前状态
   void savePersistState()
-  for (const relay of windowRelays.values()) {
-    relay.stop()
-  }
-  windowRelays.clear()
   windowRegistry.clear()
   sessionToWindow.clear()
   if (persistTimer !== null) {
@@ -740,7 +714,6 @@ function restorePersistedWindows(state: WindowPersistState): void {
       entry.sessionId,
       entry.bounds,
       currentOptions,
-      currentOptions.apiProxy,
     )
     const now = Date.now()
     windowRegistry.set(win.id, {

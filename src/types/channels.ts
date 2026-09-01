@@ -26,6 +26,12 @@ export const IPC_CHANNELS = {
   WINDOW_EVENT: 'desktop:window-event',
   /** 下行：会话上下文注入（窗口就绪后推送 sessionId → renderer onSessionContext）。 */
   SESSION_CONTEXT: 'desktop:session-context',
+  /** 上行：打开逻辑流载波（renderer openStream → host typertGateway.wireStream.open）。 */
+  STREAM_OPEN: 'dsh:stream-open',
+  /** 下行：逻辑流帧（stream-item 的 value → renderer openStream yield）。 */
+  STREAM_FRAME: 'dsh:stream-frame',
+  /** 下行：逻辑流结束/错误（renderer openStream 终止）。 */
+  STREAM_CLOSE: 'dsh:stream-close',
 } as const satisfies Record<string, string>
 
 /** IPC 通道名联合类型。 */

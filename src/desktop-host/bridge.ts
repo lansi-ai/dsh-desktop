@@ -19,6 +19,7 @@ import {
   clientResponseSchema,
   readyNotificationSchema,
   frameSchema,
+  streamOpenSchema,
 } from '../types/contract.js'
 import type {
   RpcRequest,
@@ -57,6 +58,30 @@ const methodTable = new Map<string, RpcHandler>()
 
 /** 默认 API 代理处理器。 */
 let defaultApiProxyHandler: ((request: RpcRequest) => unknown | Promise<unknown>) | null = null
+
+/**
+ * 0.1.2 host 连接传输背板：逻辑流经 `typertGateway.wireStream.open` 订阅。
+ * unary 仍走既有 defaultApiProxyHandler（main.bootstrap 装配为 connection fetch）。
+ * 由 main.bootstrap 在完成 boot（typertGateway 就绪）后注入。
+ */
+interface HostConnectionTransport {
+  /** host 端逻辑流 opener（返回 AsyncIterable 或 Promise<AsyncIterable>，yield 值）。 */
+  openStream(endpoint: string, payload: unknown, signal: AbortSignal): AsyncIterable<unknown> | Promise<AsyncIterable<unknown>>
+}
+let connectionTransport: HostConnectionTransport | null = null
+
+/**
+ * 已激活的逻辑流（streamId → 运行中的流句柄）。
+ * 流帧经 webContents.send 推给对应窗口；流结束/错误发 stream-close。
+ */
+interface ActiveStream {
+  webContents: WebContents
+  ac: AbortController
+  iterator: AsyncIterator<unknown>
+  ended: boolean
+  onDestroyed: () => void
+}
+const activeStreams = new Map<string, ActiveStream>()
 
 /** WindowManager 引用（供 READY 通知后注入会话上下文）。 */
 let windowManagerRef: { sendSessionContextToWindow: (windowId: number) => void } | null = null
@@ -214,6 +239,40 @@ export function registerIpcBridge(options?: BridgeOptions): void {
     return { accepted: false }
   })
 
+  // ── dsh:stream-open — 打开逻辑流载波（0.1.2 renderer openStream 背板）──
+  ipcMain.handle(IPC_CHANNELS.STREAM_OPEN, async (event, raw: unknown): Promise<{ opened: boolean }> => {
+    const parsed = streamOpenSchema.safeParse(raw)
+    if (!parsed.success) {
+      throw new AppError(ErrorCodes.INVALID_ARGUMENT, 'stream-open 格式无效', parsed.error.issues)
+    }
+    const { streamId, endpoint, payload } = parsed.data
+
+    // 上行挂起（renderer closeStream 的 `__abort__` 哨兵）：中止对应流。
+    if (endpoint === '__abort__') {
+      abortStream(streamId)
+      return { opened: false }
+    }
+    if (connectionTransport === null) {
+      throw new AppError(ErrorCodes.METHOD_NOT_FOUND, 'host 逻辑流载波未就绪（typertGateway.wireStream.open 缺失）')
+    }
+    if (activeStreams.has(streamId)) {
+      throw new AppError(ErrorCodes.INVALID_ARGUMENT, `逻辑流已激活: ${streamId}`)
+    }
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window === null || window.webContents.isDestroyed()) {
+      return { opened: false }
+    }
+    const webContents = window.webContents
+    const ac = new AbortController()
+    const stream = await connectionTransport.openStream(endpoint, payload, ac.signal)
+    const iterator = stream[Symbol.asyncIterator]()
+    const onDestroyed = (): void => abortStream(streamId)
+    activeStreams.set(streamId, { webContents, ac, iterator, ended: false, onDestroyed })
+    webContents.once('destroyed', onDestroyed)
+    void pumpStream(streamId)
+    return { opened: true }
+  })
+
   // ── dsh:ready — renderer 就绪通知 ────────────────────────────────
   ipcMain.on(IPC_CHANNELS.READY, (_event, raw: unknown) => {
     const parsed = readyNotificationSchema.safeParse(raw)
@@ -284,6 +343,65 @@ export function unregisterMethod(method: string): void {
  */
 export function setApiProxyHandler(handler: (request: RpcRequest) => unknown | Promise<unknown>): void {
   defaultApiProxyHandler = handler
+}
+
+/**
+ * 装配 0.1.2 host 连接传输背板（unary fetch + 逻辑流 opener）。
+ * 由 main.bootstrap 在完成 boot（connection/typertGateway 就绪）后调用。
+ *
+ * @param transport 传输背板。
+ */
+export function setConnectionTransport(transport: HostConnectionTransport): void {
+  connectionTransport = transport
+}
+
+/**
+ * 泵取一条逻辑流的帧，逐帧推送对应窗口，至流结束/错误/中断。
+ *
+ * @param streamId 流标识。
+ */
+async function pumpStream(streamId: string): Promise<void> {
+  const record = activeStreams.get(streamId)
+  if (record === undefined) return
+  const { webContents, iterator } = record
+  try {
+    while (!record.ended && !webContents.isDestroyed()) {
+      const next = await iterator.next()
+      if (next.done === true || record.ended || webContents.isDestroyed()) return
+      webContents.send(IPC_CHANNELS.STREAM_FRAME, { streamId, value: next.value })
+    }
+  } catch (error) {
+    if (record.ended || webContents.isDestroyed()) return
+    finishStream(streamId, error instanceof Error ? error.message : String(error))
+    return
+  }
+  finishStream(streamId, null)
+}
+
+/**
+ * 中止一条逻辑流（renderer abort / 窗口销毁 / 应用退出）。
+ *
+ * @param streamId 流标识。
+ */
+function abortStream(streamId: string): void {
+  activeStreams.get(streamId)?.ac.abort()
+}
+
+/**
+ * 收尾一条逻辑流：中止、移除监听、清空记录，并向 renderer 发 stream-close。
+ *
+ * @param streamId 流标识。
+ * @param message 错误消息；null 表示正常结束。
+ */
+function finishStream(streamId: string, message: string | null): void {
+  const record = activeStreams.get(streamId)
+  if (record === undefined) return
+  activeStreams.delete(streamId)
+  record.ac.abort()
+  record.webContents.removeListener('destroyed', record.onDestroyed)
+  if (!record.webContents.isDestroyed()) {
+    record.webContents.send(IPC_CHANNELS.STREAM_CLOSE, { streamId, message })
+  }
 }
 
 /**
@@ -455,12 +573,21 @@ export function registerWindowManagerMethods(
 export function removeIpcHandlers(): void {
   ipcMain.removeHandler(IPC_CHANNELS.RPC)
   ipcMain.removeHandler(IPC_CHANNELS.RESPOND)
+  ipcMain.removeHandler(IPC_CHANNELS.STREAM_OPEN)
   ipcMain.removeHandler(IPC_CHANNELS.DESKTOP_INVOKE)
   ipcMain.removeAllListeners(IPC_CHANNELS.READY)
+  // 中止全部激活的逻辑流（应用退出清理）。
+  for (const streamId of [...activeStreams.keys()]) {
+    const record = activeStreams.get(streamId)
+    activeStreams.delete(streamId)
+    record?.webContents.removeListener('destroyed', record.onDestroyed)
+    record?.ac.abort()
+  }
   methodTable.clear()
   windowStates.clear()
   frameListeners.clear()
   defaultApiProxyHandler = null
+  connectionTransport = null
 }
 
 // ── 内部工具 ─────────────────────────────────────────────────────────

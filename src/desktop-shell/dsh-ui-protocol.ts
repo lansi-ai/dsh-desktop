@@ -110,7 +110,89 @@ function bootManifestScript(useDist: boolean): string {
   // 注入当前实际安装的 DSH 基线版本全局，供自绘 UI（如标题栏）渲染展示。
   const baseVersion = resolveDshBaseVersion()
   const versionScript = `<script>window.__DSH_BASE_VERSION__ = ${JSON.stringify(baseVersion)}</script>`
-  return boot + versionScript
+  // 0.1.2 自持传输载波：官方 client-connection 的 apply() 读 `window.__DSH_TRANSPORT__`
+  // 选传输。必须在 plugin boot 前把桌面 IPC 传输装成页面全局（对齐官方 worker-preview
+  // 的 connectWorkerHost 形态），官方 createWebConnectionRpc 自动装配 ctx.connection。
+  //   fetch       → desktopBridge.request（unary，host connection.createSharedFetchHandler.fetch）
+  //   openStream  → preload 逻辑流载波（$events / 业务流经 host typertGateway.wireStream.open）
+  //   ownsHost    → isLoopback 恒真，绕过 Host/Origin 信任围栏
+  const transportScript = `<script>
+(()=>{
+  const transport = {
+    async fetch(input, init) {
+      const url = input instanceof URL ? input : new URL(String(input))
+      const method = String(init?.method ?? 'GET').toUpperCase()
+      const body = init?.body != null ? JSON.parse(String(init.body)) : undefined
+      if (method !== 'POST' || body == null) {
+        return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      const rpcId = body.rpcId
+      const rpcMethod = body.method ?? url.pathname.replace(/^\\/api\\//, '')
+      if (rpcId === undefined || rpcMethod === undefined) {
+        return new Response('invalid client-request', { status: 400 })
+      }
+      const raw = await window.desktopBridge.request({ rpcId, method: rpcMethod, params: body.payload })
+      const result = raw && typeof raw === 'object' && 'error' in raw
+        ? { ok: false, error: raw.error }
+        : { ok: true, value: raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw }
+      return new Response(JSON.stringify({ type: 'server-response', rpcId, result }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      })
+    },
+    async *openStream(endpoint, payload, signal) {
+      const db = window.desktopBridge
+      const streamId = (() => {
+        return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : \`\${Date.now()}-\${Math.random().toString(36).slice(2)}\`
+      })()
+      const queue = []
+      const waiters = []
+      const offFrame = db.onStreamFrame((frame) => {
+        if (frame.streamId !== streamId) return
+        queue.push(frame.value)
+        const waiter = waiters.shift()
+        if (waiter !== undefined) waiter()
+      })
+      let closed = false
+      let closeMessage = null
+      const offClose = db.onStreamClose((frame) => {
+        if (frame.streamId !== streamId) return
+        closed = true
+        closeMessage = frame.message
+        const waiter = waiters.shift()
+        if (waiter !== undefined) waiter()
+      })
+      const onAbort = () => { db.closeStream(streamId) }
+      signal.addEventListener('abort', onAbort, { once: true })
+      try {
+        await db.openStream(streamId, endpoint, payload)
+        while (true) {
+          if (queue.length > 0) { yield queue.shift(); continue }
+          if (closed) { if (closeMessage !== null) throw new Error(closeMessage); return }
+          await new Promise((resolve) => { waiters.push(resolve) })
+        }
+      } finally {
+        signal.removeEventListener('abort', onAbort)
+        offFrame()
+        offClose()
+        db.closeStream(streamId)
+      }
+    },
+    loadBundle: undefined,
+    ownsHost: true,
+  }
+  window.__DSH_TRANSPORT__ = transport
+})()</script>`
+  // 0.1.2 就绪门控：官方 `AppWebEntry.run()` 首行 `await __DSH_BOOT_READY__.promise`。
+  // 桌面在 `__DSH_BOOT__` + 模块系统 bootstrap 脚本之后 resolve（对齐官方 webserver
+  // tail 脚本 `READY_MARKUP`：`??= Promise.withResolvers()` 后 resolve）。
+  const readyScript = `<script>
+(()=>{
+  const ready = globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()
+  ready.resolve()
+})()</script>`
+  return boot + versionScript + transportScript + readyScript
 }
 
 /** 读取当前实际安装的 `@deepseek-ai/dsh` 基线版本（主进程侧，require 已安装包）。 */

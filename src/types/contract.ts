@@ -123,6 +123,27 @@ export const readyNotificationSchema = z.object({
   windowId: z.number().int(),
 })
 
+// ── 逻辑流载波（0.1.2 __DSH_TRANSPORT__.openStream） ─────────────────
+
+/** 打开逻辑流载波的上行请求（renderer openStream → host）。 */
+export const streamOpenSchema = z.object({
+  streamId: rpcIdSchema,
+  endpoint: z.string().min(1),
+  payload: z.unknown().nullable().optional(),
+})
+
+/** 逻辑流下行帧（stream-item value）。 */
+export const streamFrameSchema = z.object({
+  streamId: rpcIdSchema,
+  value: z.unknown(),
+})
+
+/** 逻辑流关闭（stream-end / stream-error）。正确收尾即正常结束；带 message 视为错误抛给 renderer。 */
+export const streamCloseSchema = z.object({
+  streamId: rpcIdSchema,
+  message: z.string().nullable().optional(),
+})
+
 // ── TypeScript 类型导出 ──────────────────────────────────────────────
 
 /** RPC 请求。 */
@@ -154,3 +175,12 @@ export type ServerResponse = z.infer<typeof serverResponseSchema>
 
 /** Renderer 就绪通知。 */
 export type ReadyNotification = z.infer<typeof readyNotificationSchema>
+
+/** 打开逻辑流载波的上行请求。 */
+export type StreamOpen = z.infer<typeof streamOpenSchema>
+
+/** 逻辑流下行帧。 */
+export type StreamFrame = z.infer<typeof streamFrameSchema>
+
+/** 逻辑流关闭。 */
+export type StreamClose = z.infer<typeof streamCloseSchema>

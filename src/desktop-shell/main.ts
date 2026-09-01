@@ -17,7 +17,8 @@ import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
 import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
 import { refreshTrayIcon } from '../desktop-host/desktop-tray.js'
-import type { ApiProxy } from '@deepseek-ai/dsh-host-apiproxy' with { 'resolution-mode': 'import' }
+import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection' with { 'resolution-mode': 'import' }
+import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway' with { 'resolution-mode': 'import' }
 
 /**
  * dsh-desktop 主进程入口（M1·步骤6：崩溃 relaunch 自愈 v0 + 零端口验证铺垫）。
@@ -275,19 +276,27 @@ async function bootstrap(): Promise<void> {
       console.error('[dsh-boot] Agent 预设扫描探针失败:', error)
     }
 
-    // 4. 连接 IPC 桥与 Cordis Host 的 apiProxy
-    const { setApiProxyHandler } = await import('../desktop-host/bridge.js')
-    const { toFetchHandler } = await import('@deepseek-ai/dsh-host-apiproxy')
-    const apiProxy = (hostCtx as Record<string, unknown>)['apiProxy'] as ApiProxy | undefined
-    if (apiProxy === undefined) {
-      throw new Error('Cordis Host 未装配 apiProxy（检查 boot.ts 的 api-gateway/dsh-host-apiproxy）')
+    // 4. 连接 IPC 桥与 Cordis Host 的 0.1.2 传输背板（connection + typertGateway）
+    // 0.1.2 中 host 传输由官方 connection(HostConnectionHandle) + typertGateway 提供：
+    //   - unary：connection.createSharedFetchHandler('/api').fetch(request)（业务端点 + $events/result）
+    //   - 逻辑流：typertGateway.wireStream.open(endpoint, payload, signal)（$events + 业务流）
+    // 对照官方 worker-preview 的 worker-host.ts tunnel.serve({directFetch, openStream})。
+    const { setApiProxyHandler, setConnectionTransport } = await import('../desktop-host/bridge.js')
+    const connection = (hostCtx as { get(name: string): unknown }).get('connection') as
+      | (HostConnectionHandle & { createSharedFetchHandler(channel: '/api'): { fetch(request: Request): Promise<Response> } })
+      | undefined
+    const typertGateway = (hostCtx as { get(name: string): unknown }).get('typertGateway') as
+      | TypertGateway
+      | undefined
+    if (connection === undefined) {
+      throw new Error('Cordis Host 未装配 connection（检查 boot.ts 的 dsh-client-connection host）')
     }
-    // host 侧 RPC 的正确入口是官方 toFetchHandler(api)：把 client-request envelope 经
-    // `/api/<method>`（host 内虚拟路由，不真正走网络）分发给 api[domain][method]。
-    // 我们协议用 {rpcId, method, params} 而非 HTTP，因此桥把 method 映射为路径。
-    const apiFetch = toFetchHandler(apiProxy)
+    if (typertGateway === undefined) {
+      throw new Error('Cordis Host 未装配 typertGateway（检查 boot.ts 的 dsh-api-gateway）')
+    }
+    const connectionFetch = connection.createSharedFetchHandler('/api')
     // 解包官方 server-response 信封：result.ok 为真返回 result.value（bridge 包成 {rpcId,data}），
-    // result.ok 为假抛错（bridge catch → {rpcId, error}），使 renderer 端 ipcRpcCall 正确分流。
+    // result.ok 为假抛错（bridge catch → {rpcId, error}），使 renderer 端正确分流。
     // 注意：非 2xx（如 404）是纯文本 "not found"，需先判 ok，否则 res.json 会抛 SyntaxError。
     const unpackServerResponse = async (res: Response): Promise<unknown> => {
       if (!res.ok) throw new Error(`api 调用失败: HTTP ${res.status} ${res.statusText}`)
@@ -297,13 +306,9 @@ async function bootstrap(): Promise<void> {
       if (!result.ok) throw new Error(result.error?.message ?? `api 调用失败 (${result.error?.code ?? 'unknown'})`)
       return result.value
     }
-    // 统一 host RPC 调用入口：桥 fallback 与启动期预热共用同一通路
-    // Typert remote 端点（commands/list、fileReferences/list 等）不在 apiProxy
-    // unary 表内（上游经 connection.rpc.intercept('/api') 认领），零端口下由
-    // typert-gateway.invokeRpc 兜底，避免 HTTP 404。
-    const typertGateway = (hostCtx as { get(name: string): unknown }).get('typertGateway') as
-      | { invokeRpc(endpoint: string, payload: unknown, signal?: AbortSignal): Promise<{ ok: boolean; value?: unknown; error?: { code?: string; message?: string } }> }
-      | undefined
+    // 统一 host RPC 调用入口：桥 fallback 与启动期预热共用同一通路。
+    // 走 connection createSharedFetchHandler（0.1.2 官方 connection.rpc.intercept('/api')
+    // 已由 typertGateway 认领全部业务端点 + $events/result，无需额外 404 兜底）。
     const callApi = async (method: string, params: unknown): Promise<unknown> => {
       const envelope = {
         type: 'client-request' as const,
@@ -311,20 +316,18 @@ async function bootstrap(): Promise<void> {
         method,
         payload: params,
       }
-      // 官方 toFetchHandler 内部用 new URL(req.url) 取 pathname，相对路径会抛
+      // connectionFetch.fetch 内部用 new URL(req.url) 取 pathname，相对路径会抛
       // "Failed to parse URL"；这里用 http://local 作虚拟 base，fetch 只读 pathname。
-      const res = await apiFetch.fetch(
+      const res = await connectionFetch.fetch(
         new Request(`http://local/api/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
       )
-      if (res.status === 404 && typertGateway !== undefined) {
-        // Typert remote 形态：payload 为 {args}，返回 {ok, value | error}
-        const result = await typertGateway.invokeRpc(method, params)
-        if (result.ok) return result.value
-        throw new Error(result.error?.message ?? `typert 调用失败 (${result.error?.code ?? 'unknown'})`)
-      }
       return await unpackServerResponse(res)
     }
     setApiProxyHandler(async (request: RpcRequest) => callApi(request.method, request.params))
+    // 逻辑流背板：bridge 的 dsh:stream-open 转发到 host typertGateway.wireStream.open。
+    setConnectionTransport({
+      openStream: (endpoint, payload, signal) => typertGateway.wireStream.open(endpoint, payload, signal),
+    })
 
     // 4.5 宿主骨架外观：先安装句柄（主窗口 + 会话窗口共用），窗口创建后 attach。
     // :root 外观变量注入（托盘色/圆角/边距），二开可经配置或插件覆盖，宿主源码零改动。
@@ -337,7 +340,8 @@ async function bootstrap(): Promise<void> {
     const { installThemeSync } = await import('../desktop-host/theme-sync.js')
     themeSyncHandle = installThemeSync({
       callApi,
-      events: apiProxy.events,
+      // 0.1.2：host 事件直订阅（settings/document-updated），不再消费 apiProxy.events.mux。
+      hostCtx: hostCtx as { on(event: 'settings/document-updated', listener: (ns: string, revision: number) => void): () => boolean },
       onNativeThemeChanged: () => refreshAppIcons(),
     })
     await themeSyncHandle.ready
@@ -347,7 +351,7 @@ async function bootstrap(): Promise<void> {
     const { rewarmPersistedSessions } = await import('../desktop-host/session-rewarm.js')
     await rewarmPersistedSessions(callApi)
 
-    // 5. 注册 IPC 载波服务到 Cordis 上下文
+    // 5. 注册 IPC 载波服务到 Cordis 上下文（0.1.2：走 connection createSharedFetchHandler）
     registerIpcCarrierServices(hostCtx, {
       handleRpc: async (request: RpcRequest) => {
         const envelope = {
@@ -356,13 +360,13 @@ async function bootstrap(): Promise<void> {
           method: request.method,
           payload: request.params,
         }
-        const res = await apiFetch.fetch(
+        const res = await connectionFetch.fetch(
           new Request(`http://local/api/${request.method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
         )
         return await unpackServerResponse(res)
       },
       handleRespond: async (response: { rpcId: string; body: unknown }) => {
-        const res = await apiFetch.fetch(
+        const res = await connectionFetch.fetch(
           new Request(`http://local/api/respond`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rpcId: response.rpcId, body: response.body }) }),
         )
         return (await res.json()) as { accepted: boolean }
@@ -375,15 +379,11 @@ async function bootstrap(): Promise<void> {
     // 6.1 骨架外观注入主窗口（:root 外观变量；did-finish-load 后生效，已加载则立即注入）
     desktopAppearanceHandle?.attach(win)
 
-    // 7. 获取下行帧代理（供 WindowManager 和主窗口中继共用）
-    const downlinkProxy = apiProxy as unknown as import('../desktop-host/carrier-relay.js').DownlinkEventStream
-
     // 7.5. 初始化窗口管理器（M3·多窗口基建 + 持久化）
     const windowStateFilePath = join(app.getPath('userData'), 'window-state.json')
     windowManager = createWindowManager({
       getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
       getAppIconPath: () => join(__dirname, 'web', nativeTheme.shouldUseDarkColors ? 'app-icon-dark.png' : 'app-icon-light.png'),
-      apiProxy: downlinkProxy,
       getStateFilePath: () => windowStateFilePath,
       // 会话窗口创建后附加骨架外观注入（:root 外观变量，多窗口一致）
       onSessionWindowCreated: (sessionWin) => desktopAppearanceHandle?.attach(sessionWin),
@@ -408,21 +408,6 @@ async function bootstrap(): Promise<void> {
       }
     }
 
-    // 8. 启动 host 会话事件 → renderer 下行帧中继（攻坚第 2 批：session/event 等
-    //    server-request 帧经 bridge 下发，使官方 UI 完成端到端对话）
-    if (downlinkProxy?.events?.mux !== undefined) {
-      const { startDownlinkRelay } = await import('../desktop-host/carrier-relay.js')
-      const relayState = { relay: null as import('../desktop-host/carrier-relay.js').DownlinkRelay | null }
-      relayState.relay = startDownlinkRelay(downlinkProxy, win.webContents)
-      win.on('closed', () => {
-        relayState.relay?.stop()
-        relayState.relay = null
-      })
-      console.log('[dsh-desktop] host 会话事件下行帧中继已启动')
-    } else {
-      console.warn('[dsh-desktop] 未找到 host apiProxy，跳过下行帧中继（官方 UI 对话将不可用）')
-    }
-
     // 8. 桌面能力（M2）：托盘（关窗驻留 + 快速问答）+ 系统通知。
     // 依赖 ctx.desktop 聚合服务（boot() prepare 注入）；需窗口已创建后安装。
     const desktopCore = (hostCtx as Record<string, unknown>)['desktop'] as DesktopCore | undefined
@@ -431,7 +416,12 @@ async function bootstrap(): Promise<void> {
       const { installDesktopNotify } = await import('../desktop-host/desktop-notify.js')
       const getWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
       desktopTrayHandle = installDesktopTray({ getWindow, desktop: desktopCore })
-      desktopNotifyHandle = installDesktopNotify({ desktop: desktopCore, events: downlinkProxy, getWindow })
+      // 0.1.2：通知改 host 事件直订阅（hostCtx.on），不再消费 apiProxy.events.mux。
+      desktopNotifyHandle = installDesktopNotify({
+        desktop: desktopCore,
+        hostCtx: hostCtx as import('../desktop-host/desktop-notify.js').NotifyHostContext,
+        getWindow,
+      })
 
       // M2·d3 shortcuts/clipboard：全局快捷键 + 剪贴板（write 走 approval）。
       const { installDesktopShortcuts, handleShortcutRegister, handleShortcutUnregister } = await import('../desktop-host/desktop-shortcuts.js')

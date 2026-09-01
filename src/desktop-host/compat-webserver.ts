@@ -112,6 +112,24 @@ export class HttpCompatRegistry {
     return this.routes.map((r) => r.path)
   }
 
+  // ── 0.1.2 装配兼容（registerUpgrade） ─────────────────────────────
+  // 0.1.2 api-gateway 构造时经 `ctx.inject(['connection','webServer'])` 注册
+  // `/api/remote.mux` WebSocket upgrade 路由（`webCtx.webServer.registerUpgrade(route)`）。
+  // 桌面自持传输走 `typertGateway.wireStream.open` 内存直连，**不经主 ws mux**，
+  // 但 gateway 的装配代码仍会调用 registerUpgrade——此处提供内存幂等占位，使 gateway
+  // 在零监听 stub 上也能正常激活（route 仅为装配表项，无真实 socket 可升级）。
+  // 沿用独立 upgrades 表管理，支持 dispose 幂等。
+  private upgrades: Array<{ path: string; handler: unknown }> = []
+
+  /** 注册 HTTP upgrade 路由（对齐 webServer.registerUpgrade），返回 dispose 解除注册。 */
+  registerUpgrade(route: { path: string; handler: unknown }): () => void {
+    this.upgrades.push({ path: route.path, handler: route.handler })
+    return () => {
+      const index = this.upgrades.findIndex((u) => u.path === route.path)
+      if (index !== -1) this.upgrades.splice(index, 1)
+    }
+  }
+
   /** 判断一个 pathname 是否命中已注册路由（用于协议层白名单过滤）。 */
   matchesRegisteredRoute(pathname: string): boolean {
     return this.routes.some((r) =>
@@ -142,6 +160,10 @@ export async function installWebServerCompat(ctx: unknown): Promise<void> {
   class WebServerCompat extends (Service as any) {
     register(route: HttpCompatRoute): () => void {
       return registry.register(route)
+    }
+    registerUpgrade(route: { path: string; handler: unknown }): () => void {
+      // 0.1.2 api-gateway 的 `/api/remote.mux` WS upgrade 装配占位（内存幂等，零监听）。
+      return registry.registerUpgrade(route)
     }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

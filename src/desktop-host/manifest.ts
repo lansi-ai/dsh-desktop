@@ -99,21 +99,17 @@ export function registerIpcCarrierServices(
 // ── 补丁条目（供 Cordis patch 系统使用） ─────────────────────────────
 
 /**
- * 获取 IPC 载波变体的 Cordis patch 条目。
+ * 获取 0.1.2 IPC 载波变体的 Cordis patch 条目。
  *
- * 禁用官方 WebSocket/HTTP 传输层（connection + client-runtime），
- * 这些服务由 IPC 载波变体在 bridge.ts 和 manifest.ts 层面替代。
+ * 0.1.2 中不再禁用官方 connection——官方 host connection 提供
+ * `ctx.connection.createSharedFetchHandler('/api')`，是桌面传输背板的核心；
+ * `client-runtime` 包已删除（无此行可禁）。载波由 renderer `__DSH_TRANSPORT__`
+ * + bridge 转发到 connection/typertGateway（见 main.ts 第 4 步）。
  *
- * 注意：IPC 载波服务不是 Cordis 插件，而是通过 registerIpcCarrierServices()
- * 在 TypeScript 层直接注册到 Cordis 上下文。
+ * 保留本函数仅作兼容面（历史调用点 boot.ts 已移除），返回空数组。
  *
- * @returns Cordis patch 条目数组（仅禁用条目）。
+ * @returns Cordis patch 条目数组（0.1.2 为空）。
  */
 export function getIpcCarrierPatchEntries(): unknown[] {
-  return [
-    // 禁用官方 WebSocket/HTTP 传输层
-    // IPC 载波变体由 bridge.ts + manifest.ts 在 TypeScript 层提供
-    { id: 'connection', disabled: true },
-    { id: 'client-runtime', disabled: true },
-  ]
+  return []
 }

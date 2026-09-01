@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { bootGraphSchema, type BootEntry, type BootGraph } from '../types/boot.js'
+import { bootGraphSchema, type BootEntry, type BootGraph, type BootBatch } from '../types/boot.js'
 
 // ── 类型定义 ─────────────────────────────────────────────────────────
 
@@ -54,29 +54,17 @@ const CLIENT_EXCLUDE_IDS = new Set([
 /** bundle 路径表：id → client bundle 绝对路径（供 bundle route 直读）。 */
 const bundlePathMap = new Map<string, string>()
 
-/** 客户端模块系统 bootstrap 包（must 在官方 HTML 注入脚本中预载）。 */
+// ── 官方 UI 客户端面（0.1.2 · 载波经 __DSH_TRANSPORT__ 自持）───────────────
+// 0.1.2 中官方 `@deepseek-ai/dsh-client-connection` 的 apply() 读取页面全局
+// `window.__DSH_TRANSPORT__`（HTML boot 脚本已注入桌面 IPC 传输）自行提供
+// `ctx.connection` 服务。桌面不再继承 AbstractApiClient，因此 client-connection
+// 正常进入图谱并激活其 apply；服务端由官方 api-gateway(client) 拥有连接循环。
+/** 客户端模块系统 bootstrap 包（0.1.2 PARSER_PRELOAD_IDS 仅含它，bootstrap batch 承载）。 */
 const CLIENT_MODULES_ID = '@deepseek-ai/dsh-client-modules'
-/** HTML parser 预载的普通动态 bundle（图谱内条目，在 Vite shell 运行前注册 factory）。 */
-const PARSER_PRELOAD_IDS = [CLIENT_MODULES_ID, '@deepseek-ai/dsh-client-runtime']
-
-// ── 官方 UI 最小激活集（IPC 载波客户端面，Step 7·对话闭环攻坚）──────────────
-/**
- * 官方 connection 基类：仅作 ipc-connection 的模块依赖（require 解析拿
- * AbstractApiClient 继承基类），**不入图谱**、不激活其 apply。
- *
- * 实机证伪（攻坚第 2 批实机）：官方 web boot 驱动（`index-*.js` 的 BootRunner）
- * 会对图谱**每个条目**执行 `loader.create()` 全量激活（`immediately` 仅控制
- * prefetch 时机，与激活无关）——若把 client-connection 放入 entries，其 apply
- * 必然被激活并抢先提供 Web 传输 connection（fetch /api/* → 404 + connection lost
- * retry）。因此基类改为「HTML 预载注册」形态：预载 script 只
- * `__ModuleLoader__.load({id, factory})` 注册工厂，官方驱动不 create 它，
- * connection 服务由 ipc-connection 独占供出（见 D-9）。
- */
-const CLIENT_CONNECTION_ID = '@deepseek-ai/dsh-client-connection'
-/** 图谱外预载注册模块（仅注册 factory 供 require，不入图谱、不被官方驱动激活）。 */
-const PRELOAD_ONLY_IDS = [CLIENT_CONNECTION_ID]
-/** 桌面 IPC 载波连接（inject[]，独占提供 connection 服务，替换官方 client-connection）。 */
+/** 图谱内传输占位模块（自持传输定义在 HTML boot 脚本 __DSH_TRANSPORT__，此处仅占位激活）。 */
 const IPC_CONNECTION_ID = '@lansi-ai/dsh-ipc-connection'
+/** 图谱外预载注册模块：0.1.2 已无继承基类场景，清空。 */
+const PRELOAD_ONLY_IDS: string[] = []
 
 // ── 内部工具 ─────────────────────────────────────────────────────────
 
@@ -140,8 +128,13 @@ export function buildThirdPartyBundleDecl(id: string): BootBundleDecl {
   }
 }
 
-/** 第三方 client 插件装载清单（M1 门禁·第三方无改动装载）：经 `dsh.client` 声明装载。 */
-export const THIRD_PARTY_CLIENT_IDS = ['@lnyanhongyan/dsh-opencode-usage']
+/**
+ * 第三方 client 插件装载清单（M1 门禁·第三方无改动装载）：经 `dsh.client` 声明装载。
+ *
+ * 注：M4-d3 升级轮中 @lnyanhongyan/dsh-opencode-usage 因 peer 锁 rc.7 与 0.1.2
+ * 不兼容已从依赖移除，清单暂空；待其升版后重新加入。
+ */
+export const THIRD_PARTY_CLIENT_IDS: string[] = []
 
 /**
  * 解析全部第三方插件的装载声明（HTML 注入与插件清单两条装配线共用的唯一来源）。
@@ -319,7 +312,7 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
   const scanned = scanClientPackages()
   const scannedDecls: BootBundleDecl[] = []
   for (const [id, meta] of scanned) {
-    if (id === CLIENT_CONNECTION_ID) continue // D-9：不入图谱，仅预载注册供 require
+    // 0.1.2 中 client-connection 正常入图谱：其 apply() 读 __DSH_TRANSPORT__ 提供 ctx.connection。
     if (CLIENT_EXCLUDE_IDS.has(id)) continue // 互斥副本排除（防止 single slot 双激活冲突）
     scannedDecls.push({
       id,
@@ -332,9 +325,9 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
 
   // 2. 桌面载波 + 外部显式声明（扫描集之外，或覆盖扫描）。
   const desktopDecls: BootBundleDecl[] = [
-    // 官方 UI 渲染必需的自启动核心（client-modules/client-runtime 由扫描集覆盖，
-    // 此处显式确保其在列 + immediately，且 client-runtime 的 inject 依赖由扫描集提供）。
-    { id: IPC_CONNECTION_ID, path: resolveLocalWebBundle('ipc-connection.js'), inject: [], immediately: true, external: [`${CLIENT_CONNECTION_ID}/client`] },
+    // 桌面 IPC 传输占位模块（0.1.2）：自持传输定义在 HTML boot 脚本 __DSH_TRANSPORT__，
+    // 本条目仅为图谱激活占位（官方 client-connection 自行 provide ctx.connection）。
+    { id: IPC_CONNECTION_ID, path: resolveLocalWebBundle('ipc-connection.js'), inject: [], immediately: true },
     // 桌面版布局插件：接管 root 槽位，提供三列布局（方案 B）
     { id: '@lansi-ai/dsh-desktop-layout', path: resolveLocalWebBundle('desktop-layout-client.js'), inject: ['slots', 'theme'], immediately: true },
     // 桌面自绘标题栏（v2：titlebar 收进布局，不再 body 级 fixed）：
@@ -345,14 +338,16 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 官方 workspaces/settings 注册者经子槽位无改动继续工作
     { id: '@lansi-ai/dsh-desktop-sidebar', path: resolveLocalWebBundle('desktop-sidebar-client.js'), inject: ['slots'], immediately: true },
     // M2-e 官方 UI 注入：桌面设置页面 + 桌面面板容器 + 命令面板（经 Slot 系统注入官方 UI）
-    { id: '@lansi-ai/dsh-desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
-    { id: '@lansi-ai/dsh-desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    // 0.1.2：ctx.slots 由 @deepseek-ai/dsh-client-ui-renderer 提供（ui-slots 已并入），
+    // external 边改为指向 renderer/client，保证其 bundle 先于消费方入图。
+    { id: '@lansi-ai/dsh-desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
+    { id: '@lansi-ai/dsh-desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
     // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口（纯 DOM 浮层 + 官方运行时导航——坑 13/14/15）
     // entry.inject 是信息性包名依赖边（非服务注入）；服务等待只看插件返回对象的 exports.inject，
     // 故此处恒 []，ctx.sessions/workspaces 由插件 apply 后经 ctx.get 软查找。
     { id: '@lansi-ai/dsh-desktop-cmdpalette', path: resolveLocalWebBundle('desktop-cmdpalette-client.js'), inject: [], immediately: true },
     // M3-b2 审计查看器：会话审计日志查询 UI
-    { id: '@lansi-ai/dsh-desktop-audit-viewer', path: resolveLocalWebBundle('desktop-audit-viewer-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    { id: '@lansi-ai/dsh-desktop-audit-viewer', path: resolveLocalWebBundle('desktop-audit-viewer-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
     // 对话区视觉层（子元素侧）：不接管 conversation 槽位（与官方 ui-conversation 单槽位互斥），
     // 仅注入样式给对话根节点（data-phase）圆角/裁剪——圆角归对话自身，非布局插件职责。
     { id: '@lansi-ai/dsh-desktop-conversation-visuals', path: resolveLocalWebBundle('desktop-conversation-visuals-client.js'), inject: [], immediately: true },
@@ -380,8 +375,24 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
 
   // 5. 模块依赖拓扑排序（external 前置），保证每个请求的动态包先于其消费者。
   const entries = orderByModuleGraph(rows)
+
+  // 6. 0.1.2 组合批次（batches 必填，每个条目恰属于一个 batch）。
+  // 桌面按方案 A 单资源 bundle 直读，故每个条目独立成 batch：bootstrap 阶段承载
+  // client-modules（解析器脚本），application 阶段承载其余全部。batches[].url 与
+  // 对应 entry.url 一致（同一单资源端点，可被 dsh-ui://plugins/<id>/client.js 服务）。
+  // 对齐官方 ClientModuleRegistry.compose() 的「bootstrap + application」两阶段语义。
+  const batches: BootBatch[] = entries.map((entry) => ({
+    phase: entry.id === CLIENT_MODULES_ID ? 'bootstrap' : 'application',
+    url: entry.url,
+    rev: entry.rev,
+    entries: [entry.id],
+  }))
+  if (!batches.some((b) => b.phase === 'bootstrap')) {
+    throw new Error(`client-modules: bootstrap 批次缺失 ${CLIENT_MODULES_ID}（/client.js 未入图谱）`)
+  }
+
   const graphRev = rev ?? `desktop-m1-${shortHash(JSON.stringify(entries))}`
-  return bootGraphSchema.parse({ rev: graphRev, entries })
+  return bootGraphSchema.parse({ rev: graphRev, entries, batches })
 }
 
 /**
@@ -503,21 +514,13 @@ window.__ModuleLoader__={
   }
 }
 })()</script>`
-  // 图谱内预载（client-modules/client-runtime）：也是图谱条目，官方驱动会激活。
-  const preload = PARSER_PRELOAD_IDS.map((id) => graph.entries.find((entry) => entry.id === id))
-    .filter((entry): entry is BootEntry => entry !== undefined)
-    .map((entry) => `<script src="${escapeHtmlAttribute(entry.url)}"></script>`)
-    .join('')
-  // 图谱外预载注册（client-connection 基类等）：不入图谱、不被官方驱动激活，
-  // 仅提前注册 factory 供 ipc-connection 等模块 require 解析（继承 AbstractApiClient）。
-  // URL 由 bundle 路径表 + 内容 rev 自行构造（与 graphRow 同语义，无图谱条目可查）。
-  const preloadOnly = PRELOAD_ONLY_IDS.map((id) => {
-    const bundlePath = bundlePathMap.get(id)
-    if (bundlePath === undefined || !existsSync(bundlePath)) return ''
-    const rev = shortHash(readFileSync(bundlePath))
-    return `<script src="${escapeHtmlAttribute(`/plugins/${id}/client.js?rev=${rev}`)}"></script>`
-  }).join('')
-  return `<style>${LAYOUT_SKELETON_CSS}</style>${queue}${preload}${preloadOnly}<script>window.__DSH_BOOT__ = ${json}</script>`
+  // 图谱内预载：0.1.2 按 batch 阶段注入——bootstrap 阶段（client-modules）作
+  // parser 阻塞 script，application 阶段作 preload。桌面单资源批 url 即 entry.url。
+  const bootstrap = graph.batches.filter((batch) => batch.phase === 'bootstrap')
+  const application = graph.batches.filter((batch) => batch.phase === 'application')
+  const preload = application.map((batch) => `<link rel="modulepreload" href="${escapeHtmlAttribute(batch.url)}">`).join('')
+  const bootstrapScripts = bootstrap.map((batch) => `<script src="${escapeHtmlAttribute(batch.url)}"></script>`).join('')
+  return `<style>${LAYOUT_SKELETON_CSS}</style>${queue}${preload}${bootstrapScripts}<script>window.__DSH_BOOT__ = ${json}</script>`
 }
 
 /**
