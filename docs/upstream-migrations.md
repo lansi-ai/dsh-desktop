@@ -63,6 +63,17 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 
 **桌面侧追加适配清单（若未来选 0.1.2）**：① 重写载波（不再有 AbstractApiClient，改用 `__DSH_TRANSPORT__` + API Gateway 连接面）；② 重对 client-runtime 的 manifest/装配契约 + 补 `dsh-client-store` 静态注册；③ 补 `__DSH_BOOT_READY__` 就绪门控；④ 自绘插件契约全量重核对。因当前 M6 自绘主线 + 无开版需求，暂不投入。
 
+#### C-1a 否决理由（为什么维持 `0.1.1-rc.2`，不选 `0.1.2-alpha.3`）
+
+| # | 理由 | 说明 | 对应事实 |
+|---|---|---|---|
+| R1 | **官方未把它当稳定基线** | `0.1.2-alpha.3` 在 npm 上只挂 `alpha` 标签，`latest`/`next` 仍指 `0.1.1-rc.2` —— 官方自己都没转正，说明仍在实验迭代、破坏性变更随时可能再来。我们按 ADR-005 只认一个稳定基线，不踩 alpha 试错线 | dist-tags: `{alpha: 0.1.2-alpha.3, latest/next: 0.1.1-rc.2}` |
+| R2 | **对桌面是破坏性升级，非增量补丁** | 本次不是「打的补丁多了点」，而是**核心传输层整体重构**：桌面包的载波基类 `AbstractApiClient` 被删、需整条重写；runtime 净删约 7000 行、清单/装配契约全变。这意味着要重做适配层，不是升级几个版本号 | S2/S3b：`web-api-client.ts` 删除 + runtime 大规模删除文件 |
+| R3 | **与我们当前主线（M6 自绘 UI）直接冲突** | M6 正在把官方 `ui-*` 逐个换成自研插件（layout/sidebar/titlebar 已落地）。`0.1.2` 把 ui-slots/layout/sidebar 契约也改了，若现在升，会迫使已上线的自研插件全部重对契约、打断 D-20 自绘主线 | ui-slots store/renderer、SidebarRoot、AppFrame 均变更 |
+| R4 | **收益不明确、风险即时兑现** | `0.1.2` 相对 `0.1.1-rc.2` 的发布说明主要是体验优化（image upload 相关），无当前项目缺失的关键能力；而破坏性适配成本高、与主线冲突大、「先升再说」违背可回滚原则 | 对照 0.1.2 release notes + ADR-005 原则 |
+
+> **维持决策后的行动**：继续按 M4-d2 计划升 `0.1.1-rc.2`（已验证零适配）；`0.1.2-alpha.3` 留待官方转 `rc`/`stable`（`next` 指向它）或 M4-d 后续轮次再评估，届时以官方转正版本重新执行 ADR-005 diff（worktree `_harness-012a3` 已备好）。
+
 ## D. sync-upstream SOP（升级一次跑一遍）
 
 1. `git diff` 上游基线区间 → 逐文件归类到 S1/S2/S3(含 S3b) 或「其他」；
