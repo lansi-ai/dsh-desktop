@@ -281,6 +281,7 @@
       <h3>M4-d 第四波：上游基线升级（0.1.1-rc.2）</h3>
       <ul class="task-list">
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1 升级目标核实 + 拴合面 diff 登记（2026-09-01）</strong>：实测上游最新稳定为 <code>dsh-v0.1.1-rc.2</code>（npm latest/next 与 GitHub Latest 一致，4 包对齐；旧载「rc.12」系臆测项，npm/GitHub 均无）；拉取 tag 检出 <code>_harness-011rc2</code> worktree，3 类拴合面逐行 diff → 结论无破坏性变更，桌面零适配（登记 upstream-migrations C 区 + upstream-contracts 7.4 全部 [x]）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1b 最新 alpha 预评估（2026-09-01，只读）</strong>：实测最新发布 <code>0.1.2-alpha.3</code>（未转正，latest/next 仍为 0.1.1-rc.2）。0.1.1→0.1.2 为破坏性重构（S2 <code>AbstractApiClient</code> 删除→载波整条重写、S3b runtime 净-7000 行重组+拆 <code>dsh-client-store</code>、S1 新增 <code>__DSH_BOOT_READY__</code> 门控、ui-* 契约变更）。结论：不选，维持计划 0.1.1-rc.2；评估登记 upstream-migrations C-1 区，worktree <code>_harness-012a3</code> 保留待官方转 rc/stable 再重跑</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-d2 代码级升级执行（待 M4 重启）</strong>：package.json 4 依赖升 <code>0.1.1-rc.2</code> → <code>npm install</code> → build/typecheck/lint → 全量回归（含截图比对、SQLite 数据兼容、终端通道复核）→ build(upstream) 提交</span></li>
       </ul>
 

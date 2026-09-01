@@ -49,6 +49,20 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 
 **已更换 diff 工作区**：`E:\Projects\DSH\_harness-011rc2`（tag `dsh-v0.1.1-rc.2`，HEAD `b150a551b`），与 rc.8 检出 `_harness-src` 并行对比。升级执行时可直接复用此 worktree。
 
+### C-1 预评估：`0.1.2-alpha.3`（2026-09-01，仅只读评估 · 未列入升级计划）
+
+> **结论：不选 `0.1.2-alpha.3`，维持计划基线 `0.1.1-rc.2`。** 依据 = 官方未转正（npm `latest`/`next` 仍指 `0.1.1-rc.2`）+ 对桌面为**破坏性升级**。评估用的 worktree `_harness-012a3`（HEAD `dd6322d60`）可复用，待官方转 rc/稳定 后再按 ADR-005 重跑。
+
+| 拴合面 | 0.1.1-rc.2 → 0.1.2-alpha.3 diff | 桌面影响 | 迁移风险 |
+|---|---|---|---|
+| S2 · IPC 载波 (`client-connection`) | **破坏性**：`web-api-client.ts` 删除、`AbstractApiClient`/`WebApiClient` 彻底不存在；connection 重构为 `ctx.provide('connection', handle)` + **API Gateway 拥有连接循环**；`ClientTransportHooks` 契约变（`fetch` 语义变 + 新增 `openStream`/`ownsHost`） | `ipc-connection.js` 继承基类路径无存，载波需整条重写；`__DSH_TRANSPORT__` 注入面要重对 | 🔴 高 |
+| S3b · roster/runtime (`client-modules`/`runtime`) | **破坏性**：runtime 大规模重组，`sessions/manager(1131)/service/session/conversation-assembler`、`workspaces/*`、`contract/store` 等 ~20 文件删除（净 -7000 行），store 拆到新包 `dsh-client-store`；modules 注入重构 | manifest/装配契约大变；`seed.ts` 新增 `@deepseek-ai/dsh-client-store` 静态模块 | 🔴 高 |
+| S1 · 装载协议 (`web/src/boot.ts`) | 新增 **`__DSH_BOOT_READY__` 启动就绪门控**（boot 等待注入表生效）；prefetch 不再读 `__DSH_TRANSPORT__.loadBundle` | 桌面 boot 注入需补就绪门控对接 | 🟡 中 |
+| ui-slots / ui-layout / ui-sidebar | `ui-slots` store.ts/renderer.ts、`ui-sidebar` SidebarRoot、`ui-layout` AppFrame/DocumentTitle/theme-presenter 均改 | 自绘插件（layout/sidebar/titlebar）拴合面需逐条重对 | 🟡 中 |
+| 全仓规模 | 7036 文件变化，+355K/-144K（含大量测试快照/构建基建重构） | — | 🔴 高 |
+
+**桌面侧追加适配清单（若未来选 0.1.2）**：① 重写载波（不再有 AbstractApiClient，改用 `__DSH_TRANSPORT__` + API Gateway 连接面）；② 重对 client-runtime 的 manifest/装配契约 + 补 `dsh-client-store` 静态注册；③ 补 `__DSH_BOOT_READY__` 就绪门控；④ 自绘插件契约全量重核对。因当前 M6 自绘主线 + 无开版需求，暂不投入。
+
 ## D. sync-upstream SOP（升级一次跑一遍）
 
 1. `git diff` 上游基线区间 → 逐文件归类到 S1/S2/S3(含 S3b) 或「其他」；
