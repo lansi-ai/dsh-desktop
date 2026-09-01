@@ -22,6 +22,7 @@ import {
   cmdPaletteSwitchSessionSchema,
 } from '../types/desktop.js'
 import type { WindowManager } from './window-manager.js'
+import { log } from './log.js'
 import { registerMethod, unregisterMethod } from './bridge.js'
 
 // ── 类型定义 ─────────────────────────────────────────────────────────
@@ -120,13 +121,13 @@ export function installDesktopCmdPalette(
   })
 
   if (!registered) {
-    console.warn(`[dsh-cmdpalette] 全局快捷键注册失败: ${QUICK_ASK_ACCELERATOR}（可能已被其他应用占用）`)
+    log.warn(`[dsh-cmdpalette] 全局快捷键注册失败: ${QUICK_ASK_ACCELERATOR}（可能已被其他应用占用）`)
   } else {
     desktop.emitAction('shortcut.register', {
       accelerator: QUICK_ASK_ACCELERATOR,
       action: 'quick-ask',
     })
-    console.log(`[dsh-cmdpalette] 全局快捷键已注册: ${QUICK_ASK_ACCELERATOR} → 快速提问`)
+    log.ok(`[dsh-cmdpalette] 全局快捷键已注册: ${QUICK_ASK_ACCELERATOR} → 快速提问`)
   }
 
   // ── Bridge 方法处理器 ──────────────────────────────────────────
@@ -172,7 +173,7 @@ export function installDesktopCmdPalette(
   registerMethod('desktop.cmdpalette.close', handleClose)
   registerMethod('desktop.cmdpalette.listSessions', handleListSessions)
 
-  console.log('[dsh-cmdpalette] 命令面板 bridge 方法已注册')
+  log.ok('[dsh-cmdpalette] 命令面板方法已注册')
 
   // ── 清理函数 ──────────────────────────────────────────────────
   return () => {
@@ -185,6 +186,6 @@ export function installDesktopCmdPalette(
     unregisterMethod('desktop.cmdpalette.switchSession')
     unregisterMethod('desktop.cmdpalette.close')
     unregisterMethod('desktop.cmdpalette.listSessions')
-    console.log('[dsh-cmdpalette] 命令面板已清理')
+    log.info('[dsh-cmdpalette] 命令面板已清理')
   }
 }

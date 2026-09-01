@@ -28,7 +28,7 @@ import type {
   Frame,
 } from '../types/contract.js'
 import { AppError, ErrorCodes } from '../types/errors.js'
-import { logVerbose } from './log.js'
+import { log, logVerbose } from './log.js'
 
 // ── 类型定义 ─────────────────────────────────────────────────────────
 
@@ -213,7 +213,7 @@ export function registerIpcBridge(options?: BridgeOptions): void {
       throw new AppError(ErrorCodes.METHOD_NOT_FOUND, `未找到 RPC 方法: ${request.method}`)
     } catch (error) {
       // 失败必显：终端只保留错误，便于定位断链
-      console.error(`[dsh-bridge] RPC 失败 (${request.method}):`, error)
+      log.error(`[dsh-bridge] RPC 失败 (${request.method}):`, error)
       return makeRpcError(error, request.rpcId)
     }
   })
@@ -235,7 +235,7 @@ export function registerIpcBridge(options?: BridgeOptions): void {
       return { accepted: true }
     }
 
-    console.warn(`[dsh-bridge] 无 apiProxy 处理器，respond 被丢弃 (rpcId: ${parsed.data.rpcId})`)
+    log.warn(`[dsh-bridge] 无 apiProxy 处理器，respond 被丢弃 (rpcId: ${parsed.data.rpcId})`)
     return { accepted: false }
   })
 
@@ -274,15 +274,16 @@ export function registerIpcBridge(options?: BridgeOptions): void {
   })
 
   // ── dsh:ready — renderer 就绪通知 ────────────────────────────────
-  ipcMain.on(IPC_CHANNELS.READY, (_event, raw: unknown) => {
+  ipcMain.on(IPC_CHANNELS.READY, (event, raw: unknown) => {
     const parsed = readyNotificationSchema.safeParse(raw)
     if (!parsed.success) {
-      console.warn('[dsh-bridge] 收到无效的 ready 通知:', parsed.error.issues)
+      log.warn('[dsh-bridge] 收到无效的 ready 通知:', parsed.error.issues)
       return
     }
-    const windowId = parsed.data.windowId
+    // preload 无法拿到自身 windowId（恒为 -1），以 sender 反查真实窗口 ID
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id ?? parsed.data.windowId
     windowStates.set(windowId, { ready: true })
-    console.log(`[dsh-bridge] 窗口 ${windowId} 就绪`)
+    log.info(`[dsh-bridge] 窗口 ${windowId} 就绪`)
 
     // 自动注入会话上下文（若 WindowManager 已设置）
     if (windowManagerRef !== null) {
@@ -304,7 +305,7 @@ export function registerIpcBridge(options?: BridgeOptions): void {
       const handler = methodTable.get(request.method)
       if (handler !== undefined) {
         const result = await handler(request.params, { windowId })
-        console.log(`[dsh-desktop-invoke] 成功: ${request.method}`)
+        logVerbose('dsh-desktop-invoke', `成功: ${request.method}`)
         return result
       }
       throw new AppError(ErrorCodes.METHOD_NOT_FOUND, `未找到桌面方法: ${request.method}`)
@@ -426,7 +427,7 @@ export function sendFrame(webContents: WebContents, frame: Frame): boolean {
   // 校验帧格式
   const parsed = frameSchema.safeParse(frame)
   if (!parsed.success) {
-    console.error('[dsh-bridge] 帧格式校验失败:', parsed.error.issues)
+    log.error('[dsh-bridge] 帧格式校验失败:', parsed.error.issues)
     return false
   }
 
@@ -564,7 +565,7 @@ export function registerWindowManagerMethods(
     return windowManager.listActiveSessions()
   })
 
-  console.log('[dsh-bridge] 窗口管理器方法已注册')
+  log.ok('[dsh-bridge] 窗口管理器方法已注册')
 }
 
 /**

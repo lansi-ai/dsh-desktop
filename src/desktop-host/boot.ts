@@ -16,6 +16,7 @@
 import { join } from 'node:path'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { app } from 'electron'
+import { log } from './log.js'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'resolution-mode': 'import' }
 
 // 运行时数据根目录（M4-a1·打包路径适配）：
@@ -166,6 +167,13 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'tool-skill', name: '@deepseek-ai/dsh-tool-skill' },
       { id: 'commands', name: '@deepseek-ai/dsh-commands' },
       { id: 'command-feedback', name: '@deepseek-ai/dsh-command-feedback' },
+      // messageFeedback host 服务（消息赞/踩+备注 sidecar）：官方 UI 的
+      // dsh-client-ui-message-feedback（客户端半，渲染 assistant 消息动作条）会调
+      // messageFeedback/list|put|delete Remote；缺此服务 → typertGateway 404
+      // （[dsh-bridge] RPC 失败 (messageFeedback/list) HTTP 404，实机 2026-09-01）。
+      // 纯 cordis service 库（static inject: storageDomain/sessionPersistence/sessions，
+      // 三者本清单均已装载）；maxNoteBytes 对齐官方 Web bundle（8192）。
+      { id: 'message-feedback', name: '@deepseek-ai/dsh-message-feedback', config: { maxNoteBytes: 8192 } },
       { id: 'goal', name: '@deepseek-ai/dsh-goal' },
       { id: 'goal-round-driver', name: '@deepseek-ai/dsh-goal-round-driver' },
       { id: 'command-goal', name: '@deepseek-ai/dsh-command-goal' },
@@ -335,12 +343,6 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
   const configPath = options.configPath ?? createRootConfig()
   const patches = options.patches ?? buildPatches(serveMode, servePort)
 
-  if (serveMode) {
-    console.warn(`[dsh-boot] --serve 兼容模式已启用（port=${servePort}），第三方 webServer 路由走 HTTP 原义`)
-  } else {
-    console.log('[dsh-boot] 零端口 IPC 载波模式（默认），webserver/web-runtime/web-startup 已禁用')
-  }
-
   const ctx = await boot(
     'dsh-desktop',
     configPath,
@@ -350,7 +352,7 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
       provideCmdline(hostCtx, {
         args: Object.freeze([]),
         exit: (code: number) => {
-          console.error(`[dsh-desktop] cmdline exit 请求: ${code}`)
+          log.error(`[dsh-boot] cmdline exit 请求: ${code}`)
           process.exit(code)
         },
       })
@@ -364,9 +366,9 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
           port: serveMode ? servePort : 0,
           portless: !serveMode,
         })
-        console.log(`[dsh-boot] desktopStartup 已注入（mode=${serveMode ? 'serve' : 'portless'}）`)
+        log.ok(`[dsh-boot] desktopStartup 已注入（mode=${serveMode ? 'serve' : 'portless'}）`)
       } catch (error) {
-        console.warn('[dsh-boot] desktopStartup 注入失败:', error)
+        log.warn('[dsh-boot] desktopStartup 注入失败:', error)
       }
 
       // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer（已禁用），
@@ -395,9 +397,9 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         new (ElectronDirectoryPicker as any)(hostCtx)
-        console.log('[dsh-desktop] directoryPicker (Electron native dialog Service) 已注入')
+        log.ok('[dsh-boot] directoryPicker (Electron native dialog Service) 已注入')
       } catch (error) {
-        console.warn('[dsh-desktop] directoryPicker 注入失败:', error)
+        log.warn('[dsh-boot] directoryPicker 注入失败:', error)
       }
 
       // M2·地基 desktop-host-core：注入 ctx.desktop 聚合服务（core 子集）。
@@ -407,7 +409,7 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
         const { installDesktopCore } = await import('./desktop-api.js')
         await installDesktopCore(hostCtx, { auditLogPath: options.auditLogPath })
       } catch (error) {
-        console.warn('[dsh-desktop] ctx.desktop 聚合服务注入失败:', error)
+        log.warn('[dsh-boot] ctx.desktop 聚合服务注入失败:', error)
       }
 
       // 第三方 web 插件 host 半兼容（M1 门禁·ADR-007）：注入 ctx.webServer 等价面。
@@ -418,7 +420,7 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
         const { installWebServerCompat } = await import('./compat-webserver.js')
         await installWebServerCompat(hostCtx)
       } catch (error) {
-        console.warn('[dsh-desktop] webServer 等价面注入失败:', error)
+        log.warn('[dsh-boot] webServer 等价面注入失败:', error)
       }
     },
     options.bareModuleBaseUrl,

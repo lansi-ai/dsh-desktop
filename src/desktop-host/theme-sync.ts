@@ -18,6 +18,8 @@
 
 import { nativeTheme } from 'electron'
 
+import { log } from './log.js'
+
 /** 主题同步选项。 */
 export interface ThemeSyncOptions {
   /** 统一 host RPC 调用入口（main.ts callApi）。 */
@@ -74,9 +76,9 @@ export function installThemeSync(options: ThemeSyncOptions): ThemeSyncHandle {
     try {
       const preference = await readThemePreference(options.callApi)
       nativeTheme.themeSource = preference
-      console.log(`[dsh-theme] nativeTheme.themeSource 已同步: ${preference}`)
+      log.info(`[dsh-theme] nativeTheme.themeSource 已同步: ${preference}`)
     } catch (error) {
-      console.warn('[dsh-theme] 读取 ui-theme 偏好失败，保持默认跟随 OS:', error)
+      log.warn('[dsh-theme] 读取 ui-theme 偏好失败，保持默认跟随 OS:', error)
     }
   }
   const ready = sync()
@@ -85,7 +87,7 @@ export function installThemeSync(options: ThemeSyncOptions): ThemeSyncHandle {
   // （settings 写入都会发此事件，重新 describe 一次代价可忽略，且免依赖帧内 ns 参数形态。）
   const offSettings = options.hostCtx.on('settings/document-updated', () => {
     if (stopped) return
-    console.log('[dsh-theme] 收到 settings/document-updated，重新同步主题偏好')
+    log.info('[dsh-theme] 收到 settings/document-updated，重新同步主题偏好')
     void sync()
   })
 

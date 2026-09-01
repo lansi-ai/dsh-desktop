@@ -6,7 +6,7 @@ import { registerIpcBridge, cleanupWindowState, removeIpcHandlers, registerWindo
 import type { WindowManager } from '../desktop-host/window-manager.js'
 import { createWindowManager, attachWindowMaximizedStateBroadcast } from '../desktop-host/window-manager.js'
 import { registerIpcCarrierServices } from '../desktop-host/manifest.js'
-import { isVerbose } from '../desktop-host/log.js'
+import { isVerbose, log } from '../desktop-host/log.js'
 import {
   installMainCrashHandlers,
   installRendererCrashRecovery,
@@ -42,14 +42,15 @@ if (!app.isPackaged) {
 // Electron 把命令行参数挂在 app.commandLine，argv[1] 是 script 路径，
 // parseArgv 内部会跳过前两项，因此直接传 process.argv 即可。
 const launchOptions = parseArgv(process.argv)
+log.phase('DSH Desktop 启动')
 if (launchOptions.serve) {
-  console.warn(`[dsh-desktop] 启动参数：--serve=${launchOptions.servePort}（兼容模式，第三方 web 路由走 HTTP 原义）`)
+  log.warn(`[dsh-desktop] 启动参数：--serve=${launchOptions.servePort}（兼容模式，第三方 web 路由走 HTTP 原义）`)
 } else {
-  console.log('[dsh-desktop] 启动参数：默认零端口 IPC 载波模式（webserver/web-runtime/web-startup 禁用）')
+  log.info('[dsh-desktop] 启动参数：默认零端口 IPC 载波模式（webserver/web-runtime/web-startup 禁用）')
 }
 // M3-b3：--hidden 静默启动（开机自启登录后驻留托盘，不弹主窗口）
 if (launchOptions.hidden) {
-  console.log('[dsh-desktop] 启动参数：--hidden（静默模式，主窗口不显示，驻留托盘）')
+  log.info('[dsh-desktop] 启动参数：--hidden（静默模式，主窗口不显示，驻留托盘）')
 }
 
 // 注册 dsh-ui:// 协议方案特权（必须在 app.whenReady 前）
@@ -63,7 +64,7 @@ installMainCrashHandlers()
 
 if (isCircuitBroken()) {
   // 连续崩溃已达熔断上限：本次启动不再自动重启，避免无限重启循环
-  console.error('[dsh-desktop] 连续崩溃已达熔断上限，暂停自动重启')
+  log.error('[dsh-desktop] 连续崩溃已达熔断上限，暂停自动重启')
   app.exit(1)
 } else {
   // 单实例锁：防止多开导致宿主与数据目录冲突（正式策略后续在 desktop-shell 收敛）
@@ -177,11 +178,11 @@ function createWindow(): BrowserWindow {
 
   // 页面加载完成
   win.webContents.on('did-finish-load', () => {
-    console.log('[dsh-desktop] 页面加载完成，URL:', win.webContents.getURL())
+    log.info('[dsh-desktop] 页面加载完成，URL:', win.webContents.getURL())
   })
 
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
-    console.error(`[dsh-desktop] 页面加载失败 (${errorCode}): ${errorDescription} URL: ${validatedURL}`)
+    log.error(`[dsh-desktop] 页面加载失败 (${errorCode}): ${errorDescription} URL: ${validatedURL}`)
   })
 
   // 渲染进程崩溃自愈：自动 reload 窗口，超次升级整体重启
@@ -197,8 +198,10 @@ function createWindow(): BrowserWindow {
     // 官方 dist 无 CSP，Electron 在 dev 下打印 Insecure-Content-Security-Policy 安全警告（打包后不出现）——
     // 已知且无害，直接滤掉避免终端噪音；其余 renderer 日志按级别转发。
     if (event.level === 'warning' && event.message.includes('Electron Security Warning')) return
-    const prefix = level === 3 ? '[renderer-ERROR]' : level === 2 ? '[renderer-WARN]' : level === 1 ? '[renderer-INFO]' : '[renderer-VERBOSE]'
-    console.log(`${prefix} ${event.message} (line ${event.lineNumber}, ${event.sourceId})`)
+    const location = `(line ${event.lineNumber}, ${event.sourceId})`
+    if (level === 3) log.error(`[renderer] ${event.message} ${location}`)
+    else if (level === 2) log.warn(`[renderer] ${event.message} ${location}`)
+    else log.info(`[renderer] ${event.message} ${location}`)
   })
 
   // M3-b3：--hidden 静默模式下不显示主窗口（开机自启登录后驻留托盘）
@@ -247,7 +250,8 @@ async function bootstrap(): Promise<void> {
     // 3. 启动 Cordis Host（desktop profile 装配 + 插件树挂载；--serve 控制 Web 传输层启用）
     const { bootDesktopHost } = await import('../desktop-host/boot.js')
     const auditLogFilePath = join(app.getPath('userData'), 'audit.jsonl')
-    console.log('[dsh-desktop] 启动 Cordis Host...')
+    log.phase('宿主装配')
+    log.info('[dsh-boot] 启动 Cordis Host...')
     const hostCtx = await bootDesktopHost({
       // 开发模式：bareModuleBaseUrl 指向项目 node_modules（生产模式由打包配置覆盖）
       bareModuleBaseUrl: join(__dirname, '..', '..', 'node_modules'),
@@ -257,7 +261,8 @@ async function bootstrap(): Promise<void> {
       // M3-b2 审计日志路径
       auditLogPath: auditLogFilePath,
     })
-    console.log('[dsh-desktop] Cordis Host 已就绪:', hostCtx)
+    log.ok('[dsh-boot] Cordis Host 已就绪')
+    if (isVerbose()) log.info('[dsh-desktop] hostCtx:', hostCtx)
 
     // 3.5 启动期 Agent 预设诊断（失败必显）：设置页 Agent 预设空白类问题的第一现场。
     // 服务注册名是 camelCase "agentPresets"（坑 12 纪律），list() 为纯目录扫描可安全重入；
@@ -267,21 +272,22 @@ async function bootstrap(): Promise<void> {
         | { list(): Promise<Array<{ id: string; broken?: string }>> }
         | undefined
       if (presetsService === undefined) {
-        console.error('[dsh-boot] Agent 预设服务未装载（agentPresets undefined）——设置页 Agent 预设将为空白')
+        log.error('[dsh-boot] Agent 预设服务未装载（agentPresets undefined）——设置页 Agent 预设将为空白')
       } else {
         const scanned = await presetsService.list()
-        console.log(
+        log.info(
           `[dsh-boot] Agent 预设扫描：${scanned.length} 个 [${scanned.map((p) => p.id + (p.broken !== undefined ? '(broken)' : '')).join(', ')}]`,
         )
         if (scanned.length === 0) {
-          console.error('[dsh-boot] Agent 预设扫描结果为空——设置页将为纯空白，请检查构建产物 dist/resources/agent-presets')
+          log.error('[dsh-boot] Agent 预设扫描结果为空——设置页将为纯空白，请检查构建产物 dist/resources/agent-presets')
         }
       }
     } catch (error) {
-      console.error('[dsh-boot] Agent 预设扫描探针失败:', error)
+      log.error('[dsh-boot] Agent 预设扫描探针失败:', error)
     }
 
     // 4. 连接 IPC 桥与 Cordis Host 的 0.1.2 传输背板（connection + typertGateway）
+    log.phase('载波桥接')
     // 0.1.2 中 host 传输由官方 connection(HostConnectionHandle) + typertGateway 提供：
     //   - unary：connection.createSharedFetchHandler('/api').fetch(request)（业务端点 + $events/result）
     //   - 逻辑流：typertGateway.wireStream.open(endpoint, payload, signal)（$events + 业务流）
@@ -394,6 +400,7 @@ async function bootstrap(): Promise<void> {
     })
 
     // 6. 创建窗口并加载官方 UI
+    log.phase('窗口装配')
     const win = createWindow()
 
     // 6.1 骨架外观注入主窗口（:root 外观变量；did-finish-load 后生效，已加载则立即注入）
@@ -414,22 +421,19 @@ async function bootstrap(): Promise<void> {
     // 把 WindowManager 引用注入 bridge，READY 通知后自动推送会话上下文
     const { setWindowManager } = await import('../desktop-host/bridge.js')
     setWindowManager(windowManager)
-    console.log('[dsh-desktop] 窗口管理器已初始化')
 
     // 7.6. 恢复持久化窗口状态（主窗口已创建后恢复会话窗口）
     // M3-b3：--hidden 静默模式下跳过恢复（开机自启登录后驻留托盘，不弹会话窗口）
     const persistedState = await windowManager.loadState()
     if (persistedState !== null && persistedState.windows.length > 0) {
-      if (launchOptions.hidden) {
-        console.log(`[dsh-desktop] 静默模式：跳过恢复 ${persistedState.windows.length} 个持久化会话窗口`)
-      } else {
-        console.log(`[dsh-desktop] 恢复 ${persistedState.windows.length} 个持久化会话窗口`)
-        windowManager.restorePersistedWindows(persistedState)
-      }
+      // 静默模式跳过弹窗恢复（恢复动作由 window-manager 自身日志负责输出）
+      if (!launchOptions.hidden) windowManager.restorePersistedWindows(persistedState)
+      else log.info(`[dsh-desktop] 静默模式：跳过恢复 ${persistedState.windows.length} 个持久化会话窗口`)
     }
 
     // 8. 桌面能力（M2）：托盘（关窗驻留 + 快速问答）+ 系统通知。
     // 依赖 ctx.desktop 聚合服务（boot() prepare 注入）；需窗口已创建后安装。
+    log.phase('桌面能力')
     const desktopCore = (hostCtx as Record<string, unknown>)['desktop'] as DesktopCore | undefined
     if (desktopCore !== undefined) {
       const { installDesktopTray } = await import('../desktop-host/desktop-tray.js')
@@ -479,7 +483,7 @@ async function bootstrap(): Promise<void> {
       const { installDesktopAutostart } = await import('../desktop-host/desktop-autostart.js')
       desktopAutostartHandle = installDesktopAutostart({ desktop: desktopCore })
 
-      console.log('[dsh-desktop] 桌面能力已装配：tray + notify + shortcuts + clipboard + cmdpalette + audit-viewer + autostart')
+      log.ok('[dsh-desktop] 桌面能力已装配（tray/notify/shortcuts/clipboard/cmdpalette/audit-viewer/autostart）')
 
       // M3-b1：处理启动时的 dsh:// 协议 URL（命令行参数）
       const startupDshUrl = extractDshUrlFromArgv(process.argv)
@@ -495,18 +499,18 @@ async function bootstrap(): Promise<void> {
           desktop: desktopCore,
           windowManager,
         })
-        console.log(`[dsh-protocol] 路由结果: ${result.success ? '成功' : '失败'} - ${result.message ?? result.action}`)
+        log.info(`[dsh-protocol] 路由结果: ${result.success ? '成功' : '失败'} - ${result.message ?? result.action}`)
         pendingDshUrl = null
       }
     } else {
-      console.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
+      log.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
     }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
   } catch (error: unknown) {
-    console.error('[dsh-desktop] 启动失败:', error)
+    log.error('[dsh-desktop] 启动失败:', error)
     app.quit()
   }
 }

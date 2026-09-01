@@ -17,6 +17,8 @@
 
 import { Buffer } from 'node:buffer'
 
+import { log } from './log.js'
+
 // ── 类型定义 ─────────────────────────────────────────────────────────
 
 /** 路由注册项（对齐官方 webServer.register 的 {kind, path, handler}）。 */
@@ -168,7 +170,7 @@ export async function installWebServerCompat(ctx: unknown): Promise<void> {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   new (WebServerCompat as any)(ctx, 'webServer')
-  console.log('[dsh-compat] ctx.webServer 等价面已注入（memory register/dispatch，零监听）')
+  log.ok('[dsh-compat] ctx.webServer 等价面已注入（memory register/dispatch，零监听）')
 }
 
 /** 协议层复用：分发一个 HTTP 请求到当前 webServer 等价注册表（未安装时返回 501）。 */

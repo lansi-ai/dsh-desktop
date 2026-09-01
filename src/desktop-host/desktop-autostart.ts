@@ -12,6 +12,7 @@ import { app } from 'electron'
 import type { DesktopCore, AutostartStatus } from '../types/desktop.js'
 import { autostartSetEnabledSchema } from '../types/desktop.js'
 import { registerMethod, unregisterMethod } from './bridge.js'
+import { log } from './log.js'
 
 /** 登录启动时附带的参数（main.ts 识别后跳过窗口显示，静默驻留托盘）。 */
 export const AUTOSTART_HIDDEN_ARG = '--hidden'
@@ -73,13 +74,13 @@ export function installDesktopAutostart(
       return { ...readStatus(), message: '当前平台不支持开机自启' }
     }
     if (isDevMode()) {
-      console.warn('[dsh-autostart] 开发模式下不写入系统登录项（仅打包版生效）')
+      log.warn('[dsh-autostart] 开发模式下不写入系统登录项（仅打包版生效）')
       desktop.log('autostart.setBlocked', { reason: 'dev-mode', enabled: parsed.enabled })
       return { ...readStatus(), message: '开发模式下不注册，仅打包版生效' }
     }
     const status = applyLoginItem(parsed.enabled)
     desktop.emitAction('autostart.change', { enabled: status.enabled })
-    console.log(`[dsh-autostart] 开机自启已${status.enabled ? '启用' : '停用'}`)
+    log.info(`[dsh-autostart] 开机自启已${status.enabled ? '启用' : '停用'}`)
     return status
   }
 
@@ -89,11 +90,11 @@ export function installDesktopAutostart(
   registerMethod('desktop.autostart.setEnabled', handleSetEnabled)
   registerMethod('desktop.autostart.getStatus', handleGetStatus)
 
-  console.log('[dsh-autostart] 开机自启服务已安装')
+  log.ok('[dsh-autostart] 开机自启服务已安装')
 
   return () => {
     unregisterMethod('desktop.autostart.setEnabled')
     unregisterMethod('desktop.autostart.getStatus')
-    console.log('[dsh-autostart] 开机自启服务已清理')
+    log.info('[dsh-autostart] 开机自启服务已清理')
   }
 }

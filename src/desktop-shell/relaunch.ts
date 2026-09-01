@@ -14,6 +14,8 @@ import { app, type BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { log } from '../desktop-host/log.js'
+
 /** relaunch 状态文件结构。 */
 interface RelaunchState {
   /** 当前熔断窗口内累计崩溃次数。 */
@@ -46,7 +48,7 @@ function readState(): RelaunchState {
       }
     }
   } catch (error) {
-    console.error(`${TAG} 读取 relaunch 状态失败:`, error)
+    log.error(`${TAG} 读取 relaunch 状态失败:`, error)
   }
   return { count: 0, lastAt: Date.now() }
 }
@@ -57,7 +59,7 @@ function writeState(state: RelaunchState): void {
     mkdirSync(RUNTIME_DIR, { recursive: true })
     writeFileSync(STATE_FILE, JSON.stringify(state))
   } catch (error) {
-    console.error(`${TAG} 写入 relaunch 状态失败:`, error)
+    log.error(`${TAG} 写入 relaunch 状态失败:`, error)
   }
 }
 
@@ -96,13 +98,13 @@ export function scheduleRelaunch(reason: string): void {
   writeState({ count, lastAt: Date.now() })
 
   if (count > RELAUNCH_LIMIT) {
-    console.error(`${TAG} 连续崩溃 ${count} 次（上限 ${RELAUNCH_LIMIT}），熔断停止自愈。原因: ${reason}`)
+    log.error(`${TAG} 连续崩溃 ${count} 次（上限 ${RELAUNCH_LIMIT}），熔断停止自愈。原因: ${reason}`)
     isExitingForCrash = true
     app.exit(1)
     return
   }
 
-  console.error(`${TAG} 检测到崩溃（${count}/${RELAUNCH_LIMIT}），准备重启。原因: ${reason}`)
+  log.error(`${TAG} 检测到崩溃（${count}/${RELAUNCH_LIMIT}），准备重启。原因: ${reason}`)
   isExitingForCrash = true
   app.relaunch()
   app.exit(1)
@@ -125,12 +127,12 @@ export function resetOnCleanQuit(): void {
  */
 export function installMainCrashHandlers(): void {
   process.on('uncaughtException', (error) => {
-    console.error(`${TAG} 主进程 uncaughtException:`, error)
+    log.error(`${TAG} 主进程 uncaughtException:`, error)
     scheduleRelaunch(`uncaughtException: ${error instanceof Error ? error.message : String(error)}`)
   })
 
   process.on('unhandledRejection', (reason) => {
-    console.error(`${TAG} 主进程 unhandledRejection:`, reason)
+    log.error(`${TAG} 主进程 unhandledRejection:`, reason)
   })
 }
 
@@ -148,14 +150,14 @@ export function installRendererCrashRecovery(win: BrowserWindow): void {
     recentCrashes.push(now)
 
     if (recentCrashes.length >= RELAUNCH_LIMIT) {
-      console.error(
+      log.error(
         `${TAG} 渲染进程连续崩溃 ${recentCrashes.length} 次，升级为整体重启。reason=${details.reason}`,
       )
       scheduleRelaunch(`renderer-gone: ${details.reason}`)
       return
     }
 
-    console.error(
+    log.error(
       `${TAG} 渲染进程崩溃，自动 reload 窗口。reason=${details.reason}, exitCode=${details.exitCode}`,
     )
     win.webContents.reload()

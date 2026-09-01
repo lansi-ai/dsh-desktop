@@ -5,7 +5,7 @@ import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundles } from '../desktop-host/manifest.js'
 import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
-import { logVerbose } from '../desktop-host/log.js'
+import { log, logVerbose } from '../desktop-host/log.js'
 
 /**
  * dsh-ui:// 自定义协议：
@@ -69,14 +69,14 @@ function checkDistAvailable(): boolean {
     if (existsSync(join(root, 'index.html'))) {
       distRoot = root
       hasDist = true
-      console.log('[dsh-ui-protocol] 使用官方 web-frontend dist')
+      log.ok('[dsh-ui-protocol] 使用官方 web-frontend dist')
     } else {
       hasDist = false
-      console.warn('[dsh-ui-protocol] web-frontend dist 不存在，使用占位页面')
+      log.warn('[dsh-ui-protocol] web-frontend dist 不存在，使用占位页面')
     }
   } catch {
     hasDist = false
-    console.warn('[dsh-ui-protocol] 无法解析 web-frontend，使用占位页面')
+    log.warn('[dsh-ui-protocol] 无法解析 web-frontend，使用占位页面')
   }
   return hasDist
 }
@@ -201,7 +201,7 @@ function resolveDshBaseVersion(): string {
     const version = nodeRequire('@deepseek-ai/dsh/package.json').version
     return typeof version === 'string' && version !== '' ? version : 'unknown'
   } catch (error) {
-    console.warn('[dsh-ui-protocol] 解析 DSH 基线版本失败:', error)
+    log.warn('[dsh-ui-protocol] 解析 DSH 基线版本失败:', error)
     return 'unknown'
   }
 }
@@ -270,7 +270,7 @@ export function registerDshUiProtocol(): void {
 
       const rel = resolveRelative(url, root)
       if (rel === undefined) {
-        console.warn(`[dsh-ui-protocol] 403 ${request.url} (越界)`)
+        log.warn(`[dsh-ui-protocol] 403 ${request.url} (越界)`)
         return new Response('forbidden', { status: 403 })
       }
 
@@ -283,7 +283,7 @@ export function registerDshUiProtocol(): void {
       return new Response(body, { headers: { 'content-type': contentType } })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      console.warn(`[dsh-ui-protocol] 404 ${request.url} (${message})`)
+      log.warn(`[dsh-ui-protocol] 404 ${request.url} (${message})`)
       return new Response(`not found: ${message}`, { status: 404 })
     }
   })

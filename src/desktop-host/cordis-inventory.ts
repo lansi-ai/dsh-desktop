@@ -14,6 +14,7 @@
  */
 
 import { generateBootGraph, buildThirdPartyBundles } from './boot-graph.js'
+import { log } from './log.js'
 import { registerMethod } from './bridge.js'
 
 // ── 类型 ───────────────────────────────────────────────────────────
@@ -48,6 +49,30 @@ const INFRA_IDS = new Set([
   '@deepseek-ai/dsh-client-runtime',
   '@lansi-ai/dsh-ipc-connection',
 ])
+
+/** 按包 scope 分类插件来源（官方 = @deepseek-ai，自研 = @lansi-ai，其余 = 第三方）。 */
+function classifyPlugin(id: string): '官方' | '自研' | '第三方' {
+  if (id.startsWith('@deepseek-ai/')) return '官方'
+  if (id.startsWith('@lansi-ai/')) return '自研'
+  return '第三方'
+}
+
+/** 名称列表排版：单行超宽自动折行并缩进对齐，避免终端单行超长刷屏。 */
+function formatPluginNames(ids: string[], width = 96, indent = '  '): string {
+  const lines: string[] = []
+  let current = ''
+  for (const id of ids) {
+    const piece = current === '' ? id : `, ${id}`
+    if (current !== '' && current.length + piece.length > width) {
+      lines.push(current)
+      current = indent + id
+    } else {
+      current += piece
+    }
+  }
+  if (current !== '') lines.push(current)
+  return lines.join('\n')
+}
 
 /**
  * 生成当前已装载插件的 inventory 行（从 __DSH_BOOT__ 图谱派生）。
@@ -105,7 +130,15 @@ export function registerCordisInventoryCompat(): () => void {
   registerMethod('agent:dynamicCordisRunner/inventory', reply)
   const pluginInventoryReply = async () => buildPluginInventorySnapshot()
   registerMethod('pluginInventory/list', pluginInventoryReply)
-  console.log(`[dsh-cordis-inventory] 插件清单等价面已注册（${rows.length} 个插件：dynamicCordisRunner/inventory + pluginInventory/list）`)
+
+  // 启动日志：汇总 + 按来源（官方/自研/第三方）逐名列出全部插件
+  const groups: Record<'官方' | '自研' | '第三方', string[]> = { 官方: [], 自研: [], 第三方: [] }
+  for (const row of rows) groups[classifyPlugin(row.pluginId)].push(row.pluginId)
+  log.ok(`[dsh-cordis-inventory] 插件清单等价面已注册（共 ${rows.length} 个：官方 ${groups.官方.length} / 自研 ${groups.自研.length} / 第三方 ${groups.第三方.length}）`)
+  for (const [label, ids] of Object.entries(groups) as Array<['官方' | '自研' | '第三方', string[]]>) {
+    if (ids.length === 0) continue
+    log.info(`[dsh-cordis-inventory] ${label}插件（${ids.length}）：\n${formatPluginNames(ids)}`)
+  }
   return () => {
     // 卸载由 bridge.removeIpcHandlers 统一清空，无需单独操作
   }

@@ -21,6 +21,7 @@ import {
   type AuditLogEntry,
 } from '../types/desktop.js'
 import { registerMethod, unregisterMethod } from './bridge.js'
+import { log } from './log.js'
 
 // ── 选项 ────────────────────────────────────────────────────────────
 
@@ -145,11 +146,11 @@ export function installDesktopAuditViewer(
   registerMethod('desktop.audit.query', handleQuery)
   registerMethod('desktop.audit.listActions', handleListActions)
 
-  console.log('[dsh-audit-viewer] 审计查询服务已安装')
+  log.ok('[dsh-audit-viewer] 审计查询服务已安装')
 
   return () => {
     unregisterMethod('desktop.audit.query')
     unregisterMethod('desktop.audit.listActions')
-    console.log('[dsh-audit-viewer] 审计查询服务已清理')
+    log.info('[dsh-audit-viewer] 审计查询服务已清理')
   }
 }

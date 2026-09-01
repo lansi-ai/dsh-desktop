@@ -14,6 +14,8 @@
 
 import { z } from 'zod'
 
+import { log } from './log.js'
+
 /** session.list 响应中本模块关心的字段（宽容校验：未知字段放行）。 */
 const sessionSummarySchema = z.object({
   sessionId: z.string().min(1),
@@ -42,7 +44,7 @@ export async function rewarmPersistedSessions(call: ApiRpcCaller): Promise<void>
   try {
     const parsed = sessionListValueSchema.safeParse(await call('session.list', { _request: {} }))
     if (!parsed.success) {
-      console.warn('[session-rewarm] session.list 响应格式无效，跳过预热:', parsed.error.issues[0]?.message)
+      log.warn('[session-rewarm] session.list 响应格式无效，跳过预热:', parsed.error.issues[0]?.message)
       return
     }
     const candidates = parsed.data.items.filter((s) => s.cwd !== undefined && s.origin !== 'subagent')
@@ -52,11 +54,11 @@ export async function rewarmPersistedSessions(call: ApiRpcCaller): Promise<void>
       candidates.map((s) => call('session.create', { request: { sessionId: s.sessionId, cwd: s.cwd } })),
     )
     const failed = results.filter((r) => r.status === 'rejected')
-    console.log(`[session-rewarm] 持久化会话预热完成: ${candidates.length - failed.length}/${candidates.length} 个已挂载`)
+    log.ok(`[session-rewarm] 持久化会话预热完成: ${candidates.length - failed.length}/${candidates.length} 个已挂载`)
     for (const f of failed) {
-      console.warn('[session-rewarm] 会话挂载失败:', f.reason instanceof Error ? f.reason.message : String(f.reason))
+      log.warn('[session-rewarm] 会话挂载失败:', f.reason instanceof Error ? f.reason.message : String(f.reason))
     }
   } catch (error) {
-    console.warn('[session-rewarm] 预热中断（不影响启动）:', error instanceof Error ? error.message : String(error))
+    log.warn('[session-rewarm] 预热中断（不影响启动）:', error instanceof Error ? error.message : String(error))
   }
 }

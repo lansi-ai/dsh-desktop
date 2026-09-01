@@ -17,6 +17,7 @@ import { clipboard } from 'electron'
 import type { DesktopCore } from '../types/desktop.js'
 import { clipboardWriteSchema } from '../types/desktop.js'
 import { AppError, ErrorCodes } from '../types/errors.js'
+import { log } from './log.js'
 
 // ── 类型 ───────────────────────────────────────────────────────────
 
@@ -43,10 +44,10 @@ interface ApprovalLike {
  */
 export function installDesktopClipboard(_options: DesktopClipboardOptions): () => void {
   // 无需初始化 Electron clipboard（全局单例），此处预留扩展点
-  console.log('[dsh-clipboard] 剪贴板能力已就绪（read 免审批 / write 需 approval）')
+  log.ok('[dsh-clipboard] 剪贴板能力已就绪（read 免审批 / write 需 approval）')
 
   return () => {
-    console.log('[dsh-clipboard] 剪贴板能力已清理')
+    log.info('[dsh-clipboard] 剪贴板能力已清理')
   }
 }
 

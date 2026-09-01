@@ -33,7 +33,7 @@ import {
 } from '../types/window.js'
 import { IPC_CHANNELS } from '../types/channels.js'
 import { broadcastWindowEvent, cleanupWindowState } from './bridge.js'
-import { isVerbose } from './log.js'
+import { isVerbose, log } from './log.js'
 
 // ── 配置常量 ────────────────────────────────────────────────────────
 
@@ -229,9 +229,9 @@ async function savePersistState(): Promise<void> {
     const dir = join(stateFilePath, '..')
     await mkdir(dir, { recursive: true })
     await writeFile(stateFilePath, JSON.stringify(state, null, 2), 'utf-8')
-    console.log(`[dsh-window-manager] 窗口状态已持久化: ${windows.length} 个会话窗口`)
+    log.ok(`[dsh-window-manager] 窗口状态已持久化: ${windows.length} 个会话窗口`)
   } catch (err) {
-    console.error('[dsh-window-manager] 窗口状态持久化失败:', err instanceof Error ? err.message : String(err))
+    log.error('[dsh-window-manager] 窗口状态持久化失败:', err instanceof Error ? err.message : String(err))
   }
 }
 
@@ -245,14 +245,14 @@ async function loadPersistState(): Promise<WindowPersistState | null> {
     const raw = await readFile(stateFilePath, 'utf-8')
     const parsed = windowPersistStateSchema.safeParse(JSON.parse(raw))
     if (!parsed.success) {
-      console.warn('[dsh-window-manager] 窗口状态持久化文件格式无效:', parsed.error.issues)
+      log.warn('[dsh-window-manager] 窗口状态持久化文件格式无效:', parsed.error.issues)
       return null
     }
-    console.log(`[dsh-window-manager] 已加载持久化窗口状态: ${parsed.data.windows.length} 个会话窗口`)
+    log.info(`[dsh-window-manager] 已加载持久化窗口状态: ${parsed.data.windows.length} 个会话窗口`)
     return parsed.data
   } catch {
     // 文件不存在或读取失败 → 返回 null（首次启动场景）
-    console.log('[dsh-window-manager] 无持久化窗口状态（首次启动或文件不存在）')
+    log.info('[dsh-window-manager] 无持久化窗口状态（首次启动或文件不存在）')
     return null
   }
 }
@@ -365,11 +365,11 @@ function createBrowserWindow(
   })
 
   win.webContents.on('did-finish-load', () => {
-    console.log(`[dsh-window-manager] 会话窗口加载完成: ${sessionId} (windowId=${win.id})`)
+    log.info(`[dsh-window-manager] 会话窗口加载完成: ${sessionId} (windowId=${win.id})`)
   })
 
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
-    console.error(`[dsh-window-manager] 会话窗口加载失败 (${errorCode}): ${errorDescription} URL: ${validatedURL}`)
+    log.error(`[dsh-window-manager] 会话窗口加载失败 (${errorCode}): ${errorDescription} URL: ${validatedURL}`)
   })
 
   // 渲染进程日志转发（终端降噪：默认仅 WARN/ERROR，DSH_VERBOSE=1 全量）
@@ -379,8 +379,10 @@ function createBrowserWindow(
     if (!isVerbose() && level < 2) return
     // 官方 dist 无 CSP 的 dev 安全警告：已知无害（打包不出现），滤掉避免终端噪音。
     if (event.level === 'warning' && event.message.includes('Electron Security Warning')) return
-    const prefix = level === 3 ? '[renderer-ERROR]' : level === 2 ? '[renderer-WARN]' : level === 1 ? '[renderer-INFO]' : '[renderer-VERBOSE]'
-    console.log(`${prefix} ${event.message} (line ${event.lineNumber}, ${event.sourceId})`)
+    const location = `(line ${event.lineNumber}, ${event.sourceId})`
+    if (level === 3) log.error(`[renderer] ${event.message} ${location}`)
+    else if (level === 2) log.warn(`[renderer] ${event.message} ${location}`)
+    else log.info(`[renderer] ${event.message} ${location}`)
   })
 
   // 窗口生命周期事件
@@ -460,7 +462,7 @@ function createBrowserWindow(
     if (rec !== undefined) {
       removeWindow(win.id)
       cleanupWindowState(win.id)
-      console.log(`[dsh-window-manager] 窗口已关闭: ${rec.sessionId} (windowId=${win.id})`)
+      log.info(`[dsh-window-manager] 窗口已关闭: ${rec.sessionId} (windowId=${win.id})`)
     }
   })
 
@@ -527,7 +529,7 @@ function sendSessionContextToWindow(windowId: number): void {
     windowId: rec.windowId,
     ts: Date.now(),
   })
-  console.log(`[dsh-window-manager] 会话上下文已推送: ${rec.sessionId} (windowId=${windowId})`)
+  log.info(`[dsh-window-manager] 会话上下文已推送: ${rec.sessionId} (windowId=${windowId})`)
 }
 
 /**
@@ -554,7 +556,7 @@ function createSessionWindow(
     if (existingWin !== null && !existingWin.isDestroyed()) {
       if (existingWin.isMinimized()) existingWin.restore()
       existingWin.focus()
-      console.log(`[dsh-window-manager] 会话窗口已存在，聚焦: ${sessionId} (windowId=${existingWindowId})`)
+      log.info(`[dsh-window-manager] 会话窗口已存在，聚焦: ${sessionId} (windowId=${existingWindowId})`)
       return { success: true, message: '聚焦已有窗口', windowId: existingWindowId, sessionId }
     }
     // 窗口已销毁，清理旧绑定
@@ -582,7 +584,7 @@ function createSessionWindow(
   // 标记为就绪（等待 renderer ready 通知）
   // 注意：markWindowReady 在 preload 发送 READY 通知时由 bridge 处理
 
-  console.log(`[dsh-window-manager] 会话窗口已创建: ${sessionId} (windowId=${win.id})`)
+  log.info(`[dsh-window-manager] 会话窗口已创建: ${sessionId} (windowId=${win.id})`)
 
   // 广播窗口创建事件
   broadcastToAllWindows({
@@ -670,7 +672,7 @@ function getAllWindows(): WindowRecord[] {
 /** 初始化（由工厂函数传入 options）。 */
 function initializeWithOptions(options: WindowManagerOptions): void {
   if (initialized) {
-    console.warn('[dsh-window-manager] 已初始化，忽略重复调用')
+    log.warn('[dsh-window-manager] 已初始化，忽略重复调用')
     return
   }
   // 保存当前选项供 restorePersistedWindows 使用
@@ -680,7 +682,7 @@ function initializeWithOptions(options: WindowManagerOptions): void {
     stateFilePath = options.getStateFilePath()
   }
   initialized = true
-  console.log('[dsh-window-manager] WindowManager 已初始化')
+  log.ok('[dsh-window-manager] WindowManager 已初始化')
 }
 
 /** 释放所有窗口管理器资源。 */
@@ -694,26 +696,26 @@ function dispose(): void {
     persistTimer = null
   }
   initialized = false
-  console.log('[dsh-window-manager] WindowManager 已释放')
+  log.info('[dsh-window-manager] WindowManager 已释放')
 }
 
 /** 恢复已持久化的会话窗口。 */
 function restorePersistedWindows(state: WindowPersistState): void {
   if (currentOptions === null) {
-    console.warn('[dsh-window-manager] currentOptions 未初始化，跳过窗口恢复')
+    log.warn('[dsh-window-manager] currentOptions 未初始化，跳过窗口恢复')
     return
   }
 
   const mainWin = BrowserWindow.getAllWindows()[0]
   if (mainWin !== undefined && state.mainWindowBounds !== undefined) {
     mainWin.setBounds(state.mainWindowBounds)
-    console.log('[dsh-window-manager] 主窗口边界已恢复')
+    log.info('[dsh-window-manager] 主窗口边界已恢复')
   }
 
   // 按 zIndex 排序恢复窗口
   const sorted = [...state.windows].sort((a, b) => a.zIndex - b.zIndex)
   for (const entry of sorted) {
-    console.log(`[dsh-window-manager] 恢复会话窗口: ${entry.sessionId}`)
+    log.info(`[dsh-window-manager] 恢复会话窗口: ${entry.sessionId}`)
     const win = createBrowserWindow(
       entry.sessionId,
       entry.bounds,
@@ -731,7 +733,7 @@ function restorePersistedWindows(state: WindowPersistState): void {
     sessionToWindow.set(entry.sessionId, win.id)
   }
   broadcastSessionListUpdated()
-  console.log(`[dsh-window-manager] 已恢复 ${sorted.length} 个会话窗口`)
+  log.ok(`[dsh-window-manager] 已恢复 ${sorted.length} 个会话窗口`)
 }
 
 // ── 导出工厂函数 ────────────────────────────────────────────────────

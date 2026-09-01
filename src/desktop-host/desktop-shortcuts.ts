@@ -14,6 +14,7 @@ import { globalShortcut, BrowserWindow } from 'electron'
 import type { DesktopCore } from '../types/desktop.js'
 import { shortcutRegisterSchema, shortcutUnregisterSchema } from '../types/desktop.js'
 import { AppError, ErrorCodes } from '../types/errors.js'
+import { log } from './log.js'
 
 // ── 类型 ───────────────────────────────────────────────────────────
 
@@ -110,13 +111,13 @@ export function installDesktopShortcuts(options: DesktopShortcutsOptions): () =>
   // ── 预置快捷键 ──────────────────────────────────────────────────
   registerShortcut(options, 'Alt+Shift+Q', 'window-show')
   registerShortcut(options, 'Alt+Shift+Space', 'quick-ask')
-  console.log('[dsh-shortcuts] 预置快捷键已注册：Alt+Shift+Q(唤起窗口) Alt+Shift+Space(快速问答)')
+  log.ok('[dsh-shortcuts] 预置快捷键已注册：Alt+Shift+Q(唤起窗口) Alt+Shift+Space(快速问答)')
 
   // ── 清理 ─────────────────────────────────────────────────────────
   return () => {
     globalShortcut.unregisterAll()
     registered.clear()
-    console.log('[dsh-shortcuts] 全局快捷键已注销')
+    log.info('[dsh-shortcuts] 全局快捷键已注销')
   }
 }
 

@@ -12,6 +12,7 @@
 import type { WebContents } from 'electron'
 import type { Frame } from '../types/contract.js'
 import { sendFrame, broadcastFrame } from './bridge.js'
+import { log } from './log.js'
 import {
   generateBootGraph,
   generateFullBootScript,
@@ -93,7 +94,7 @@ export function registerIpcCarrierServices(
     handleRespond: apiProxy.handleRespond.bind(apiProxy),
   }
 
-  console.log('[dsh-manifest] IPC 载波服务已注册')
+  log.ok('[dsh-manifest] IPC 载波服务已注册')
 }
 
 // ── 补丁条目（供 Cordis patch 系统使用） ─────────────────────────────

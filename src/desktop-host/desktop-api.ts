@@ -18,7 +18,7 @@
 import { BrowserWindow, type WebContents } from 'electron'
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { isVerbose } from './log.js'
+import { log, logVerbose } from './log.js'
 import { IPC_CHANNELS } from '../types/channels.js'
 import {
   desktopActionEventSchema,
@@ -134,10 +134,10 @@ export async function installDesktopCore(ctx: unknown, options?: InstallDesktopC
       try {
         const logger = coreCtx.get('logger') as { info?: (msg: string, meta: unknown) => void } | undefined
         if (logger?.info !== undefined) logger.info('[desktop/action]', record)
-        else if (isVerbose()) console.log('[desktop/action]', JSON.stringify(record))
+        else logVerbose('desktop/action', JSON.stringify(record))
       } catch {
         // 终端降噪：审计落盘为主，终端回显仅在 verbose 下输出
-        if (isVerbose()) console.log('[desktop/action]', JSON.stringify(record))
+        logVerbose('desktop/action', JSON.stringify(record))
       }
       // M3-b2：异步写入 JSONL 审计日志文件
       if (this.auditLogPath !== null) {
@@ -157,7 +157,7 @@ export async function installDesktopCore(ctx: unknown, options?: InstallDesktopC
           await mkdir(dirname(filePath), { recursive: true })
           await appendFile(filePath, line, 'utf-8')
         } catch (err) {
-          console.warn('[dsh-desktop] 审计日志写入失败:', err)
+          log.warn('[dsh-desktop] 审计日志写入失败:', err)
         }
       })
     }
@@ -179,7 +179,7 @@ export async function installDesktopCore(ctx: unknown, options?: InstallDesktopC
       const scope = this.lazySettingsScope()
       if (scope !== null) {
         void scope.update({ [key]: value }).catch(() => {
-          console.warn('[dsh-desktop] desktop 配置持久化失败:', key)
+          log.warn('[dsh-desktop] desktop 配置持久化失败:', key)
         })
       }
     }
@@ -196,5 +196,5 @@ export async function installDesktopCore(ctx: unknown, options?: InstallDesktopC
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   new (DesktopCoreService as any)(ctx, 'desktop', options?.auditLogPath)
-  console.log('[dsh-desktop] ctx.desktop 聚合服务已注入（core 子集：onAction/emitAction/log/readConfig/writeConfig/sendDesktopEvent，config→settings 持久化）')
+  log.ok('[dsh-desktop] ctx.desktop 聚合服务已注入（onAction/log/config/event）')
 }
