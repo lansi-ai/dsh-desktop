@@ -373,10 +373,14 @@ function createBrowserWindow(
   })
 
   // 渲染进程日志转发（终端降噪：默认仅 WARN/ERROR，DSH_VERBOSE=1 全量）
-  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+  // 现代签名 event 对象（旧的多参回调已被 Electron 标记 deprecated）
+  win.webContents.on('console-message', (event) => {
+    const level = event.level === 'error' ? 3 : event.level === 'warning' ? 2 : event.level === 'info' ? 1 : 0
     if (!isVerbose() && level < 2) return
+    // 官方 dist 无 CSP 的 dev 安全警告：已知无害（打包不出现），滤掉避免终端噪音。
+    if (event.level === 'warning' && event.message.includes('Electron Security Warning')) return
     const prefix = level === 3 ? '[renderer-ERROR]' : level === 2 ? '[renderer-WARN]' : level === 1 ? '[renderer-INFO]' : '[renderer-VERBOSE]'
-    console.log(`${prefix} ${message} (line ${line}, ${sourceId})`)
+    console.log(`${prefix} ${event.message} (line ${event.lineNumber}, ${event.sourceId})`)
   })
 
   // 窗口生命周期事件

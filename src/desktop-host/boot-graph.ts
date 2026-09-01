@@ -47,6 +47,14 @@ const CLIENT_EXCLUDE_IDS = new Set([
   // 5 子槽位声明）；官方 ui-sidebar 排除后，ui-workspace/ui-settings 无改动注册其子槽位
   // （摸底证实 ui-workspace 运行时不 require ui-sidebar，dsh.client.inject 仅为装载顺序提示）。
   '@deepseek-ai/dsh-client-ui-sidebar',
+  // Web 端专用基础设施，桌面零端口不提供对应宿主服务 →
+  // ① dsh-client-hmr：dev SSE `/plugins/events` 热重载通道不存在，轮询必 404（纯 dev 工具，桌面无价值）；
+  // ② dsh-cordis-client-runner + dsh-client-ui-cordis：动态双半插件管理子系统，对端 cordis-host-runner
+  //    已禁用（零端口架构冲突），客户端激活即对 syncInspectManifest 404 报错且面板本就不工作——
+  //    整体排除后插件清单仍经 cordis-inventory 兼容面（pluginInventory/list）从设置页查看（2026-09-01·终端静音清理）。
+  '@deepseek-ai/dsh-client-hmr',
+  '@deepseek-ai/dsh-cordis-client-runner',
+  '@deepseek-ai/dsh-client-ui-cordis',
 ])
 
 // ── 内部状态 ─────────────────────────────────────────────────────────

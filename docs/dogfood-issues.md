@@ -66,9 +66,31 @@
 
 - 修复：根因非启动时序，而是自研启动 unary 未对齐 0.1.2 官方 /api wire 契约：① 端点须斜杠 `domain/method`（`settings.describe` 点分被判 false → 404），② payload 须恰好一个 `args` 字段 `{args}`（裸 params 被拒 arguments-invalid），③ `args` 内字段名匹配端点签名参数（`session.list`→`_request`、`session.create`→`request`）。`callApi` 统一入口做点分→斜杠 + 裸 params 幂等补包 `{args}`；session-rewarm 按签名参数名传参。theme 与 rewarm 共用修复，启动日志已净。
 
-### 遗留观察（非阻断，M5 评估）
+### #5 · 终端启动噪音：`/plugins/events` 404 + `syncInspectManifest` 404 + `console-message` deprecation + CSP 警告
 
-- `dynamicCordisRunner/*`（inspect providers 同步）service-unavailable：`dsh-cordis-host-runner` 未装载，依赖 `tools` 服务链（坑 12 附记）
+- 环境：打包版（`npm run start`，dist/desktop-shell/main.js）+ dev
 
-- `[dsh-ui-protocol] 404 dsh-ui://app/plugins/events`：官方 UI 请求的静态资源不存在，暂无功能影响，观察即可
+- 第一现场：（0.1.2 升级后）启动即刷 4 类噪音：
+
+  ```
+  [dsh-ui-protocol] 404 dsh-ui://app/plugins/events (ENOENT: ...plugins/events)
+  [dsh-bridge] RPC 失败 (dynamicCordisRunner/syncInspectManifest): Error: api 调用失败: HTTP 404
+  [renderer-ERROR] [cordis-client-runner] syncing inspect providers failed: ... HTTP 404
+  (electron) 'console-message' arguments are deprecated ...
+  [renderer-WARN] Electron Security Warning (Insecure Content-Security-Policy) ...
+  ```
+
+- 状态：**verified**（2026-09-01）→ 坑 25
+
+- 修复：
+
+  - `/plugins/events` 404 = `dsh-client-hmr` 客户端半仍入渲染图谱，轮询桌面不存在的 dev SSE 通道 → 加入 `CLIENT_EXCLUDE_IDS`
+
+  - `syncInspectManifest` 404 (renderer) = `dsh-cordis-client-runner`（动态双半插件子系统）对端 host runner 已禁用，激活即 404 → 连同其面板 `dsh-client-ui-cordis` 一并移出图谱（用户决策「整体排除」；插件清单仍经 cordis-inventory 兼容面在设置页查看）
+
+  - `console-message` deprecation = 主进程/窗口管理器用了旧多参回调 → 改现代 `Event<WebContentsConsoleMessageEventParams>` 单对象签名
+
+  - CSP 安全警告 = 官方 dist 无 CSP 的 dev 提示（打包不出现）→ 转发层按 "Electron Security Warning" 消息过滤
+
+  - 宿主侧 `boot.ts` §3 本就禁用 client-hmr/cordis-client-runner/cordis-host-runner，此修复补齐渲染端排除。
 

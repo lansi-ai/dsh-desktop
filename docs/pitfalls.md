@@ -198,6 +198,30 @@
 - **解法**：main.ts `callApi` 统一入口做两层 wire 规范化——① 点分→斜杠（`method.includes('/') ? method : method.replace(/\./g, '/')`）；② 裸 `params` 幂等补包为 `{ args: params }`（renderer 已发 args 包则放行）。端点签名参数名在各调用方对齐：session-rewarm 改 `session.list → { _request: {} }`、`session.create → { request: { sessionId, cwd } }`。theme-sync 的 `settings.describe` 参数可选、裸 `{}` 即可。
 - **复盘**：① 自研 hand-rolled 调用走官方传输，**必须刻对齐官方 wire 契约**（端点分隔符 + payload 信封 + 签名参数名），不能假设"升级前能用=升级后一样"——0.1.2 是破坏性重构。② **持续 404 ⟺ 时序竞态的归因是陷阱**：时序竞态应是「间歇性、窗口加载后自愈」；**必然、持续、逐层推进的报错通常是 wire 形态不对**，优先查分隔符/信封/参数名三层，而不是加盲目重试掩盖。③ 统一入口（callApi）承载分隔符+信封规范化，调用方只对齐签名参数名，责权清晰。
 
+## 坑 25 · Web 端专用 client 半点名入渲染图谱：宿主已禁用对端仍产生 404 噪音（/plugins/events + dynamicCordisRunner/syncInspectManifest）
+
+- **现象**（0.1.2 升级后，`npm run start` 启动即刷 4 类噪音）：
+  ```
+  [dsh-ui-protocol] 404 dsh-ui://app/plugins/events (ENOENT: ...plugins/events)
+  [dsh-bridge] RPC 失败 (dynamicCordisRunner/syncInspectManifest): api 调用失败: HTTP 404
+  [renderer-ERROR] [cordis-client-runner] syncing inspect providers failed: ... HTTP 404
+  (electron) 'console-message' arguments are deprecated ...
+  [renderer-WARN] Electron Security Warning (Insecure Content-Security-Policy) ...
+  ```
+- **根因**：桌面**宿主侧**（boot.ts §3）已禁用 `client-hmr`/`cordis-client-runner`/`cordis-host-runner`，但**渲染侧图谱**（boot-graph.ts `scanClientPackages` 自动扫描全部 `dsh.client.platform==='web'` 包）仍把它们收进 entries 并激活——
+  ① `dsh-client-hmr` 客户端 apply 订阅 dev SSE `/plugins/events`（`EVENTS_ENDPOINT`），桌面零端口无该宿主服务 → 经 dsh-ui:// 协议落到 `resolveRelative` 读不存在的文件 → ENOENT 404（且可能重连轮询反复刷）；
+  ② `dsh-cordis-client-runner` 激活即 `ctx.remote.dynamicCordisRunner.syncInspectManifest(providers)`，对端 host runner 禁用 → 404 → `throw` → renderer `[cordis-client-runner] syncing inspect providers failed`。
+  ③ `console-message` 旧多参回调是 Electron 已标 deprecated 的 API 签名。
+  ④ CSP 警告 = 官方 dist `index.html` 无 `Content-Security-Policy` meta，Electron dev 下提示（打包后不出现）。
+- **解法**：
+  - boot-graph.ts `CLIENT_EXCLUDE_IDS` 加入 `@deepseek-ai/dsh-client-hmr`、`@deepseek-ai/dsh-cordis-client-runner`、`@deepseek-ai/dsh-client-ui-cordis`（面板依赖 runner 的 `dynamicCordisRunner` 面服务，排除 runner 要连面板一起，否则 `ctx.dynamicCordisRunner` 为 undefined 崩 `runner.getSnapshot()`）。插件清单仍经 `cordis-inventory.ts` 兼容面（`pluginInventory/list`）在设置页查看，不受影响。
+  - main.ts + window-manager.ts 的 `webContents.on('console-message')` 改现代单对象签名 `(event) => { event.level/message/lineNumber/sourceId }`（旧多参回调 deprecated）。
+  - 转发层按 `event.message.includes('Electron Security Warning')` 滤掉 CSP 已知无害警告（dev-only）。
+- **复盘**：
+  - **「宿主已禁用 ≠ 渲染端不会跑」**：零端口/桌面 profile 里，host 补丁禁用某 Web 基础设施，**必须同时把它的 client 半点从渲染图谱的自动扫描中排除**，否则对端缺席的客户端激活会持续 404 刷屏。宿主禁用与 CLIENT_EXCLUDE_IDS 是**两条正交装配线**，都要关这扇门。
+  - **排除一个注入型插件要连其消费方一起**：若某插件被其他插件的 `dsh.client.inject` 当服务依赖（如 ui-cordis 用 runner 的 `dynamicCordisRunner` 面），单独排除提供方会崩消费方；判断标准=对方 `apply()` 是否**直接 `ctx[服务]` / `ctx.get()` 该服务**（`inject` 仅是拓扑顺序提示，不等于服务存在）。
+  - **官方 dist 无 CSP 的 Security Warning**：Electron 明确「打包后不出现」，属 dev 专属提示；不要在官方 dist 上硬加 CSP 破坏动态模块系统（需 unsafe-eval），转发层过滤该已知消息即可。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -216,6 +240,7 @@
 14. **自绘样式对宿主页一律 important 化/提特异性**：官方 UI 运行时会动态追加样式表覆盖同特异性规则；「规则存在 ≠ 生效」，内容整体下移 N px + 底部等量溢出 = position 被降级的指纹（坑 19）。
 15. **`renderSlot` 只能渲染本槽声明的子槽位（槽位所有权）**：跨槽位渲染官方子槽位直接抛 `SlotOwnershipError` 崩溃；要展示非本槽 children 里的官方元素（如品牌 logo），**直接 require 官方组件渲染**，不用 `renderSlot` 走槽位（坑 23）。
 16. **官方传输的 wire 契约要逐层对齐**：走官方 connection/typert 时，端点须用「斜杠 `domain/method`」、payload 须是「恰好一个 plain-object `args` 字段 `{args}`」、`args` 内字段名须匹配端点签名参数（`_request`/`request` 等）；持续 404 / `arguments-invalid` 优先查这三层 wire 形态，**不要先归因「启动时序」加盲目重试**（坑 24）。
+17. **宿主禁用 ≠ 渲染端不会跑（两条正交装配线）**：host 补丁禁用的 Web 基础设施（如 client-hmr / cordis-runner），其 client 半点仍会被渲染图谱自动扫描激活，对端缺席 → 持续 404 噪音；必须同时把它加进 `CLIENT_EXCLUDE_IDS`。排除一个被他人当服务依赖的插件要连消费方一起排除（判断=对方是否 `ctx.get` 该服务，`inject` 只是顺序提示）（坑 25）。
 
 ## 结论
 

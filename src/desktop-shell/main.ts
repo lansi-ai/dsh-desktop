@@ -188,12 +188,17 @@ function createWindow(): BrowserWindow {
   installRendererCrashRecovery(win)
 
   // 捕获 renderer 日志转发到主进程
-  // Electron console-message level: 0=verbose, 1=info, 2=warning, 3=error
+  // Electron console-message 事件对象：event.level ∈ {debug,info,warning,error}，lineNumber/sourceId 同源
+  // （现代签名 Event<WebContentsConsoleMessageEventParams>，旧的多参回调已被标记 deprecated）。
   // 终端降噪：默认仅转发 WARN/ERROR；设 DSH_VERBOSE=1 时全量转发（排障用）
-  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+  win.webContents.on('console-message', (event) => {
+    const level = event.level === 'error' ? 3 : event.level === 'warning' ? 2 : event.level === 'info' ? 1 : 0
     if (!isVerbose() && level < 2) return
+    // 官方 dist 无 CSP，Electron 在 dev 下打印 Insecure-Content-Security-Policy 安全警告（打包后不出现）——
+    // 已知且无害，直接滤掉避免终端噪音；其余 renderer 日志按级别转发。
+    if (event.level === 'warning' && event.message.includes('Electron Security Warning')) return
     const prefix = level === 3 ? '[renderer-ERROR]' : level === 2 ? '[renderer-WARN]' : level === 1 ? '[renderer-INFO]' : '[renderer-VERBOSE]'
-    console.log(`${prefix} ${message} (line ${line}, ${sourceId})`)
+    console.log(`${prefix} ${event.message} (line ${event.lineNumber}, ${event.sourceId})`)
   })
 
   // M3-b3：--hidden 静默模式下不显示主窗口（开机自启登录后驻留托盘）
