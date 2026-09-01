@@ -307,19 +307,34 @@ async function bootstrap(): Promise<void> {
       return result.value
     }
     // 统一 host RPC 调用入口：桥 fallback 与启动期预热共用同一通路。
-    // 走 connection createSharedFetchHandler（0.1.2 官方 connection.rpc.intercept('/api')
-    // 已由 typertGateway 认领全部业务端点 + $events/result，无需额外 404 兜底）。
+    // 走 connection createSharedFetchHandler（0.1.2 官方 connection 认领全部业务端点）。
+    //
+    // 两步 wire 规范化（缺任一步都会 404/报 arguments-invalid）：
+    //  ① 端点半分隔符：官方 dsh-api-gateway 的 claimsEndpoint 只认「斜杠两段」domain/method
+    //     （settings/describe）；点分单段（settings.describe）判 false → 404。renderer 官方
+    //     client 已用斜杠、includes('/') 直接放行；自研启动调用（theme-sync/rewarm 原本点分）
+    //     统一规范化为斜杠。
+    //  ② payload 封装：官方 typert remoteRequest 要求 payload 恰好一个 plain-object args 字段
+    //     （{ args: {...} }），并从 args 取实参；已发 args 包（renderer 官方 client）幂等放行，
+    //     裸 params（theme-sync/rewarm）统一补包为 { args }。
     const callApi = async (method: string, params: unknown): Promise<unknown> => {
+      const wireMethod = method.includes('/') ? method : method.replace(/\./g, '/')
+      const rec = (typeof params === 'object' && params !== null ? params : {}) as Record<string, unknown>
+      const isArgsWrapped =
+        Object.keys(rec).length === 1 &&
+        'args' in rec &&
+        typeof rec.args === 'object' && rec.args !== null && !Array.isArray(rec.args)
+      const payload = isArgsWrapped ? rec : { args: rec }
       const envelope = {
         type: 'client-request' as const,
         rpcId: `rewarm-${method}-${Date.now()}`,
-        method,
-        payload: params,
+        method: wireMethod,
+        payload,
       }
       // connectionFetch.fetch 内部用 new URL(req.url) 取 pathname，相对路径会抛
       // "Failed to parse URL"；这里用 http://local 作虚拟 base，fetch 只读 pathname。
       const res = await connectionFetch.fetch(
-        new Request(`http://local/api/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
+        new Request(`http://local/api/${wireMethod}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(envelope) }),
       )
       return await unpackServerResponse(res)
     }

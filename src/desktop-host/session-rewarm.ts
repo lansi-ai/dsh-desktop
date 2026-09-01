@@ -35,9 +35,12 @@ export type ApiRpcCaller = (method: string, params: unknown) => Promise<unknown>
  * 整体失败（如 session.list 不可用）同样仅告警——预热是尽力而为的加速层，
  * session.prompt 等经 agentFor 的方法仍可懒恢复。
  */
+// 0.1.2 端点 wire 契约：`session.list` 参数名 `_request`（保留空参数占位）、
+// `session.create` 参数名 `request`（内放 { sessionId, cwd }）。缺参数名会被
+// typert gateway 判 "args fields do not match the descriptor: missing ..."。
 export async function rewarmPersistedSessions(call: ApiRpcCaller): Promise<void> {
   try {
-    const parsed = sessionListValueSchema.safeParse(await call('session.list', {}))
+    const parsed = sessionListValueSchema.safeParse(await call('session.list', { _request: {} }))
     if (!parsed.success) {
       console.warn('[session-rewarm] session.list 响应格式无效，跳过预热:', parsed.error.issues[0]?.message)
       return
@@ -46,7 +49,7 @@ export async function rewarmPersistedSessions(call: ApiRpcCaller): Promise<void>
     if (candidates.length === 0) return
 
     const results = await Promise.allSettled(
-      candidates.map((s) => call('session.create', { sessionId: s.sessionId, cwd: s.cwd })),
+      candidates.map((s) => call('session.create', { request: { sessionId: s.sessionId, cwd: s.cwd } })),
     )
     const failed = results.filter((r) => r.status === 'rejected')
     console.log(`[session-rewarm] 持久化会话预热完成: ${candidates.length - failed.length}/${candidates.length} 个已挂载`)

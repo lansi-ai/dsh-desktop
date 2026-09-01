@@ -188,6 +188,16 @@
 - **解法**：不再经槽位，改为**直接 require 官方品牌组件渲染**——`getOfficialBrand()` 内 `require('@deepseek-ai/dsh-client-ui-primitives')` 取 `FishLogo`（鲸鱼 logo）+ `BrandWordmark`（DeepSeek 字标），渲染到标题栏品牌区；`BrandWordmark` 用 `includeMark:false`（mark 已单独渲染，避免重复）。该模块必被 loader 注册（被激活的官方 `dsh-client-ui-brand-official` bundle 引用它），`require` 即可解析。解析失败回退内置占位（深色圆角块 + 品牌名），不崩标题栏。
 - **复盘**：① **自有插件接管某槽位后，若想展示不属于自己 children 声明的官方子槽位内容，应「直接集成官方组件」，不要用 `renderSlot` 跨槽位**——槽位所有权是渲染面红线，`renderSlot` 只能渲染本槽自己声明的子槽位（坑 23）。② 官方品牌组件来自 `@deepseek-ai/dsh-client-ui-primitives`（被 `ui-brand-official` 消费，注册 `sidebar.brand.*` / `conversation.hero.brand.mark` 三个槽位，见其 `client.js`），跨槽位/跨插件复用官方品牌元素直接 require 该包最省事。③ 排查自绘插件渲染空白：先看是否有 `SlotOwnershipError`/`StaleAuthorizationError` 被 catch 吞掉——跨槽位调用常以「组件崩溃 → 区域空白」呈现，非报错红字。
 
+## 坑 24 · 启动期 unary 报 404 / arguments-invalid：自研调用未对齐官方 /api wire 契约（非启动时序）
+
+- **现象**（0.1.2 升级后，自研启动 unary——theme-sync 读 settings、session-rewarm 重挂载冷会话）：按顺序冒出三段不同错误——① `api 调用失败: HTTP 404`（settings.describe / session.create）；修掉后变 ② `Remote payload must contain exactly one plain-object args field`；再修掉后变 ③ `args fields do not match the descriptor: missing "_request"`。**每改一处就推进到下一段报错→说明是 wire 契约多层不对齐，不是启动时序竞态**；renderer 官方 client 天生满足全部三层，所以桌面 UI 正常、仅自研启动调用全挂。
+- **根因**（三层，按现象①→③对应）：
+  1. **端点分隔符**：官方 `dsh-api-gateway` 的 `/api` interceptor 认领判定 `claimsEndpoint(endpoint)` 只认**斜杠两段 `domain/method`**（`settings/describe`）；点分单段 `settings.describe` `split("/")` 长度 1 → 判 false → HTTP 404。
+  2. **payload 信封**：认领通过后，typert `remoteRequest` 要求 payload **恰好一个 plain-object `args` 字段**（`{ args: {...} }`）；裸 `params` 传过去（0 字段）被拒 → `Remote payload must contain exactly one plain-object args field`。
+  3. **签名参数名**：`args` 内字段名必须匹配端点签名参数（如 `session.list(request=_request)`、`session.create(request)`）；缺 `_request` → `missing "_request"`。
+- **解法**：main.ts `callApi` 统一入口做两层 wire 规范化——① 点分→斜杠（`method.includes('/') ? method : method.replace(/\./g, '/')`）；② 裸 `params` 幂等补包为 `{ args: params }`（renderer 已发 args 包则放行）。端点签名参数名在各调用方对齐：session-rewarm 改 `session.list → { _request: {} }`、`session.create → { request: { sessionId, cwd } }`。theme-sync 的 `settings.describe` 参数可选、裸 `{}` 即可。
+- **复盘**：① 自研 hand-rolled 调用走官方传输，**必须刻对齐官方 wire 契约**（端点分隔符 + payload 信封 + 签名参数名），不能假设"升级前能用=升级后一样"——0.1.2 是破坏性重构。② **持续 404 ⟺ 时序竞态的归因是陷阱**：时序竞态应是「间歇性、窗口加载后自愈」；**必然、持续、逐层推进的报错通常是 wire 形态不对**，优先查分隔符/信封/参数名三层，而不是加盲目重试掩盖。③ 统一入口（callApi）承载分隔符+信封规范化，调用方只对齐签名参数名，责权清晰。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -205,6 +215,7 @@
 13. **同文件多处编辑必须串行 + 落盘反查**：并发编辑同一文件会相互覆盖且「成功」报告不可信；每处编辑后 Read 复核，收尾用 dist 产物 grep 反查源码状态——typecheck/lint 测不出「编辑未落盘」（坑 18）。
 14. **自绘样式对宿主页一律 important 化/提特异性**：官方 UI 运行时会动态追加样式表覆盖同特异性规则；「规则存在 ≠ 生效」，内容整体下移 N px + 底部等量溢出 = position 被降级的指纹（坑 19）。
 15. **`renderSlot` 只能渲染本槽声明的子槽位（槽位所有权）**：跨槽位渲染官方子槽位直接抛 `SlotOwnershipError` 崩溃；要展示非本槽 children 里的官方元素（如品牌 logo），**直接 require 官方组件渲染**，不用 `renderSlot` 走槽位（坑 23）。
+16. **官方传输的 wire 契约要逐层对齐**：走官方 connection/typert 时，端点须用「斜杠 `domain/method`」、payload 须是「恰好一个 plain-object `args` 字段 `{args}`」、`args` 内字段名须匹配端点签名参数（`_request`/`request` 等）；持续 404 / `arguments-invalid` 优先查这三层 wire 形态，**不要先归因「启动时序」加盲目重试**（坑 24）。
 
 ## 结论
 
