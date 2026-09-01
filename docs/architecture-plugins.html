@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSH Desktop · 完整插件清单</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2330; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e;
+    --blue: #58a6ff; --green: #3fb950; --purple: #bc8cff; --orange: #d29922; --cyan: #39c5cf; --red: #f85149;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 26px 28px 64px; line-height: 1.6; font-size: 18.5px;
+  }
+  .wrap { max-width: 1680px; margin: 0 auto; }
+  header { margin-bottom: 20px; }
+  header .top { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+  header h1 { font-size: 32px; font-weight: 700; }
+  header h1 .accent { color: var(--green); }
+  header .sub { color: var(--muted); font-size: 16px; margin-top: 6px; }
+  .back-link {
+    font-size: 15px; color: var(--blue); text-decoration: none; border: 1px solid rgba(88,166,255,.4);
+    padding: 6px 16px; border-radius: 999px; white-space: nowrap; transition: background .15s ease;
+  }
+  .back-link:hover { background: rgba(88,166,255,.12); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0 22px; font-size: 14.5px; color: var(--muted); align-items: center; }
+  .legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--border); display: inline-block; }
+
+  section { margin-bottom: 34px; }
+  .sec-h { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .sec-h h2 { font-size: 24px; font-weight: 700; }
+  .sec-h .d { font-size: 15px; color: var(--muted); }
+  .sec-h::after { content: ""; flex: 1; height: 1px; background: var(--border); align-self: center; }
+  .sec-note { font-size: 15px; color: var(--muted); margin-bottom: 14px; }
+
+  .groups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 1180px) { .groups { grid-template-columns: 1fr; } }
+  .group { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; }
+  .group > .gh {
+    padding: 10px 16px; font-size: 17px; font-weight: 700;
+    border-bottom: 1px solid var(--border); background: var(--panel-2);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .group > .gh .count { font-size: 13.5px; color: var(--muted); font-weight: 400; }
+  .group.host { border-color: rgba(63,185,80,.35); }
+  .group.host > .gh { color: var(--green); }
+  .group.client { border-color: rgba(88,166,255,.35); }
+  .group.client > .gh { color: var(--blue); }
+  .group.desk { border-color: rgba(188,140,255,.35); }
+  .group.desk > .gh { color: var(--purple); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th {
+    text-align: left; font-size: 13px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; padding: 8px 16px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 8px 16px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.025); }
+  td.name { font-family: Consolas, monospace; font-size: 13.5px; white-space: nowrap; }
+  td.desc { color: var(--muted); }
+  .st { display: inline-block; font-size: 12.5px; padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+  .st.on  { color: var(--green); border: 1px solid rgba(63,185,80,.45); background: rgba(63,185,80,.08); }
+  .st.off { color: var(--muted); border: 1px dashed var(--border); }
+  .st.ex  { color: var(--red); border: 1px solid rgba(248,81,73,.45); background: rgba(248,81,73,.08); }
+  .st.pre { color: var(--orange); border: 1px solid rgba(210,153,34,.45); background: rgba(210,153,34,.08); }
+
+  .foot-note { font-size: 14.5px; color: var(--muted); margin-top: 10px; }
+  .foot-note code { font-family: Consolas, monospace; color: var(--text); }
+  a.back-top {
+    position: fixed; right: 28px; bottom: 28px; z-index: 99;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; text-decoration: none; transition: color .15s ease, border-color .15s ease;
+  }
+  a.back-top:hover { color: var(--blue); border-color: var(--blue); }
+  @media print { body { background: #fff; color: #111; } .group, .st { border-color: #bbb !important; } a.back-top { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="top">
+      <div>
+        <h1>完整插件清单 <span class="accent">· Plugin Inventory</span></h1>
+        <div class="sub">Host 侧 78 条 Cordis 插件（boot.ts overlay patches §1+§4） · Client 侧 36 个官方 web 插件（自动扫描） · 桌面注入 Client 半 7 个 + Host 半 11 个 · 二级页面</div>
+      </div>
+      <a class="back-link" href="architecture.html">← 返回架构总图</a>
+    </div>
+    <div class="legend">
+      <span class="k"><span class="sw" style="border-color:rgba(63,185,80,.6);background:rgba(63,185,80,.15)"></span>已装载</span>
+      <span class="k"><span class="sw" style="border-style:dashed"></span>已禁用（disabled）</span>
+      <span class="k"><span class="sw" style="border-color:rgba(248,81,73,.6);background:rgba(248,81,73,.12)"></span>被排除（不入图谱）</span>
+      <span class="k"><span class="sw" style="border-color:rgba(210,153,34,.6);background:rgba(210,153,34,.12)"></span>预载注册（不激活）</span>
+    </div>
+  </header>
+
+  <!-- ══════════ Host 侧插件树 ══════════ -->
+  <section>
+    <div class="sec-h"><h2>⚙ Host 侧 · Cordis 插件树</h2><span class="d">boot.ts DESKTOP_OVERLAY_PATCHES §1 insert + §4 insert，按域分组</span></div>
+    <div class="sec-note">装载源头：<code>bootDesktopHost()</code> → 官方 <code>boot('dsh-desktop', cordis.yml, patches, prepare)</code>。所有条目均为无改动装载（overlay patches 只做 insert/覆盖/禁用）。</div>
+    <div class="groups">
+
+      <div class="group host">
+        <div class="gh">LLM 与凭据 <span class="count">6 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-llm</td><td class="desc">LLM 服务注册与路由（ctx.llm）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-llm-deepseek</td><td class="desc">DeepSeek 官方模型 provider</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-llm-pi-ai</td><td class="desc">Pi AI provider（备用通道）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-llm-retry</td><td class="desc">LLM 调用重试策略</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-agent-default-model</td><td class="desc">默认模型绑定（deepseek-official / v4-flash）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-credentials-local</td><td class="desc">凭据本地持久化（API Key 经环境注入）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">会话与持久化 <span class="count">10 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session</td><td class="desc">会话生命周期（ctx.sessions，create/resume/prompt）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session-persistence-jsonl</td><td class="desc">会话 JSONL 持久化（RUNTIME_ROOT/user-data/sessions）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session-projection</td><td class="desc">会话投影（列表态摘要 summarizeCold）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session-query-sqlite</td><td class="desc">会话查询索引（:memory:，按需打开）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session-title</td><td class="desc">会话标题服务</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session-title-first-prompt-llm</td><td class="desc">首条 prompt 生成标题</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session-checkpoint-policy</td><td class="desc">会话检查点策略</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-session-telemetry-otel</td><td class="desc">遥测上报（默认 DISABLED）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-attachment-local</td><td class="desc">附件本地存储</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-workspace</td><td class="desc">工作区注册表（ctx.workspaceRegistry，apiProxy 依赖）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">Agent 循环与指令 <span class="count">7 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-agent</td><td class="desc">Agent 核心（ctx.agents，per-session live agent）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-agent-loop</td><td class="desc">Agent 对话循环驱动</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-agent-instructions</td><td class="desc">指令/系统提示组装（64KB 上限）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-system-prompt</td><td class="desc">系统提示 persona（§2 覆盖为桌面版）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-plan-mode</td><td class="desc">计划模式（plan mode 段落注入）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-commands</td><td class="desc">斜杠命令注册表（commands/list）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-command-feedback</td><td class="desc">命令反馈通道</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">压缩与 Token 管理 <span class="count">6 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-compaction-basic</td><td class="desc">上下文压缩基础实现</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-command-compact</td><td class="desc">/compact 命令</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-compaction-tool-result-pruner</td><td class="desc">工具结果裁剪（8192 阈值头尾截留）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-token-meter</td><td class="desc">Token 计量</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-spill-local</td><td class="desc">大结果外溢本地存储</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-spill-policy</td><td class="desc">外溢策略（50KB 内联上限）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">沙箱与执行 <span class="count">9 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-sandbox-local</td><td class="desc">本地沙箱执行环境</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-sandbox-policy</td><td class="desc">沙箱策略（默认 workspace-write）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-bash-sandbox</td><td class="desc">bash 沙箱（非 Windows）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-pwsh-sandbox</td><td class="desc">PowerShell 沙箱（Windows）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-subprocess-local</td><td class="desc">子进程管理</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-shell-env</td><td class="desc">Shell 环境探测</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-jobs-local</td><td class="desc">后台任务管理</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-fs-sandbox</td><td class="desc">文件系统沙箱边界</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-fs-observation-policy</td><td class="desc">文件观察策略</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">工具集（Tools） <span class="count">17 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tools</td><td class="desc">工具注册表（ctx.tools）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-bash</td><td class="desc">bash 工具（非 Windows）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-pwsh</td><td class="desc">PowerShell 工具（Windows）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-fs</td><td class="desc">文件读写/移动/删除工具</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-fs-search</td><td class="desc">文件搜索（glob/正则）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-str-replace-editor</td><td class="desc">字符串替换编辑器</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-web</td><td class="desc">网页抓取/搜索工具</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-todo</td><td class="desc">待办清单工具</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-goal</td><td class="desc">目标管理工具</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-jobs</td><td class="desc">后台任务工具</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-skill</td><td class="desc">技能调用工具</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-ralph</td><td class="desc">循环驱动工具（spawn 子代理）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-workflow</td><td class="desc">工作流编排工具</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-subagent-control</td><td class="desc">子代理控制</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-subagent-list-agents</td><td class="desc">子代理列表</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-subagent ×2</td><td class="desc">子代理 spawn/fork 双形态</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-tool-subagent-report</td><td class="desc">子代理报告</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">子代理与工作流 <span class="count">5 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-subagent</td><td class="desc">子代理服务（ctx.subagents）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-subagent-spawn-in-process</td><td class="desc">进程内 spawn provider</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-subagent-fork-in-process</td><td class="desc">进程内 fork provider</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-workflow-worker-thread</td><td class="desc">工作流 worker 线程</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-goal + goal-round-driver + command-goal</td><td class="desc">目标域三件套（goal 驱动 + /goal 命令）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">技能与提示 <span class="count">5 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-skill</td><td class="desc">技能服务（skill.list 等）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-skill-filesystem</td><td class="desc">文件系统技能源</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-skill-badge</td><td class="desc">技能徽章</td><td><span class="st off">已禁用</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-user-questions</td><td class="desc">用户提问（question/requested 帧）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-repeat-tool-reminder</td><td class="desc">重复工具调用提醒（3/5/8 阈值）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">API 载波与网关 <span class="count">5 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-host-apiproxy</td><td class="desc">apiProxy（ctx.apiProxy：unary RPC 入口 + mux/host 事件流）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-api-gateway</td><td class="desc">typertGateway（remote 端点兜底，坑 12）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-typert-registry</td><td class="desc">Typert 注册表</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-typert-loader</td><td class="desc">Typert 加载器</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-api-remotes</td><td class="desc">远端 API 声明（桌面零端口不需要）</td><td><span class="st off">已禁用</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">配置与存储 <span class="count">5 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-settings-file</td><td class="desc">settings 持久化（desktop/ui-theme 等 namespace）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-storage</td><td class="desc">存储服务（ctx.storage）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-storage-json</td><td class="desc">JSON 后端（RUNTIME_ROOT/user-data/storages）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-storage-domain</td><td class="desc">存储域（ctx.storageDomain）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-agent-presets</td><td class="desc">Agent 预设（坑 16：必经 §4 insert 装载）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">权限与审批 <span class="count">3 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-user-approval</td><td class="desc">审批服务（approval/requested 帧；剪贴板写经此）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-permission-presets</td><td class="desc">权限预设（read-only / workspace-write / danger）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-timeout-policy（tool-call-timeout-policy）</td><td class="desc">工具调用超时策略</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">Web 与搜索 <span class="count">3 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-web</td><td class="desc">Web 服务聚合（searchProvider: deepseek-official）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-web-search-deepseek</td><td class="desc">DeepSeek 搜索 provider（DEEPSEEK_API_KEY）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-settings-general</td><td class="desc">ui-onboarding settings namespace（进入官方 UI 必需）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">基础设施与第三方 <span class="count">4 条</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/cordis-plugin-timer</td><td class="desc">定时器服务</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/cordis-plugin-hmr</td><td class="desc">热重载（桌面不需要）</td><td><span class="st off">已禁用</span></td></tr>
+          <tr><td class="name">@lnyanhongyan/dsh-opencode-usage</td><td class="desc">第三方用量统计（host 半靠 webServer 等价面激活）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">webserver / web-runtime / web-startup / modules / client-hmr / cordis-host-runner / connection / client-runtime</td><td class="desc">官方 Web 传输层与动态装载器（§3 禁用 = 零端口红线；host-runner 未装载致 dynamicCordisRunner/* 部分不可用，M5 评估）</td><td><span class="st off">已禁用</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group host">
+        <div class="gh">Host 进程内注入（非插件，prepare 钩子） <span class="count">5 项</span></div>
+        <table>
+          <tr><th>服务</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">cmdlineArgs</td><td class="desc">provideCmdline 命令行参数服务</td><td><span class="st on">已注入</span></td></tr>
+          <tr><td class="name">desktopStartup</td><td class="desc">运行模式元信息（portless/serve + port）</td><td><span class="st on">已注入</span></td></tr>
+          <tr><td class="name">directoryPicker</td><td class="desc">ElectronDirectoryPicker（原生对话框替代 koffi FFI）</td><td><span class="st on">已注入</span></td></tr>
+          <tr><td class="name">desktop（ctx.desktop）</td><td class="desc">桌面聚合服务（审计总线 + 配置 + 下行事件）</td><td><span class="st on">已注入</span></td></tr>
+          <tr><td class="name">webServer（等价面）</td><td class="desc">内存路由注册表（compat，第三方插件 HTTP 原义）</td><td><span class="st on">已注入</span></td></tr>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════ Client 侧插件 ══════════ -->
+  <section>
+    <div class="sec-h"><h2>🖥 Client 侧 · 官方 Web 插件（自动扫描）</h2><span class="d">boot-graph.ts scanClientPackages()：node_modules/@deepseek-ai 下全部 dsh.client.platform==='web'</span></div>
+    <div class="sec-note">装载链：扫描 → <code>__DSH_BOOT__</code> 图谱注入 index.html → 官方 BootRunner 对图谱条目全量激活 → 各插件经官方 Slots 组合出整个 UI。</div>
+    <div class="groups">
+
+      <div class="group client">
+        <div class="gh">模块系统核心 <span class="count">4 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-modules</td><td class="desc">客户端模块系统 bootstrap（queue shim + createClientModuleSystem）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-runtime</td><td class="desc">客户端运行时（connection 消费方）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-connection</td><td class="desc">官方 Web 传输连接（AbstractApiClient 基类）</td><td><span class="st pre">预载注册</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-locale</td><td class="desc">国际化</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group client">
+        <div class="gh">布局与导航 <span class="count">4 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-layout</td><td class="desc">官方整体布局骨架（root 槽位已被桌面布局插件接管，D-18）</td><td><span class="st ex">被排除</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-sidebar</td><td class="desc">侧边栏：会话多级树 / 搜索 / 分组 / 状态圆点</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-workspace</td><td class="desc">工作区切换与目录流</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-brand-official</td><td class="desc">官方品牌标识</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group client">
+        <div class="gh">对话主区 <span class="count">8 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-conversation</td><td class="desc">对话主界面（消息流渲染）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-renderer</td><td class="desc">消息渲染器（markdown/代码块）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-input-trigger</td><td class="desc">输入框触发器</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-attachment</td><td class="desc">附件上传 UI</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-reference</td><td class="desc">文件引用 UI</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-tool</td><td class="desc">工具调用展示（bash/fs/编辑器结果卡片）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-user-questions</td><td class="desc">用户提问应答 UI</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-deliverables</td><td class="desc">交付物展示</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group client">
+        <div class="gh">Agent 过程可视化 <span class="count">8 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-subagent</td><td class="desc">子代理过程展示</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-plan</td><td class="desc">计划模式 UI</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-goal</td><td class="desc">目标管理 UI</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-jobs</td><td class="desc">后台任务 UI</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-skill</td><td class="desc">技能展示</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-workflow-run</td><td class="desc">工作流运行展示</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-trajectory</td><td class="desc">轨迹/历史视图</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-commands</td><td class="desc">斜杠命令 UI</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group client">
+        <div class="gh">设置页 <span class="count">6 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-settings</td><td class="desc">设置页框架（settings.section 槽宿主）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-settings-general</td><td class="desc">通用设置 section（General）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-settings-models</td><td class="desc">模型设置 section</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-agent-preset</td><td class="desc">Agent 预设选择器（数据源 = host agentPresets）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-settings-plugins</td><td class="desc">插件面板（ui-cordis 联动）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-settings-plugin-inventory</td><td class="desc">插件清单 Tab（读 pluginInventory/list 等价面）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group client">
+        <div class="gh">其他 UI 域 <span class="count">6 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-theme</td><td class="desc">主题（ui-theme namespace；theme-sync 联动源）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-slots</td><td class="desc">插槽系统（所有 UI 插件的组合底座）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-model-selection</td><td class="desc">模型选择器</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-permission-presets</td><td class="desc">权限预设 UI</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-cordis</td><td class="desc">Cordis 插件面板（读 dynamicCordisRunner/inventory 等价面）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-message-feedback</td><td class="desc">消息反馈（点赞/点踩）</td><td><span class="st on">已装载</span></td></tr>
+        </table>
+      </div>
+
+      <div class="group client">
+        <div class="gh">互斥与排除 <span class="count">2 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-directory-picker-native</td><td class="desc">目录选择 native 形态（与 prepare 注入的 Electron 版匹配）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@deepseek-ai/dsh-client-ui-directory-picker-browse</td><td class="desc">目录选择浏览器形态（single slot 冲突，CLIENT_EXCLUDE_IDS）</td><td><span class="st ex">被排除</span></td></tr>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════ 桌面注入插件 ══════════ -->
+  <section>
+    <div class="sec-h"><h2>🧩 桌面注入插件（@lansi-ai/dsh-*）</h2><span class="d">本项目自研，boot-graph desktopDecls 显式声明 + Slots 槽位注入</span></div>
+    <div class="groups">
+      <div class="group desk">
+        <div class="gh">Client 半（renderer bundle） <span class="count">7 个</span></div>
+        <table>
+          <tr><th>插件</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">@lansi-ai/dsh-ipc-connection</td><td class="desc">零端口 IPC 载波（继承 AbstractApiClient，独占提供 connection 服务）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-desktop-layout</td><td class="desc">桌面布局插件（2026-08-27 方案 B：接管 root 槽位，三列布局 + 拖拽 + 窄屏折叠；官方 ui-layout 经 CLIENT_EXCLUDE_IDS 禁用）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-desktop-titlebar</td><td class="desc">标题栏装饰层（M3-c4：32px 拖拽顶栏 + 窗控三钮 + 分割线探针；旧 executeJavaScript 注入已废弃）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-desktop-settings</td><td class="desc">设置页「桌面」section（tray/通知/快捷键/自启 Toggle）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-desktop-panel</td><td class="desc">侧边栏底部悬浮面板入口（sidebar.footer.action 槽位）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-desktop-audit-viewer</td><td class="desc">会话审计查看器 Tab</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-desktop-cmdpalette</td><td class="desc">命令面板（2026-08-27 禁用壳，仅留 quick-ask 聚焦）</td><td><span class="st off">已禁用</span></td></tr>
+        </table>
+      </div>
+      <div class="group desk">
+        <div class="gh">Host 半（主进程模块，M2 形态） <span class="count">11 个</span></div>
+        <table>
+          <tr><th>模块</th><th>作用</th><th>状态</th></tr>
+          <tr><td class="name">desktop-api.ts</td><td class="desc">ctx.desktop 聚合服务（审计 JSONL / 配置 / 下行事件）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">desktop-tray.ts</td><td class="desc">托盘 + 关窗驻留 + 快速问答</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">desktop-notify.ts</td><td class="desc">系统通知（审批/错误/进展三类）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">desktop-shortcuts.ts</td><td class="desc">全局快捷键（Alt+Shift+Q / Space）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">desktop-clipboard.ts</td><td class="desc">剪贴板（写走 approval）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">desktop-cmdpalette.ts</td><td class="desc">命令面板 host 半（Ctrl+Shift+P）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">desktop-audit-viewer.ts</td><td class="desc">审计查询服务（过滤+分页）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">desktop-autostart.ts</td><td class="desc">开机自启（OS 登录项唯一真源）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">dsh-protocol.ts</td><td class="desc">dsh:// 系统协议路由</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">session-rewarm.ts</td><td class="desc">冷会话启动预热（坑 11）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">compat-webserver.ts</td><td class="desc">webServer 等价面（内存路由）</td><td><span class="st on">已装配</span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="foot-note">
+      注：Host 半当前为项目内模块形态（prepare/main 装配），插件包化（cordis.patch.yml + dsh.client 声明）排期 M5；
+      装载真源 = <code>src/desktop-host/boot.ts</code>（Host 树）与 <code>src/desktop-host/boot-graph.ts</code>（Client 图谱），本页为派生视图。
+    </div>
+  </section>
+
+</div>
+<a class="back-top" href="#" title="返回顶部">↑</a>
+</body>
+</html>

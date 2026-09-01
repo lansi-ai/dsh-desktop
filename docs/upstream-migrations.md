@@ -1,7 +1,7 @@
 # Upstream 同步与拴合面迁移登记表（sync-upstream · ADR-005）
 
 > 基线版本：**`dsh-v0.1.0-rc.8`**（本地检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
-> GitHub Latest（rc.12）差异登记于「C. 升级核查」区，**M4 升级前**统一 diff 核查。
+> **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`**（npm `latest`/`next` 与 GitHub Latest 一致；同版本号的 `dsh-app-boot`/`dsh-web-app`/`dsh-web-frontend` 均已发布，可 4 包对齐）。文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`，真实最新稳定为 `0.1.1-rc.2`（`0.1.2-alpha.3` 为实验性，不作基线）。该版本 3 类拴合面 diff 已完成并登记于「C. 升级核查」。
 > 本表随每次上游基线升级滚动更新；升级时必须逐行核对「3 类拴合面」，未核对完不得宣告升级完成。
 
 ## A. 3 类拴合面（耦合收敛的唯一依据）
@@ -31,15 +31,23 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 验证命令：`netstat -ano | findstr LISTENING` 无 308x；`npm run dev` 官方 UI 可对话。
 基线版本锚：以上断言以 rc.8 实现为准；升级时按「C」流程重跑 diff 并更新断言行。
 
-## C. 升级核查（rc.8 → 未来版本）
+## C. 升级核查（rc.8 → 0.1.1-rc.2）
 
-| 待办 | 归属 | 触发器 | 状态 |
+> **2026-09-01 已完成 rc.8↔0.1.1-rc.2 3 类拴合面逐行 diff**（源码：`_harness-011rc2` worktree HEAD `b150a551b`）。结论：**无破坏性变更**，桌面侧零适配即可升级。逐行结论如下。
+
+| 拴合面 | rc.8 → 0.1.1-rc.2 diff 结论 | 桌面侧影响 | 迁移风险 |
 | --- | --- | --- | --- |
-| rc.8 ↔ rc.12 差异 diff（S1/S2/S3 逐行） | ADR-005 | M4 升级前 | pending（登记于 11-risks R19） |
-| `respond`/`approval/requested` 帧模型是否变更 | S2 | 同 diff | pending |
-| `dsh-terminal` `/terminal/stream` 是否新增并存 `/terminal/run` 移除 | 兼容面 | 同 diff | pending |
-| dist 构建产物锁定脚本是否随版本漂移 | S3b | 同 diff | pending |
-| 上游迁移 `apiproxy`→`typert` 等新协议面 | R20 | 上游公告 | watch |
+| S1 · 装载协议 (`web/src/boot.ts`) | 纯增量：新增可选全局 `__DSH_TRANSPORT__.loadBundle`（transport 优先，`this.seams` 仍兜底）；桌面不设 `__DSH_TRANSPORT__`，`BootSeams.loadBundle` 路径不变 | 无 | 🟢 低 |
+| S2 · IPC 载波 (`client-connection`) | `web-api-client.ts`（AbstractApiClient 基类）**零差异**；`index.ts`/`rpc.ts` 仅参数化新增 `ClientTransportHooks` + `RpcFetch`（`createWebConnectionRpc(fetch?)` 可注入），默认仍 `globalThis.fetch`；export `./client`/`./src/*` 面一致；http-bridge 上限 160MiB→300MiB | ipc-connection.js 继承基类路径不受影响 | 🟢 低（非破坏） |
+| S3 · 装配 profile (`app-boot`) | 仅 package.json 版本号 + README 变更，无 profile 语义差异 | 无 | 🟢 低 |
+| S3b · roster/manifest (`client-modules`/`runtime`) | `WebBootGraph`（manifest.ts）**零差异**；`modules/index.ts` 重构图：`injectBootManifest(html)→bootInjections(graph)` 注入链改为 `ctx.on('webserver/index-inject')` 表。桌面为**零端口自研注入**（dsh-ui-protocol.ts `injectBootManifest`），不消费官方 tapIndex/index-inject 链 | 桌面自研注入不受影响；manifest 结构兼容 | 🟢 低 |
+| 官方 ui-* 槽位包清单 (`packages/client/ui-*`) | 两版本**完全一致**：ui-layout/ui-sidebar/ui-slots 仅版本号+README；ui-primitives 仅 markdown 渲染增强；无新增/删除互斥包 | `CLIENT_EXCLUDE_IDS` 无需新增；`dsh-desktop-layout/sidebar` 消费的 root/sidebar 子槽位 + `defineStore` + `ctx.layout` 契约零差异 | 🟢 低 |
+| `respond`/`approval/requested` 帧模型 | connection 包帧语义无变更（仅注入参数化） | 桌面帧路由不变 | 🟢 低 |
+| `dsh-terminal` `/terminal/stream` | 本次 diff 未涉 terminal 通道 | — | 待 M4-d 实测复核 |
+| dist 构建产物锁定脚本 | `dsh-web-frontend`/`dsh-web-app` 均发布 `0.1.1-rc.2`，4 包可对齐 | 升级后需截图回归 | 🟢 低 |
+| 上游 `apiproxy`→`typert` 新协议面 | R20 | 新协议面 | watch |
+
+**已更换 diff 工作区**：`E:\Projects\DSH\_harness-011rc2`（tag `dsh-v0.1.1-rc.2`，HEAD `b150a551b`），与 rc.8 检出 `_harness-src` 并行对比。升级执行时可直接复用此 worktree。
 
 ## D. sync-upstream SOP（升级一次跑一遍）
 

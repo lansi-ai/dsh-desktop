@@ -27,7 +27,7 @@
 ## 3. 运行方式（开发期）
 
 ```bash
-pnpm --filter @dsh-desktop/shell start -- --dev --profile desktop        # 或直接 electron .
+pnpm --filter @lansi-ai/dsh-shell start -- --dev --profile desktop        # 或直接 electron .
 dsh --help 等价物：startup args: --serve={port} | --user-data-dir | --no-retry
 ```
 - 多实例：单实例锁；调试可用 `--user-data-dir` 隔离

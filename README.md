@@ -1,7 +1,7 @@
 # dsh-desktop — DeepSeek Harness 桌面客户端（非套壳路线）
 
 > 状态：**M1 实施中** — 脚手架已就绪（Electron 44 + TS strict + ESLint），主链路由 `src/desktop-shell` 起步。
-> 目标版本基线：`@deepseek-ai/dsh` `0.1.0-rc.8`（本地检出权威基线；GitHub Latest rc.12 差异待 M4 核查）。
+> 目标版本基线：`@deepseek-ai/dsh` `0.1.0-rc.8`（本地检出权威基线；2026-09-01 实测上游最新稳定为 `0.1.1-rc.2`，diff 已在升级迁移表登记，升级前核查）。
 >
 > **当前优先级（2026-08 用户确认）**：先做「把 DSH 做成桌面应用」的技术方案，**主面复用官方 Web UI 发行物**；
 > 自绘 Desktop UI（[`docs/13-ui-design.md`](docs/13-ui-design.md)、[ADR-006](docs/adr/adr-006-custom-ui.md)）**暂缓为二期可选**，

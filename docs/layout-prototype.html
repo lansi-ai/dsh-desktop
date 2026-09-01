@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>布局原型 · TRAE 卡片化</title>
+<style>
+  :root {
+    --tray: rgb(242 243 245);
+    --card: #ffffff;
+    --border-soft: rgba(0, 0, 0, 0.06);
+    --text-main: #1a1a1a;
+    --text-muted: #8a8a8a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--tray);
+    overflow: hidden;
+    color: var(--text-main);
+  }
+
+  /* ── 顶部标题栏（托盘色 + 窗控）── */
+  .titlebar {
+    position: fixed; top: 0; left: 0; right: 0; height: 32px;
+    background: var(--tray);
+    display: flex; align-items: center;
+    -webkit-app-region: drag; user-select: none;
+  }
+  .titlebar .title { margin-left: 12px; font-size: 12px; color: var(--text-muted); }
+  .titlebar .controls { margin-left: auto; display: flex; }
+  .titlebar .controls span {
+    width: 46px; height: 32px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--text-main);
+  }
+  .titlebar .controls span.close { color: #fff; }
+  .titlebar .controls span.close:hover { background: #e81123; }
+
+  /* ── 内容区：主卡片浮在托盘上（top:40 = 标题栏32 + 8 呼吸）── */
+  .workspace {
+    position: fixed; top: 40px; left: 15px; right: 15px; bottom: 15px;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    /* 让白色主卡片浮起的关键：内容区本身透明，露出托盘；主卡片单独白底 */
+    background: transparent;
+  }
+
+  /* 侧栏 = 托盘一部分（同色、占满、无硬分割线） */
+  .sidebar {
+    background: var(--tray);
+    display: flex; flex-direction: column;
+    min-width: 0; overflow: hidden;
+  }
+  .sidebar .brand-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+  }
+  .sidebar .brand-logo {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, #4f6ef7, #5b5ef7);
+  }
+  .sidebar .brand-name { font-size: 15px; font-weight: 700; }
+  .sidebar .brand-tag { font-size: 9px; background: #000; color: #fff; padding: 1px 5px; border-radius: 6px; }
+  .sidebar .new-session {
+    margin: 4px 12px 10px; padding: 8px 12px;
+    border: 1px solid var(--border-soft); border-radius: 10px;
+    font-size: 13px; display: flex; align-items: center; gap: 8px;
+    cursor: pointer; background: transparent;
+  }
+  .sidebar .section-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px; font-size: 12px; color: var(--text-muted);
+  }
+  .sidebar .session-item { padding: 7px 14px; font-size: 13px; cursor: pointer; }
+  .sidebar .session-item.active { background: rgba(0,0,0,0.06); border-radius: 8px; margin: 0 6px; padding-left: 8px; }
+  .sidebar .foot { margin-top: auto; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-muted); }
+
+  /* 主卡片：白色圆角 12px，浮在托盘上 */
+  .main-card {
+    background: var(--card);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .conversation-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border-soft);
+  }
+  .conversation-head .title { font-size: 14px; font-weight: 600; }
+  .conversation-head .tab { font-size: 13px; color: var(--text-muted); padding: 4px 10px; border-radius: 8px; }
+  .conversation-head .tab.on { background: rgba(0,0,0,0.05); color: var(--text-main); }
+  .conversation-head .session-log { margin-left: auto; font-size: 12px; border: 1px solid var(--border-soft); padding: 4px 12px; border-radius: 14px; }
+  .messages { flex: 1; overflow: auto; padding: 18px 24px; }
+  .messages p { margin-bottom: 12px; font-size: 14px; line-height: 1.7; }
+  .messages .ref { color: #4f6ef7; }
+  .composer {
+    margin: 12px 16px; padding: 12px 14px;
+    border: 1px solid var(--border-soft); border-radius: 12px;
+  }
+  .composer .input-hint { font-size: 13px; color: var(--text-muted); }
+  .composer .tool-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+  .composer .send { margin-left: auto; width: 30px; height: 30px; border-radius: 8px; background: #4f6ef7; color: #fff; display: flex; align-items: center; justify-content: center; }
+
+  /* 底部状态栏：置于主卡片内底部（卡片下方留托盘边距） */
+  .statusbar { padding: 8px 16px; border-top: 1px solid var(--border-soft); font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; }
+</style>
+</head>
+<body>
+  <!-- 顶部标题栏 -->
+  <div class="titlebar">
+    <span class="title">dsh-desktop</span>
+    <div class="controls">
+      <span>—</span><span>□</span><span class="close">✕</span>
+    </div>
+  </div>
+
+  <!-- 内容区：托盘 + 浮起主卡片 -->
+  <div class="workspace">
+    <!-- 侧栏（托盘一部分） -->
+    <div class="sidebar">
+      <div class="brand-row">
+        <div class="brand-logo"></div>
+        <span class="brand-name">deepseek</span>
+        <span class="brand-tag">HARNESS</span>
+      </div>
+      <div class="new-session">＋ 新会话</div>
+      <div class="section-head">工作区</div>
+      <div class="session-item">desktoptest</div>
+      <div class="session-item active">Title (2)</div>
+      <div class="session-item">Title (1)</div>
+      <div class="session-item">22</div>
+      <div class="session-item">1</div>
+      <div class="foot">👤 设置</div>
+    </div>
+
+    <!-- 主卡片（白色圆角，浮起） -->
+    <div class="main-card">
+      <div class="conversation-head">
+        <span class="title">Title (1)</span>
+        <span class="tab on">对话</span>
+        <span class="tab">轨迹</span>
+        <span class="session-log">Session log</span>
+      </div>
+      <div class="messages">
+        <p>The PowerShell commands are timing out. Let me try using the tooling provided directly.</p>
+        <p>The directory is empty. The user's message is just "1" — this seems like a trivial/test message with no clear task.</p>
+        <p>I inspected the working directory <span class="ref">E:\Projects\DSH\desktoptest</span> and it is currently empty.</p>
+      </div>
+      <div class="composer">
+        <div class="input-hint">给智能体发消息</div>
+        <div class="tool-row"><span>＋</span><span>Workspace Write</span><span class="send">↑</span></div>
+      </div>
+      <div class="statusbar">
+        <span>1轮 · 4步</span><span>LLM 4.6s</span><span>token 平均 0.6s</span><span>缓存命中 99%</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

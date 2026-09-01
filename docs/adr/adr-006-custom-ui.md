@@ -1,6 +1,12 @@
 # ADR-006 · UI 路线：Desktop-First 自绘界面（主面不复用官方 Web UI）
 
-状态：**暂缓（二期可选）** · 关联：[`13-ui-design.md`](../13-ui-design.md)、ADR-007
+状态：**已启用（2026-08-27 · D-20 全量自绘决策）** · 关联：[`13-ui-design.md`](../13-ui-design.md)、ADR-007
+
+## 启用记录（2026-08-27）
+用户决策「C. 全量自绘」+ 排期插队（自绘优先于 M4 分发）。执行策略 = **逐槽位替换**（非一次性切换）：
+M6-P1 布局骨架已落地（M3-c：`@lansi-ai/dsh-desktop-layout` + `dsh-desktop-titlebar`），
+后续 P2 外壳小件 → P3 侧栏 → P4 对话主区 → P5 过程可视化 → P6 设置底座，
+每阶段可用可验证，官方 `ui-*` 插件经 `CLIENT_EXCLUDE_IDS` 逐个排除。见看板 M6 节路线图。
 
 ## 背景
 原 L2 路线（官方 Web UI dist 原样复用）在用户试用反馈后有「太难用」的诉求；但用户确认**本轮不考虑修改 UI 设计，先做成 desktop**。

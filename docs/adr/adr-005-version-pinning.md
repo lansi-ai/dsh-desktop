@@ -3,7 +3,7 @@
 状态：**已接受**（2026-08）· 关联：[`09-roadmap.md`](../09-roadmap.md) 持续任务、[`11-risks.md`](../11-risks.md) R1/R19
 
 ## 背景
-官方 developer preview、破坏性变更被书面承诺；本机 npm 基线 rc.7 与 GitHub Latest rc.12 存在偏差且频道独立发布。
+官方 developer preview、破坏性变更被书面承诺；本机 npm 基线 rc.7 与 GitHub Latest（实测最新 `0.1.1-rc.2`）存在偏差且频道独立发布。
 
 ## 决策
 1. **锁基线**：`_harness-src` 以 git 子模块钉 commit/tag；`dsh--version` 基线常量进 CI 门禁；

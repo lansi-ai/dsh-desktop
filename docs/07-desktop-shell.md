@@ -12,7 +12,7 @@ shell/ 是**应用装配层**，角色等同官方 `apps/cli`：只做「组合�
 main()
  1 app.requestSingleInstanceLock()            // 单实例；二次启动 → 转发 dsh:// 参数
  2 解析启动参数（--profile 别名 desktop-app-provided / --serve / --dev / --user-data-dir）
- 3 bootstrap = await import('@dsh-desktop/shell-runtime')   // 复用 dsh-app-boot 的 boot()
+ 3 bootstrap = await import('@lansi-ai/dsh-shell-runtime')   // 复用 dsh-app-boot 的 boot()
  4 ctx = boot('dsh-desktop', desktopConfigPath, {
       prepare(currentCtx) {                     // 官方预留的 prepare 钩子
         currentCtx.provide('desktopRuntime', …) // 供给 __DSH_BOOT__ 等价物、IPC 桥宿主端、bundle 服务

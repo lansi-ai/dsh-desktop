@@ -42,7 +42,7 @@ alwaysApply: true
   - [x] 崩溃 relaunch 自愈 v0（有限重启 + 熔断；`src/desktop-shell/relaunch.ts` 主/渲染崩溃兜底 + 熔断计数，已通过 typecheck/lint/build）
 - [ ] **步骤 7: M1 门禁验收与收尾**（2026-08-26 部分推进）
   - [x] 官方 dist 接入 + R5 修复（本轮，**实机验证通过**）：`FORCE_PLACEHOLDER=false` + 固定虚拟 host `dsh-ui://app` 布局 + `resolveRelative` 仅取 pathname 映射官方 dist 根；实机验证 **6 项资源全部 200，不再白屏**；dist 自 tarball 落盘恢复；`verify-bundle-spike.cjs` 扩展断言 6 项落盘；typecheck/lint/build 通过
-  - [x] 第 3 层前置：`@dsh-desktop/ipc-connection` client bundle 最小实证完成 —— 继承官方 `AbstractApiClient`、`doFetch` 信封透传 + `server-response` 包装（rpcId 回显/error 窄化）、preload `request(envelope)` 透传通道；`verify-ipc-carrier.cjs` Step1/2 通过，typecheck/lint/build 全绿
+  - [x] 第 3 层前置：`@lansi-ai/dsh-ipc-connection`（原 `@dsh-desktop/ipc-connection`，2026-08-27 scope 更名）client bundle 最小实证完成 —— 继承官方 `AbstractApiClient`、`doFetch` 信封透传 + `server-response` 包装（rpcId 回显/error 窄化）、preload `request(envelope)` 透传通道；`verify-ipc-carrier.cjs` Step1/2 通过，typecheck/lint/build 全绿
   - [x] 官方 UI 完成日常对话全流程（**实机验收通过**，2026-08-26）：IPC 载波 + 自动扫描图谱 + Electron 目录选择，官方 UI 成功渲染、选择工作区、日常对话全流程打通
     - [x] 攻坚第 1 批（本轮，**脚本实证通过**）：boot-graph 组装官方 UI 最小激活集（typert-registry/api-gateway/api-remotes + ipc-connection 独占 connection，含 inject/external/immediately 与依赖序；client-connection 基类依赖，**第 2 批实机证伪后移出图谱**）+ ipc-connection 载波补齐（`connection.rpc.call` 真实分发 host booleanResult + `readIpFrames` 帧泵 server-request 信封 + 最小连接循环 `start`）+ contract 四象限信封 schema；`verify-ipc-carrier.cjs` 扩至 4 步、`verify-bundle-spike.cjs` 增激活集断言，typecheck/lint/build + 双脚本全绿
     - [x] 攻坚第 2 批·实现（本轮完成，**待实机验收**）：host 会话事件→下行帧中继 `src/desktop-host/carrier-relay.ts` —— 消费 `ctx.apiProxy.events.mux/host` 事件流（官方 dsh-host-apiproxy 已把 session/event、session/jobs、approval/question requested 装配为 `{rpcId, payload:frame}` 帧），逐帧 `payload` 经 `webContents.send('dsh:frame')` 下发 renderer（ipc-connection readIpFrames 用自身 streamRpcId 重包）；main.ts 接线（createWindow 返回值 + 窗口 closed 释放中继）；frameSchema 保守 dst 判定未扩（中继绕过其 3 种枚举直推原始帧，renderer 端按 `frame.type` 判类）；typecheck/lint/build 全绿
@@ -55,7 +55,7 @@ alwaysApply: true
   - D-1 Electron 主进程内嵌 Cordis Host（非外部子进程）
   - D-2 IPC fetch 载波零端口（`--serve` 显式兼容）
   - D-3 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2，ADR-006 启用）
-  - D-4 基线钉本地检出 `dsh-v0.1.0-rc.8`（rc.12 差异登记 sync-upstream，M4 升级前核查）
+  - D-4 基线钉本地检出 `dsh-v0.1.0-rc.8`（2026-09-01 实测上游最新稳定为 0.1.1-rc.2，diff 登记 sync-upstream，升级前核查）
   - D-5 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）
   - D-6 兼容层 = `ctx.desktopRoutes` + fetch 拦截白名单（ADR-007）
   - D-9 官方 client-connection **不入图谱**：官方 web boot 驱动（BootRunner）对图谱每个条目全量 `loader.create()` 激活（`immediately` 仅控 prefetch 时机），若入图必被激活、抢先提供 Web 传输 connection → 基类改「图谱外预载注册」（`PRELOAD_ONLY_IDS` + `registerPreloadOnly`），connection 服务由 ipc-connection 独占（攻坚第 2 批实机证伪后落地）

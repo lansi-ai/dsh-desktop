@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSH Desktop · 插件化架构图</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --blue: #58a6ff;
+    --blue-dim: rgba(88, 166, 255, 0.12);
+    --green: #3fb950;
+    --green-dim: rgba(63, 185, 80, 0.10);
+    --purple: #bc8cff;
+    --purple-dim: rgba(188, 140, 255, 0.12);
+    --orange: #d29922;
+    --red: #f85149;
+    --cyan: #39c5cf;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 26px 28px 64px;
+    line-height: 1.6;
+    font-size: 18.5px;
+  }
+  .wrap { max-width: 1680px; margin: 0 auto; }
+
+  /* ── 头部 ─────────────────────────────── */
+  header { text-align: center; margin-bottom: 16px; }
+  header h1 { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+  header h1 .accent { color: var(--blue); }
+  header .sub { color: var(--muted); font-size: 17px; margin-top: 6px; }
+  .badges { margin-top: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .badge {
+    font-size: 15.5px; padding: 5px 16px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted); background: var(--panel);
+  }
+  .badge.b-blue { color: var(--blue); border-color: rgba(88,166,255,.35); }
+  .badge.b-green { color: var(--green); border-color: rgba(63,185,80,.35); }
+  .badge.b-purple { color: var(--purple); border-color: rgba(188,140,255,.35); }
+  .badge.b-orange { color: var(--orange); border-color: rgba(210,153,34,.35); }
+
+  /* ── 层容器 ────────────────────────────── */
+  .tier {
+    border-radius: 12px; border: 1px solid var(--border);
+    padding: 12px 14px 14px; position: relative; background: var(--panel);
+  }
+  .tier-title {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;
+  }
+  .tier-title .t { font-size: 23px; font-weight: 700; }
+  .tier-title .d { font-size: 17px; color: var(--muted); }
+  .tier-renderer { border-color: rgba(88,166,255,.4); background: linear-gradient(180deg, rgba(88,166,255,.06), var(--panel)); }
+  .tier-host { border-color: rgba(63,185,80,.4); background: linear-gradient(180deg, rgba(63,185,80,.05), var(--panel)); }
+
+  /* ── 插件 chip ────────────────────────── */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 18px; padding: 7px 15px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel-2);
+    position: relative;
+  }
+  .chip .dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .chip .file { color: var(--muted); font-size: 15px; font-family: Consolas, monospace; }
+  .chip.c-blue  { border-color: rgba(88,166,255,.4); }
+  .chip.c-blue .dot { background: var(--blue); }
+  .chip.c-green { border-color: rgba(63,185,80,.4); }
+  .chip.c-green .dot { background: var(--green); }
+  .chip.c-purple{ border-color: rgba(188,140,255,.4); }
+  .chip.c-purple .dot { background: var(--purple); }
+  .chip.c-orange{ border-color: rgba(210,153,34,.4); }
+  .chip.c-orange .dot { background: var(--orange); }
+  .chip.c-cyan  { border-color: rgba(57,197,207,.4); }
+  .chip.c-cyan .dot { background: var(--cyan); }
+  .chip.c-red   { border-color: rgba(248,81,73,.4); }
+  .chip.c-red .dot { background: var(--red); }
+  .chip.ghost { opacity: .55; border-style: dashed; }
+  .chip.ghost .dot { background: var(--muted); }
+
+  /* ── 区块标签 ──────────────────────────── */
+  .row-label {
+    font-size: 14px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .08em; margin: 13px 0 7px; display: flex; align-items: center; gap: 8px;
+  }
+  .row-label::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── 装配机制条 ────────────────────────── */
+  .assemble {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px;
+  }
+  .asm {
+    border: 1px dashed rgba(188,140,255,.5); border-radius: 9px;
+    background: var(--purple-dim); padding: 8px 12px;
+  }
+  .asm .h { font-size: 18px; font-weight: 700; color: var(--purple); margin-bottom: 4px; }
+  .asm .b { font-size: 17px; color: var(--muted); }
+  .asm code { color: var(--text); font-family: Consolas, monospace; font-size: 15px; background: rgba(255,255,255,.05); padding: 1px 7px; border-radius: 4px; }
+
+  /* ── IPC 通道带 ────────────────────────── */
+  .ipc-band {
+    margin: 0 auto; width: 92%;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    position: relative; padding: 8px 0 10px;
+  }
+  .ipc-col { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .arrow-up, .arrow-down {
+    width: 2px; height: 38px; background: linear-gradient(180deg, transparent, var(--blue));
+    position: relative; margin: 0 auto;
+  }
+  .arrow-down { background: linear-gradient(0deg, transparent, var(--green)); }
+  .arrow-up::before {
+    content: ""; position: absolute; top: -2px; left: -4px;
+    border: 5px solid transparent; border-bottom-color: var(--blue);
+  }
+  .arrow-down::after {
+    content: ""; position: absolute; bottom: -2px; left: -4px;
+    border: 5px solid transparent; border-top-color: var(--green);
+  }
+  .ipc-channels {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 7px 16px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,.45);
+  }
+  .ipc-channels .t { font-size: 16.5px; font-weight: 700; color: var(--orange); letter-spacing: .05em; }
+  .ipc-channels .c { font-size: 14.5px; font-family: Consolas, monospace; color: var(--muted); margin-top: 5px; }
+  .ipc-dir { font-size: 13px; color: var(--muted); writing-mode: initial; margin-top: 2px; }
+
+  /* ── 主进程网格 ────────────────────────── */
+  .host-grid { display: grid; grid-template-columns: 300px 1fr 300px; gap: 12px; align-items: start; }
+  @media (max-width: 1080px) { .host-grid { grid-template-columns: 1fr; } .assemble { grid-template-columns: 1fr; } }
+  .col-box {
+    border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
+    padding: 10px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .col-box .h {
+    font-size: 16px; font-weight: 700; letter-spacing: .04em;
+    padding-bottom: 7px; border-bottom: 1px solid var(--border); display:flex; justify-content: space-between; align-items: baseline;
+  }
+  .col-box .h small { color: var(--muted); font-weight: 400; font-size: 13px; }
+
+  /* ── 插件树 ───────────────────────────── */
+  .tree-box {
+    border: 1px solid rgba(63,185,80,.45); border-radius: 10px;
+    background: var(--green-dim); padding: 10px 12px 12px;
+  }
+  .tree-root {
+    margin: 0 auto 2px; width: fit-content;
+    background: var(--green); color: #04170a; font-weight: 800; font-size: 17px;
+    border-radius: 8px; padding: 5px 24px; box-shadow: 0 0 18px rgba(63,185,80,.35);
+  }
+  .tree-stem { width: 2px; height: 10px; background: var(--green); margin: 0 auto; opacity: .5; }
+  .tree-branch-h { height: 2px; background: var(--green); opacity: .35; margin: 0 6%; }
+  .tree-groups { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+  @media (max-width: 1080px) { .tree-groups { grid-template-columns: 1fr; } }
+  .tree-group { border: 1px solid rgba(63,185,80,.3); border-radius: 9px; background: var(--panel-2); padding: 8px 10px; }
+  .tree-group .gh { font-size: 15px; font-weight: 700; color: var(--green); margin-bottom: 6px; letter-spacing: .04em; }
+  .tree-group .chips { gap: 5px; }
+  .tree-group .chip { font-size: 15px; padding: 5px 11px; }
+
+  /* ── 持久化条 ─────────────────────────── */
+  .persist {
+    margin-top: 10px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+    border-top: 1px dashed var(--border); padding-top: 10px;
+  }
+  .db {
+    display: flex; align-items: center; gap: 10px; font-size: 16px; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 15px; background: var(--panel-2);
+  }
+  .db b { color: var(--text); font-weight: 600; }
+  .db svg { flex: none; }
+
+  /* ── 数据流时序 ───────────────────────── */
+  .flow-section { margin-top: 26px; }
+  .flow-section h2 { font-size: 23px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .flow-section h2::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .flows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 1080px) { .flows { grid-template-columns: 1fr; } }
+  .flow {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+    padding: 14px 16px; font-size: 16px;
+  }
+  .flow .fh { font-weight: 700; font-size: 18px; margin-bottom: 9px; }
+  .flow ol { margin-left: 22px; color: var(--muted); }
+  .flow li { margin: 5px 0; }
+  .flow code { font-family: Consolas, monospace; font-size: 14px; color: var(--blue); background: rgba(88,166,255,.08); padding: 1px 6px; border-radius: 4px; }
+  .flow.f-rpc .fh { color: var(--blue); }
+  .flow.f-frame .fh { color: var(--green); }
+  .flow.f-asm .fh { color: var(--purple); }
+
+  footer { margin-top: 26px; text-align: center; color: var(--muted); font-size: 15px; }
+  footer code { font-family: Consolas, monospace; color: var(--text); }
+
+  .chip { transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; cursor: default; }
+  .chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+    border-color: rgba(230,237,243,.45);
+  }
+  .chip.c-blue:hover  { box-shadow: 0 4px 14px rgba(88,166,255,.30); border-color: var(--blue); }
+  .chip.c-green:hover { box-shadow: 0 4px 14px rgba(63,185,80,.30); border-color: var(--green); }
+  .chip.c-purple:hover{ box-shadow: 0 4px 14px rgba(188,140,255,.30); border-color: var(--purple); }
+  .chip.c-orange:hover{ box-shadow: 0 4px 14px rgba(210,153,34,.30); border-color: var(--orange); }
+  .chip.c-cyan:hover { box-shadow: 0 4px 14px rgba(57,197,207,.30); border-color: var(--cyan); }
+  .chip.c-red:hover  { box-shadow: 0 4px 14px rgba(248,81,73,.30); border-color: var(--red); }
+
+  /* ── 交互：区块 hover 高亮 ─────────────── */
+  .tier, .tree-group, .col-box, .asm, .flow, .db { transition: border-color .2s ease, box-shadow .2s ease; }
+  .tier:hover { border-color: rgba(230,237,243,.5); }
+  .tree-group:hover { border-color: rgba(63,185,80,.7); box-shadow: 0 0 0 1px rgba(63,185,80,.3) inset; }
+  .col-box:hover { border-color: rgba(230,237,243,.4); }
+  .asm:hover { border-color: var(--purple); }
+  .flow:hover { border-color: rgba(230,237,243,.4); box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+  .db:hover { border-color: rgba(230,237,243,.4); }
+
+  /* ── 交互：返回顶部 ───────────────────── */
+  .back-top {
+    position: fixed; right: 28px; bottom: 28px; z-index: 99;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; cursor: pointer; text-decoration: none;
+    transition: color .15s ease, border-color .15s ease, transform .15s ease;
+  }
+  .back-top:hover { color: var(--blue); border-color: var(--blue); transform: translateY(-3px); }
+
+  /* ── 打印适配 ─────────────────────────── */
+  @media print {
+    body { background: #fff; color: #111; padding: 16px; }
+    .tier, .col-box, .tree-group, .chip, .asm, .flow, .db { border-color: #bbb !important; box-shadow: none !important; }
+    .back-top { display: none; }
+  }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>DSH Desktop <span class="accent">· 插件化架构</span></h1>
+    <div class="sub">Electron 主进程内嵌 Cordis Host（D-1） · 零端口 IPC 载波（D-2） · 官方 Web UI 发行物复用（D-3） · 插件树全 overlay patches 装配</div>
+    <div class="badges">
+      <span class="badge b-blue">Renderer = Cordis Client 插件系统</span>
+      <span class="badge b-green">Host = Cordis 插件树（70+ 服务插件）</span>
+      <span class="badge b-purple">双装配机制：__DSH_BOOT__ 图谱 + overlay patches</span>
+      <span class="badge b-orange">基线 dsh-v0.1.0-rc.8</span>
+      <a href="architecture-plugins.html" style="font-size:15px;color:var(--green);text-decoration:none;border:1px solid rgba(63,185,80,.45);padding:4px 16px;border-radius:999px;background:rgba(63,185,80,.08);">完整插件清单 →（二级页）</a>
+    </div>
+  </header>
+
+  <!-- ═══════════ Tier 1：Renderer ═══════════ -->
+  <section class="tier tier-renderer">
+    <div class="tier-title">
+      <span class="t">🖥 Renderer · Cordis Client 插件系统</span>
+      <span class="d">加载于 dsh-ui://app/index.html（协议层注入 boot 图谱，沙箱化，仅消费 desktopBridge 白名单）</span>
+    </div>
+
+    <div class="assemble">
+      <div class="asm">
+        <div class="h">📦 装配机制 A：__DSH_BOOT__ 图谱</div>
+        <div class="b"><code>boot-graph.ts</code> 自动扫描 <code>node_modules/@deepseek-ai</code> 下全部 <code>dsh.client.platform==='web'</code> 包 → 拓扑排序 → 注入 <code>&lt;head&gt;</code>（queue shim + 预载 script + graph JSON）。官方驱动对图谱条目全量激活。</div>
+      </div>
+      <div class="asm">
+        <div class="h">🔌 装配机制 B：官方 Slots 注入</div>
+        <div class="b">桌面 UI 插件经 <code>ctx.slots.register</code> 注入官方 UI 槽位（<code>settings.section</code> / <code>sidebar.footer.action</code>），与官方插件共存于同一插槽系统。</div>
+      </div>
+    </div>
+
+    <div class="row-label">官方 ui-* 客户端插件（自动扫描装载）</div>
+    <div class="chips">
+      <span class="chip c-blue"><span class="dot"></span>dsh-client-modules（模块系统 bootstrap）</span>
+      <span class="chip c-blue"><span class="dot"></span>dsh-client-runtime</span>
+      <span class="chip c-blue"><span class="dot"></span>ui-settings / ui-theme / ui-onboarding</span>
+      <span class="chip c-blue"><span class="dot"></span>ui-cordis（插件面板）</span>
+      <span class="chip c-blue"><span class="dot"></span>ui-conversation / ui-workspaces …</span>
+      <span class="chip ghost"><span class="dot"></span>dsh-client-connection（D-9：不入图谱，仅预载注册）</span>
+      <span class="chip ghost"><span class="dot"></span>ui-directory-picker-browse（互斥排除）</span>
+    </div>
+
+    <div class="row-label">桌面注入插件（@lansi-ai/dsh-*，经官方 Slots）</div>
+    <div class="chips">
+      <span class="chip c-purple"><span class="dot"></span>ipc-connection<span class="file">载波变体 · 独占提供 connection 服务</span></span>
+      <span class="chip c-purple"><span class="dot"></span>desktop-settings<span class="file">settings.section 槽位</span></span>
+      <span class="chip c-purple"><span class="dot"></span>desktop-panel<span class="file">sidebar.footer.action 槽位</span></span>
+      <span class="chip c-purple"><span class="dot"></span>desktop-audit-viewer<span class="file">审计 Tab</span></span>
+      <span class="chip c-purple ghost"><span class="dot"></span>desktop-cmdpalette（已禁用壳 · 2026-08-27）</span>
+      <span class="chip c-purple"><span class="dot"></span>3rd-party：opencode-usage<span class="file">无改动装载</span></span>
+    </div>
+
+    <div class="row-label">安全边界</div>
+    <div class="chips">
+      <span class="chip c-cyan"><span class="dot"></span>preload.ts · contextBridge 白名单 window.desktopBridge<span class="file">sandbox: true · nodeIntegration: false</span></span>
+    </div>
+  </section>
+
+  <!-- ═══════════ IPC 载波带 ═══════════ -->
+  <div class="ipc-band">
+    <div class="ipc-col">
+      <div class="arrow-up"></div>
+      <div class="ipc-dir">↑ 上行 invoke</div>
+    </div>
+    <div class="ipc-col">
+      <div class="arrow-down"></div>
+      <div class="ipc-dir">↓ 下行 send</div>
+    </div>
+    <div class="ipc-channels">
+      <div class="t">⚡ Electron IPC 载波（零 TCP 端口 · D-2）</div>
+      <div class="c">dsh:rpc · dsh:respond · dsh:ready · dsh:frame<br>desktop:invoke · desktop:event · desktop:window-event · desktop:session-context</div>
+    </div>
+  </div>
+
+  <!-- ═══════════ Tier 3：主进程 ═══════════ -->
+  <section class="tier tier-host">
+    <div class="tier-title">
+      <span class="t">⚙ Electron 主进程 · desktop-host（内嵌 Cordis Host）</span>
+      <span class="d">boot() 装配：空根 cordis.yml + overlay patches（§1 insert 全量服务 · §2 persona 覆盖 · §3 禁用 Web 传输 · §4 storage/presets）</span>
+    </div>
+
+    <div class="host-grid">
+      <!-- 左列：外壳 -->
+      <div class="col-box">
+        <div class="h">desktop-shell <small>应用外壳</small></div>
+        <span class="chip c-green"><span class="dot"></span>main.ts<span class="file">bootstrap 时序</span></span>
+        <span class="chip c-green"><span class="dot"></span>dsh-ui-protocol<span class="file">dist/bundle/compat 三路由</span></span>
+        <span class="chip c-green"><span class="dot"></span>argv<span class="file">--serve / --hidden</span></span>
+        <span class="chip c-green"><span class="dot"></span>relaunch<span class="file">崩溃自愈 + 熔断</span></span>
+        <span class="chip c-green"><span class="dot"></span>theme-sync<span class="file">ui-theme ↔ nativeTheme</span></span>
+      </div>
+
+      <!-- 中列：插件树（核心） -->
+      <div class="tree-box">
+        <div class="tree-root">ctx — Cordis Host 插件树</div>
+        <div class="tree-stem"></div>
+        <div class="tree-branch-h"></div>
+        <div class="tree-groups">
+          <div class="tree-group">
+            <div class="gh">🤖 Agent 域</div>
+            <div class="chips">
+              <span class="chip c-green"><span class="dot"></span>llm / llm-deepseek</span>
+              <span class="chip c-green"><span class="dot"></span>session</span>
+              <span class="chip c-green"><span class="dot"></span>agent / agent-loop</span>
+              <span class="chip c-green"><span class="dot"></span>subagent ×3</span>
+              <span class="chip c-green"><span class="dot"></span>goal / plan-mode</span>
+              <span class="chip c-green"><span class="dot"></span>compaction</span>
+            </div>
+          </div>
+          <div class="tree-group">
+            <div class="gh">🛠 工具与沙箱域</div>
+            <div class="chips">
+              <span class="chip c-green"><span class="dot"></span>sandbox / bash / pwsh</span>
+              <span class="chip c-green"><span class="dot"></span>tool-fs / fs-search</span>
+              <span class="chip c-green"><span class="dot"></span>tool-bash / tool-pwsh</span>
+              <span class="chip c-green"><span class="dot"></span>skill / tool-skill</span>
+              <span class="chip c-green"><span class="dot"></span>tool-web / web-search</span>
+              <span class="chip c-green"><span class="dot"></span>tool-workflow</span>
+            </div>
+          </div>
+          <div class="tree-group">
+            <div class="gh">🔌 载波与聚合服务</div>
+            <div class="chips">
+              <span class="chip c-blue"><span class="dot"></span>api-gateway（apiProxy）<span class="file">RPC 入口 + mux/host 事件流</span></span>
+              <span class="chip c-blue"><span class="dot"></span>typert-gateway<span class="file">remote 端点兜底</span></span>
+              <span class="chip c-purple"><span class="dot"></span>desktop（ctx.desktop）<span class="file">审计/配置/下行事件</span></span>
+              <span class="chip c-purple"><span class="dot"></span>webServer compat<span class="file">内存路由等价面</span></span>
+              <span class="chip c-purple"><span class="dot"></span>settings-file / storage-json</span>
+              <span class="chip c-purple"><span class="dot"></span>agent-presets<span class="file">坑 16：必经 insert</span></span>
+              <span class="chip c-orange"><span class="dot"></span>3rd-party: opencode-usage<span class="file">无改动装载</span></span>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:10px;text-align:center;">
+          <a href="architecture-plugins.html" style="font-size:14.5px;color:var(--green);text-decoration:none;">插件树仅列代表项 · 查看 Host 78 条 + Client 36 个完整清单 →</a>
+        </div>
+      </div>
+
+      <!-- 右列：桥与能力 -->
+      <div class="col-box">
+        <div class="h">bridge.ts <small>unary 方法表 + 帧路由</small></div>
+        <span class="chip c-orange"><span class="dot"></span>desktop.window.*（WindowManager）</span>
+        <span class="chip c-orange"><span class="dot"></span>desktop.shortcut / clipboard / panel</span>
+        <span class="chip c-orange"><span class="dot"></span>desktop.audit / autostart / cmdpalette</span>
+        <span class="chip c-orange"><span class="dot"></span>pluginInventory 等价面</span>
+        <span class="chip c-orange"><span class="dot"></span>dsh:// 协议路由<span class="file">open/ask/settings</span></span>
+        <span class="chip c-orange"><span class="dot"></span>session-rewarm<span class="file">冷会话重挂载</span></span>
+      </div>
+    </div>
+
+    <div class="persist">
+      <div class="db">
+        <svg width="14" height="18" viewBox="0 0 14 18"><ellipse cx="7" cy="4" rx="6" ry="2.6" fill="none" stroke="#8b949e" stroke-width="1.4"/><path d="M1 4 v10 c0 1.5 2.7 2.6 6 2.6 s6 -1.1 6 -2.6 V4" fill="none" stroke="#8b949e" stroke-width="1.4"/></svg>
+        <span><b>audit.jsonl</b>（审计 · 串行追加）</span>
+      </div>
+      <div class="db">
+        <svg width="14" height="18" viewBox="0 0 14 18"><ellipse cx="7" cy="4" rx="6" ry="2.6" fill="none" stroke="#8b949e" stroke-width="1.4"/><path d="M1 4 v10 c0 1.5 2.7 2.6 6 2.6 s6 -1.1 6 -2.6 V4" fill="none" stroke="#8b949e" stroke-width="1.4"/></svg>
+        <span><b>window-state.json</b>（多窗口持久化）</span>
+      </div>
+      <div class="db">
+        <svg width="14" height="18" viewBox="0 0 14 18"><ellipse cx="7" cy="4" rx="6" ry="2.6" fill="none" stroke="#8b949e" stroke-width="1.4"/><path d="M1 4 v10 c0 1.5 2.7 2.6 6 2.6 s6 -1.1 6 -2.6 V4" fill="none" stroke="#8b949e" stroke-width="1.4"/></svg>
+        <span><b>sessions/ + storages/</b>（RUNTIME_ROOT：dev=.runtime · 打包=userData/.runtime）</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 关键数据流 ═══════════ -->
+  <section class="flow-section">
+    <h2>关键数据流</h2>
+    <div class="flows">
+      <div class="flow f-rpc">
+        <div class="fh">⬆ 上行 RPC（unary）</div>
+        <ol>
+          <li>官方 UI / 插件调用 → <code>ipc-connection.doFetch</code></li>
+          <li><code>desktopBridge.request</code>（信封透传，保留 rpcId）</li>
+          <li><code>ipcMain.handle('dsh:rpc')</code> → zod 校验</li>
+          <li>bridge 查 unary methodTable（桌面方法优先）</li>
+          <li>未命中 → <code>apiProxy toFetchHandler</code> 虚拟路由 <code>/api/&lt;method&gt;</code></li>
+          <li>404 → <code>typertGateway.invokeRpc</code> 兜底（坑 12）</li>
+          <li>解包 server-response → <code>{rpcId, data|error}</code> 回 renderer</li>
+        </ol>
+      </div>
+      <div class="flow f-frame">
+        <div class="fh">⬇ 下行帧（server-request）</div>
+        <ol>
+          <li>Host 事件 → <code>apiProxy.events.mux / host</code> 流</li>
+          <li><code>carrier-relay</code> 逐帧 pump（per-window）</li>
+          <li><code>webContents.send('dsh:frame', payload)</code></li>
+          <li>preload <code>onFrame</code> → 入队 + waiter 唤醒</li>
+          <li><code>readIpFrames</code> 重包 <code>{rpcId, payload}</code> AsyncIterable</li>
+          <li>官方 ConnectionController 分发到各 sink</li>
+          <li>应答：<code>respond(rpcId, body)</code> → <code>/api/respond</code> 回填</li>
+        </ol>
+      </div>
+      <div class="flow f-asm">
+        <div class="fh">🧩 插件装配双通道</div>
+        <ol>
+          <li><b>Host 半</b>：空根 cordis.yml + overlay patches（§1 insert 约 70 条服务插件）</li>
+          <li>prepare 钩子注入：cmdline / desktopStartup / ElectronDirectoryPicker / <code>ctx.desktop</code> / webServer compat</li>
+          <li><b>Client 半</b>：boot-graph 扫描 dsh.client 声明 → <code>__DSH_BOOT__</code> 图谱注入 HTML</li>
+          <li>图谱条目 = 官方驱动全量激活；<code>client-connection</code> 仅预载注册（D-9）</li>
+          <li>桌面 UI 插件经官方 Slots 槽位共存注入</li>
+          <li>第三方插件：host 半靠 webServer 等价面无改动激活，client 半靠 bundle 直读</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    详见 <code>docs/14-implementation-map.md</code> · 排障：<code>$env:DSH_VERBOSE='1'</code> · 拴合面速查 <code>docs/upstream-contracts.md</code> · 坑档 <code>docs/pitfalls.md</code>
+  </footer>
+
+</div>
+
+<a class="back-top" href="#" title="返回顶部">↑</a>
+</body>
+</html>

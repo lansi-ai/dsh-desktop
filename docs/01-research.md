@@ -15,7 +15,7 @@ DeepSeek Harness（`dsh`）是 DeepSeek AI 开源（MIT）的 agent harness：**
 
 - 驱动框架：vendored **Cordis**（`@deepseek-ai/cordis`，基于 https://github.com/cordiverse/cordis）
 - 用户运行方式：`npx @deepseek-ai/dsh@next web` → 启动 Web UI（默认 `http://127.0.0.1:3080`）
-- 版本事实（调研时点）：npm `next` 渠道本机为 `0.1.0-rc.7`；GitHub Releases Latest 为 `dsh-v0.1.0-rc.12`
+- 版本事实（调研时点）：npm `next` 渠道本机为 `0.1.0-rc.7`；GitHub Releases Latest 为 `dsh-v0.1.0-rc.12`（**2026-09-01 勘误：上游最新稳定实为 `0.1.1-rc.2`，无 `rc.12`，见 11-risks R19**）
 
 ## 2. Cordis 三支柱（插件系统底层）
 

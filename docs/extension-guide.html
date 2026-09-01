@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSH Desktop · 垂直化扩展路线指引</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2330; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e;
+    --blue: #58a6ff; --green: #3fb950; --purple: #bc8cff; --orange: #d29922; --cyan: #39c5cf; --red: #f85149;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 26px 28px 64px; line-height: 1.6; font-size: 18.5px;
+  }
+  .wrap { max-width: 1480px; margin: 0 auto; }
+
+  header { margin-bottom: 24px; }
+  header .top { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+  header h1 { font-size: 32px; font-weight: 700; }
+  header h1 .accent { color: var(--purple); }
+  header .sub { color: var(--muted); font-size: 16px; margin-top: 6px; }
+  .back-link {
+    font-size: 15px; color: var(--blue); text-decoration: none; border: 1px solid rgba(88,166,255,.4);
+    padding: 6px 16px; border-radius: 999px; white-space: nowrap; transition: background .15s ease;
+  }
+  .back-link:hover { background: rgba(88,166,255,.12); }
+
+  /* 目录 */
+  .toc {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+    padding: 14px 20px; margin-bottom: 28px; display: flex; flex-wrap: wrap; gap: 8px 18px;
+  }
+  .toc a { color: var(--blue); text-decoration: none; font-size: 15px; }
+  .toc a:hover { text-decoration: underline; }
+  .toc .sp { color: var(--muted); }
+
+  section { margin-bottom: 36px; }
+  .sec-h { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .sec-h h2 { font-size: 25px; font-weight: 700; }
+  .sec-h::after { content: ""; flex: 1; height: 1px; background: var(--border); align-self: center; }
+  .sec-h .idx { color: var(--purple); font-size: 20px; font-weight: 800; font-family: Consolas, monospace; }
+  .sec-note { font-size: 15px; color: var(--muted); margin-bottom: 14px; }
+
+  .concl {
+    border: 1px solid rgba(63,185,80,.45); border-radius: 12px;
+    background: linear-gradient(180deg, rgba(63,185,80,.08), var(--panel)); padding: 18px 22px;
+  }
+  .concl h3 { font-size: 20px; color: var(--green); margin-bottom: 10px; }
+  .concl ul { margin-left: 24px; }
+  .concl li { margin: 7px 0; }
+  .concl b { color: var(--text); }
+  code {
+    font-family: Consolas, monospace; font-size: 15px; color: var(--blue);
+    background: rgba(88,166,255,.08); padding: 1px 6px; border-radius: 4px;
+  }
+  .path {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px;
+    border-top: 1px dashed var(--border); padding-top: 12px; font-size: 16.5px;
+  }
+  .path .step {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 5px 14px; font-weight: 600;
+  }
+  .path .step.a { border-color: rgba(63,185,80,.5); color: var(--green); }
+  .path .step.b { border-color: rgba(88,166,255,.5); color: var(--blue); }
+  .path .step.c { border-color: rgba(210,153,34,.5); color: var(--orange); }
+  .path .step.d { border-color: rgba(188,140,255,.5); color: var(--purple); }
+  .path .arr { color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 16px; margin: 12px 0; }
+  th {
+    text-align: left; font-size: 13.5px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; padding: 9px 14px; border-bottom: 2px solid var(--border);
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.025); }
+  td.k { font-weight: 600; white-space: nowrap; }
+  .tbl-box { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; }
+  .ok { color: var(--green); }
+  .part { color: var(--orange); }
+  .high { color: var(--red); }
+
+  .card {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+    padding: 16px 20px; margin-bottom: 14px;
+  }
+  .card h3 { font-size: 19px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .tag {
+    font-size: 12.5px; font-weight: 600; padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .tag.t-ui { color: var(--blue); border: 1px solid rgba(88,166,255,.45); }
+  .tag.t-host { color: var(--green); border: 1px solid rgba(63,185,80,.45); }
+  .tag.t-data { color: var(--cyan); border: 1px solid rgba(57,197,207,.45); }
+  .tag.t-sys { color: var(--orange); border: 1px solid rgba(210,153,34,.45); }
+  .card ul { margin-left: 24px; }
+  .card li { margin: 5px 0; color: var(--muted); }
+  .card li b { color: var(--text); }
+
+  pre {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 14px; line-height: 1.55;
+    font-family: Consolas, monospace; color: #c9d1d9; margin: 12px 0;
+  }
+  pre .cm { color: #7ee787; } /* 注释绿 */
+  pre .kw { color: #ff7b72; }
+
+  .phase {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; margin-bottom: 16px;
+  }
+  .phase > .ph {
+    padding: 12px 18px; font-size: 20px; font-weight: 700;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .phase > .ph .goal { font-size: 14px; color: var(--muted); font-weight: 400; }
+  .phase > .ph .badge {
+    font-size: 13px; font-weight: 600; padding: 3px 12px; border-radius: 999px;
+  }
+  .phase.pa > .ph { background: linear-gradient(90deg, rgba(63,185,80,.10), var(--panel-2)); color: var(--green); }
+  .phase.pa .badge { color: var(--green); border: 1px solid rgba(63,185,80,.5); }
+  .phase.pb > .ph { background: linear-gradient(90deg, rgba(88,166,255,.10), var(--panel-2)); color: var(--blue); }
+  .phase.pb .badge { color: var(--blue); border: 1px solid rgba(88,166,255,.5); }
+  .phase.pc > .ph { background: linear-gradient(90deg, rgba(210,153,34,.10), var(--panel-2)); color: var(--orange); }
+  .phase.pc .badge { color: var(--orange); border: 1px solid rgba(210,153,34,.5); }
+  .phase.pd > .ph { background: linear-gradient(90deg, rgba(188,140,255,.10), var(--panel-2)); color: var(--purple); }
+  .phase.pd .badge { color: var(--purple); border: 1px solid rgba(188,140,255,.5); }
+  .phase .body { padding: 14px 18px; }
+  .phase .body ol { margin-left: 26px; }
+  .phase .body li { margin: 8px 0; color: var(--muted); }
+  .phase .body li b { color: var(--text); }
+  .accept {
+    margin-top: 10px; border-left: 3px solid var(--green); background: rgba(63,185,80,.07);
+    padding: 8px 14px; border-radius: 0 8px 8px 0; font-size: 15.5px; color: var(--text);
+  }
+
+  .pit { counter-reset: pit; }
+  .pit td:first-child { counter-increment: pit; }
+  .pit td:first-child::before { content: counter(pit); color: var(--red); font-weight: 700; }
+
+  .check { list-style: none; margin-left: 0 !important; }
+  .check li { padding-left: 0; display: flex; gap: 10px; align-items: baseline; margin: 9px 0; }
+  .check li::before {
+    content: "☐"; color: var(--green); font-size: 20px; flex: none; line-height: 1;
+  }
+  .motto {
+    text-align: center; font-size: 19px; font-weight: 700; color: var(--purple);
+    border: 1px dashed rgba(188,140,255,.5); background: rgba(188,140,255,.06);
+    border-radius: 10px; padding: 12px 20px; margin: 18px 0;
+  }
+  footer { margin-top: 30px; text-align: center; color: var(--muted); font-size: 14.5px; border-top: 1px dashed var(--border); padding-top: 16px; }
+  footer code { color: var(--text); }
+  a.back-top {
+    position: fixed; right: 28px; bottom: 28px; z-index: 99;
+    width: 52px; height: 52px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; text-decoration: none; transition: color .15s ease, border-color .15s ease;
+  }
+  a.back-top:hover { color: var(--blue); border-color: var(--blue); }
+  @media print { body { background: #fff; color: #111; } .phase, .tbl-box, .card { border-color: #bbb !important; } a.back-top { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="top">
+      <div>
+        <h1>垂直化扩展路线指引 <span class="accent">· Extension Guide</span></h1>
+        <div class="sub">以 dsh-desktop 为底座实现自定义程序（UI + 功能）· 贯穿案例：AI 视频创建工作流 · 底座 M3 · 基线 rc.8</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <a class="back-link" href="architecture.html">架构总图</a>
+        <a class="back-link" href="architecture-plugins.html">插件清单</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="toc">
+    <a href="#s0">0 核心结论</a><span class="sp">·</span>
+    <a href="#s1">1 底座能力盘点</a><span class="sp">·</span>
+    <a href="#s2">2 四层扩展面</a><span class="sp">·</span>
+    <a href="#s3">3 案例路线</a><span class="sp">·</span>
+    <a href="#s4">4 决策表</a><span class="sp">·</span>
+    <a href="#s5">5 避坑清单</a><span class="sp">·</span>
+    <a href="#s6">6 起步清单</a>
+  </div>
+
+  <!-- ═══════════ 0 核心结论 ═══════════ -->
+  <section id="s0">
+    <div class="sec-h"><span class="idx">0</span><h2>核心结论</h2></div>
+    <div class="concl">
+      <h3>你不需要从零写程序</h3>
+      <ul>
+        <li><b>UI</b>：官方 Slots 槽位系统允许在侧边栏/对话流/设置页<b>任意位置注入业务组件</b>，也可以整屏替换（最后手段）。</li>
+        <li><b>功能</b>：视频生成对底座而言只是「一个新工具（tool）+ 一个新 provider（video 域，类比 llm 域）」，Agent 循环/审批/沙箱/持久化全部白拿。</li>
+        <li><b>工作流</b>：上游已有 <code>dsh-tool-workflow</code>（JS 编排引擎）+ <code>dsh-client-ui-workflow-run</code>（工作流节点 UI）+ <code>dsh-jobs</code>（后台任务）+ <code>ui-deliverables</code>（产物展示）——<b>视频工作流的骨架四件套现成</b>。</li>
+        <li><b>分发</b>：electron-builder 打包链已通（M4-a1），垂直版 = 换 productName/appId + 裁剪清单。</li>
+      </ul>
+      <div class="path">
+        <span class="step a">阶段 A · 纯注入</span><span class="arr">→</span>
+        <span class="step b">阶段 B · 业务域插件</span><span class="arr">→</span>
+        <span class="step c">阶段 C · 裁剪通用面</span><span class="arr">→</span>
+        <span class="step d">阶段 D · 独立分发</span>
+        <span style="color:var(--muted);font-size:14.5px;">（每阶段可独立交付）</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 1 底座能力盘点 ═══════════ -->
+  <section id="s1">
+    <div class="sec-h"><span class="idx">1</span><h2>底座能力盘点（你已拥有什么）</h2></div>
+    <div class="tbl-box">
+      <table>
+        <tr><th>能力</th><th>现状</th><th>垂直化价值</th></tr>
+        <tr><td class="k">Agent 会话循环</td><td class="ok">✅ dsh-agent / agent-loop</td><td>用户自然语言驱动的业务操作入口</td></tr>
+        <tr><td class="k">工具体系</td><td class="ok">✅ 17 个 tool 插件 + ctx.tools 注册表</td><td>视频生成 = 注册新 tool，模型自动可调用</td></tr>
+        <tr><td class="k">工作流引擎</td><td class="ok">✅ dsh-tool-workflow（JS 编排）</td><td>多步骤视频流水线的编排底座</td></tr>
+        <tr><td class="k">后台任务</td><td class="ok">✅ dsh-jobs + ui-jobs</td><td>长耗时渲染任务 + 进度展示</td></tr>
+        <tr><td class="k">产物展示</td><td class="ok">✅ ui-deliverables（产物尾注+引用）</td><td>视频成品交付 UI 基础</td></tr>
+        <tr><td class="k">附件系统</td><td class="ok">✅ attachment-local + ui-attachment</td><td>素材（图/音/脚本）上传</td></tr>
+        <tr><td class="k">审批 / 权限</td><td class="ok">✅ approval + permission-presets</td><td>高消耗视频任务前的确认闸门</td></tr>
+        <tr><td class="k">持久化</td><td class="ok">✅ sessions JSONL + storage-json</td><td>项目 / 任务历史</td></tr>
+        <tr><td class="k">桌面能力</td><td class="ok">✅ 托盘/通知/快捷键/自启/多窗口</td><td>渲染完成通知、任务面板独立窗口</td></tr>
+        <tr><td class="k">UI 插槽系统</td><td class="ok">✅ dsh-client-ui-slots</td><td>业务 UI 注入点（见 §2.1）</td></tr>
+        <tr><td class="k">打包分发</td><td class="ok">✅ electron-builder + SHA256SUMS</td><td>垂直版独立安装包</td></tr>
+      </table>
+    </div>
+    <div class="sec-note">💡 底座的「通用」是资产不是负担——垂直化做的是把<b style="color:var(--text)">你的业务路径</b>做成一等公民（默认视图、专用工具、领域命令），而不是阉割对话能力。</div>
+  </section>
+
+  <!-- ═══════════ 2 四层扩展面 ═══════════ -->
+  <section id="s2">
+    <div class="sec-h"><span class="idx">2</span><h2>四层扩展面（自上而下）</h2></div>
+
+    <div class="card">
+      <h3>🖥 UI 层：Slots 槽位注入 <span class="tag t-ui">最轻 · 先从这里开始</span></h3>
+      <ul>
+        <li><b>位置</b>：<code>src/desktop-shell/web/&lt;your-plugin&gt;-client.js</code>（浏览器 bundle）</li>
+        <li><b>注册</b>：<code>boot-graph.ts</code> 的 <code>desktopDecls</code> 数组追加条目（现有 5 个 @dsh-desktop 条目即模板）</li>
+        <li><b>查槽位</b>：各 ui-* 包的 <code>lib/types/client/contract/slots.d.ts</code> 声明了暴露的槽位契约</li>
+      </ul>
+      <pre><span class="cm">// 视频工作室设置页注入示例（照抄 desktop-settings-client.js 结构）</span>
+window.__ModuleLoader__.load({
+  id: <span class="kw">'@yourbiz/video-studio'</span>,
+  factory: (require) =&gt; {
+    const React = require(<span class="kw">'react'</span>); const h = React.createElement
+    exports.inject = [<span class="kw">'slots'</span>]
+    exports.apply = (ctx) =&gt; {
+      ctx.slots.inject(<span class="kw">'settings.section'</span>, () =&gt; ctx.slots.register({
+        name: <span class="kw">'settings.section'</span>, id: <span class="kw">'video-studio'</span>, order: 20,
+        label: () =&gt; <span class="kw">'视频工作室'</span>,
+      }, function VideoStudioSection() { <span class="cm">/* 业务组件 */</span> }))
+    }
+  },
+})</pre>
+      <div class="tbl-box">
+        <table>
+          <tr><th>槽位</th><th>现状</th><th>视频案例用法</th></tr>
+          <tr><td class="k"><code>settings.section</code></td><td class="ok">✅ 已验证（desktop-settings 在用）</td><td>「视频供应商 / API Key / 默认分辨率」设置页</td></tr>
+          <tr><td class="k"><code>sidebar.footer.action</code></td><td class="ok">✅ 已验证（desktop-panel 在用）</td><td>「新建视频任务」入口按钮</td></tr>
+          <tr><td class="k"><code>settings.general.item</code></td><td class="high">⚠️ 被官方占用（坑 13：勿重复声明）</td><td>—</td></tr>
+          <tr><td class="k">conversation / hero 等</td><td class="part">契约见各 ui-* 包 slots.d.ts</td><td>对话流内嵌「视频预览卡」</td></tr>
+        </table>
+      </div>
+      <div class="sec-note">⚠️ 极限操作（整屏替换，隐藏侧边栏/对话流）：不要改官方 dist（红线：发行物只读）；用 CSS 注入或 fork <code>dsh-web-frontend</code> 自建 dist（ADR-006 自绘 UI 路线）——成本高，放阶段 C 之后。</div>
+    </div>
+
+    <div class="card">
+      <h3>⚙ Host 功能层：注册业务工具与 provider <span class="tag t-host">自然语言驱动的关键</span></h3>
+      <ul>
+        <li><b>路径一 · 桥方法</b>（按钮型）：bridge unary 方法 + preload 命名空间 —— 照抄 <code>desktop-audit-viewer.ts</code> 模板，适合「点按钮调 API」</li>
+        <li><b>路径二 · Agent 工具</b>（模型可调用）：向 <code>ctx.tools</code> 注册 <code>video_generate</code> 工具 —— <b>最大红利</b>：模型在用户说「帮我把这段脚本做成 30 秒视频」时自动调用；中途追问走 user-questions，高消耗走 approval，交互链全白拿</li>
+        <li><b>路径三 · provider 域</b>（多供应商）：定义 <code>ctx.video</code> 服务，结构照抄 <code>dsh-llm + dsh-llm-deepseek</code> 的注册面；MVP 先跳过，路径二写死单供应商</li>
+      </ul>
+      <pre><span class="cm">// 路径二：video_generate 工具（MVP 形态，先项目内模块）</span>
+<span class="cm">// 工具定义：name / description / parameters(zod)</span>
+<span class="cm">// handler：校验参数 → 提交渲染任务（走 dsh-jobs 后台任务）→ 返回任务句柄</span>
+<span class="cm">// 装配：boot.ts prepare 或 main.ts bootstrap 接入</span></pre>
+    </div>
+
+    <div class="card">
+      <h3>💾 数据层：配置与存储 <span class="tag t-data">全部有现成机制</span></h3>
+      <ul>
+        <li><b>用户偏好</b>（供应商/分辨率）：<code>ctx.settings.register('video-studio', schema)</code> —— 照抄 desktop-api.ts 的 <code>lazySettingsScope</code></li>
+        <li><b>业务对象</b>（项目/任务清单）：<code>ctx.storageDomain</code>（JSON 后端已在装）或桥方法读写 userData</li>
+        <li><b>任务状态</b>：复用 <code>dsh-jobs</code>（session/jobs 帧已通 UI）—— 勿自造</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>🖥 ⚙ 系统层：桌面集成 <span class="tag t-sys">M2/M3 已建成</span></h3>
+      <ul>
+        <li><b>渲染完成通知</b>：<code>desktop-notify.ts</code> 消费 <code>events.mux</code> 流——业务 job 事件走官方 jobs 通道，通知<b>自动生效</b></li>
+        <li><b>任务面板独立窗口</b>：WindowManager 会话窗口机制可加 <code>windowKind</code> 分支绑定业务窗口</li>
+        <li><b><code>dsh://</code> 协议</b>：<code>dsh-protocol.ts</code> 加 action（如 <code>dsh://newvideo?template=x</code>）供外部系统唤起建单</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ═══════════ 3 案例路线 ═══════════ -->
+  <section id="s3">
+    <div class="sec-h"><span class="idx">3</span><h2>案例路线：AI 视频创建工作流</h2></div>
+
+    <div class="phase pa">
+      <div class="ph">阶段 A · MVP：纯注入<span class="badge">不动底座内核</span><span class="goal">目标：跑通 上传素材 → 对话生成脚本 → 提交渲染 → 收到成品</span></div>
+      <div class="body">
+        <ol>
+          <li><b>A1 业务设置页</b>（settings.section 槽）：视频供应商 API Key（<span class="high">环境变量注入，禁止硬编码</span>）、默认参数</li>
+          <li><b>A2 侧边栏入口</b>（sidebar.footer.action）：「视频工作室」面板（<code>desktop-panel-client.js</code> 直接抄壳）</li>
+          <li><b>A3 video_generate 工具</b>（路径二）：单供应商写死；内部用 dsh-jobs 起后台任务，轮询供应商 API</li>
+          <li><b>A4 产物交付</b>：渲染产物落工作区目录 → ui-deliverables 自动展示成品引用；通知走 jobs 事件白拿</li>
+        </ol>
+        <div class="accept">✅ 验收：一句话「把 input/script.md 做成 720p 视频」→ 审批 → 后台渲染 → 托盘通知 → 对话流里点开成品</div>
+      </div>
+    </div>
+
+    <div class="phase pb">
+      <div class="ph">阶段 B · 垂直化：业务域一等公民<span class="badge">扩展深水区</span></div>
+      <div class="body">
+        <ol>
+          <li><b>B1 工作流编排</b>：多步流水线（脚本→分镜→TTS→合成）写为 <code>dsh-tool-workflow</code> 编排脚本；可沉淀为 skill（<code>resources/skills/video-pipeline/</code>）</li>
+          <li><b>B2 专用 UI</b>：对话流内嵌视频预览卡（conversation 槽位）+ 任务列表 Tab（抄 desktop-audit-viewer 双件套模式）</li>
+          <li><b>B3 多供应商</b>（路径三）：<code>ctx.video</code> 域 + provider 插件矩阵</li>
+          <li><b>B4 斜杠命令</b>：<code>/newvideo</code>、<code>/render</code> —— 往 dsh-commands 注册表添加 command 插件（照抄 dsh-command-goal 形态）</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="phase pc">
+      <div class="ph">阶段 C · 裁剪通用面<span class="badge">做减法</span></div>
+      <div class="body">
+        <ol>
+          <li><b>C1 隐藏不相关 UI</b>：boot-graph <code>CLIENT_EXCLUDE_IDS</code> 追加要藏的官方插件（现成机制）—— 如 ui-trajectory、ui-settings-plugins</li>
+          <li><b>C2 persona 定制</b>：boot.ts §2 system-prompt persona 覆写为视频导演角色（一行改动）</li>
+          <li><b>C3 agent-presets</b>：<code>resources/agent-presets/</code> 加 videographer 预设（绑定工具子集+提示词），开箱即用</li>
+          <li><b>C4 默认视图</b>：确需「非对话式」主界面（如看板型）才启用 ADR-006 自绘 UI —— 代价大，仅在注入方案确证不满足后启动</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="phase pd">
+      <div class="ph">阶段 D · 独立分发<span class="badge">成品化</span></div>
+      <div class="body">
+        <ol>
+          <li><b>D1 品牌分离</b>：复制工程 → 改 package.json name/version、electron-builder.yml 的 appId/productName/icon</li>
+          <li><b>D2 裁剪依赖</b>：不需要的域从 boot.ts §1 insert 删除，减小体积</li>
+          <li><b>D3 更新通道</b>：复用 M4-b 更新描述符机制（规划态，先手动发包）</li>
+          <li><b>D4 上游同步</b>：底座升级时走 <code>docs/upstream-migrations.md</code> 的 sync-upstream SOP</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 4 决策表 ═══════════ -->
+  <section id="s4">
+    <div class="sec-h"><span class="idx">4</span><h2>扩展方式决策表</h2></div>
+    <div class="motto">判断口诀：先槽位 · 再工具 · 再域 · 最后换脸</div>
+    <div class="tbl-box">
+      <table>
+        <tr><th>需求形态</th><th>选择</th><th>成本</th></tr>
+        <tr><td class="k">设置项 / 小面板</td><td>Slots 槽位注入</td><td class="ok">低（1 个 client bundle 文件）</td></tr>
+        <tr><td class="k">按钮触发的业务 API 调用</td><td>bridge unary 方法 + preload 命名空间</td><td class="ok">低（host 模块 + preload 各几行）</td></tr>
+        <tr><td class="k">自然语言可驱动的业务动作</td><td>Agent 工具（ctx.tools 注册）</td><td class="part">中</td></tr>
+        <tr><td class="k">多步骤流水线</td><td>dsh-tool-workflow 编排脚本 / skill</td><td class="part">中</td></tr>
+        <tr><td class="k">多供应商抽象</td><td>provider 域插件（仿 llm 域）</td><td class="high">高</td></tr>
+        <tr><td class="k">整屏改造主界面</td><td>fork web-frontend（ADR-006）</td><td class="high">高（最后手段）</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══════════ 5 避坑清单 ═══════════ -->
+  <section id="s5">
+    <div class="sec-h"><span class="idx">5</span><h2>避坑清单（垂直化高频雷区）</h2></div>
+    <div class="tbl-box pit">
+      <table>
+        <tr><th style="width:40px">#</th><th>坑</th><th>出处 / 对策</th></tr>
+        <tr><td></td><td>假 slot：向不存在的槽位注册是<b>静默 no-op</b>，无报错</td><td>坑 13：先用 slots.d.ts 核对槽位契约</td></tr>
+        <tr><td></td><td>client bundle 里 <code>exports.inject</code> 写服务名会 PENDING（服务等待）</td><td>坑 15：<code>inject: []</code>，服务用 <code>ctx.get</code> 软查找</td></tr>
+        <tr><td></td><td>非 insert 补丁对空根配置是<b>静默 no-op</b></td><td>坑 16：Host 插件必经 boot.ts insert 数组</td></tr>
+        <tr><td></td><td>React in bundle：用 <code>createElement</code> 不用 jsx-runtime；children 放 props</td><td>desktop-settings-client.js 头注</td></tr>
+        <tr><td></td><td>通道常量 preload 内联与 types/channels.ts 人工同步</td><td>preload.ts 头注</td></tr>
+        <tr><td></td><td>图标 / 资源随 nativeTheme 黑白双版</td><td>desktop-tray.ts</td></tr>
+        <tr><td></td><td>供应商 API Key 走环境变量，<b>禁硬编码</b></td><td>core-standards 红线</td></tr>
+        <tr><td></td><td>大文件产物走 spill-local，勿塞会话上下文</td><td>boot.ts spill 配置</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══════════ 6 起步清单 ═══════════ -->
+  <section id="s6">
+    <div class="sec-h"><span class="idx">6</span><h2>起步清单（今天就做）</h2></div>
+    <div class="card">
+      <ul class="check">
+        <li>通读 <code>docs/14-implementation-map.md</code> §7（载波）+ §11（renderer 注入插件）</li>
+        <li>打开 <a href="architecture-plugins.html" style="color:var(--blue);">插件清单</a>，认领要复用 / 要排除的插件</li>
+        <li>复制 <code>desktop-panel-client.js</code> → <code>video-studio-client.js</code>，boot-graph.ts 登记条目，跑通第一个槽位注入</li>
+        <li>复制 audit-viewer 双件套（host + client），改名做「视频任务列表」</li>
+        <li>写 <code>video_generate</code> 工具（先项目内模块，插件包化留后）</li>
+        <li>验收：一句话生成一条占位视频（mock 供应商）走完全链</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    真源：<code>docs/extension-guide.md</code>（MD 版） · 底座机制见 <code>14-implementation-map.md</code> · 坑档 <code>pitfalls.md</code> · 拴合面 <code>upstream-contracts.md</code>
+  </footer>
+
+</div>
+<a class="back-top" href="#" title="返回顶部">↑</a>
+</body>
+</html>

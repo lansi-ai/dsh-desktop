@@ -10,7 +10,7 @@
   作为 `dsh.profile.bundles` 的桌面 profile 层（叠加在 base + web-app 之上）；
 - **每个桌面能力一个 plugin 行**（`desktop-host-*`），用户可整行 patch 增删/改配置；
 - 客户端注入走官方 slot（`ctx.slots`）+ `dsh.client` roster；
-- 自有包 scope：`@dsh-desktop/*`（不冒用 `@deepseek-ai`）。
+- 自有包 scope：`@lansi-ai/dsh-*`（蓝思公司 scope + dsh 生态前缀，2026-08-27 由 `@dsh-desktop/*` 更名定案，不冒用 `@deepseek-ai`）。
 
 ## 理由
 1. 与官方「装配=配置」哲学同构：`--dump-config` 可见、patch 可改、HMR 可热换；
