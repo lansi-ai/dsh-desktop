@@ -220,23 +220,26 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   // 链条：storage(提供 ctx.storage) → storage-json(注册 json backend 服务) →
   //        storage-domain(提供 ctx.storageDomain) → workspace(提供 ctx.workspaceRegistry)
   //        → host-apiproxy(提供 ctx.apiProxy + events.mux/host)。
+  // agent-presets：M2·官方 UI 设置面板 agent 预设选择器数据源。
+  // 坑 16：cordis-plugin-include 的非 insert 补丁（{id,name,config}）只按 id 覆盖
+  // 已存在条目，根配置为空 [] 时是静默 no-op——此前该条目不带 insert 键，
+  // dsh-agent-presets 插件从未装载（agentPresets 服务 undefined → 设置页纯空白，
+  // 页面对空 roster/未装载均不渲染不报错）。必须经 insert 数组进插件树。
   {
     insert: [
       { id: 'storage', name: '@deepseek-ai/dsh-storage' },
       { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(RUNTIME_ROOT, 'user-data', 'storages') } },
       { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
+      // roots 指向仓库随附的裁剪预设（仅用已装插件，避免缺依赖导致 mount 失败）。
+      {
+        id: 'agent-presets',
+        name: '@deepseek-ai/dsh-agent-presets',
+        config: {
+          default: 'standard',
+          roots: [{ path: join(__dirname, '..', 'resources', 'agent-presets'), trust: 'system' }],
+        },
+      },
     ],
-  },
-  // agent-presets：M2·官方 UI 设置面板 agent 预设选择器数据源。
-  // 此前缺 name 未加载 dsh-agent-presets 插件 → host 无 agentPresets 域 → 面板空白。
-  // 现补 name 加载插件，并把 roots 指向仓库随附的裁剪预设（仅用已装插件，避免缺依赖）。
-  {
-    id: 'agent-presets',
-    name: '@deepseek-ai/dsh-agent-presets',
-    config: {
-      default: 'standard',
-      roots: [{ path: join(__dirname, '..', 'resources', 'agent-presets'), trust: 'system' }],
-    },
   },
 ]
 
