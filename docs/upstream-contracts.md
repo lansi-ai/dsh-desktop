@@ -1,25 +1,30 @@
-# 上游拴合面速查（dsh-v0.1.0-rc.8 · 实证沉淀）
+# 上游拴合面速查（dsh-v0.1.2-alpha.3 · 2026-09-01 M4-d3 迁移后）
 
 > **用途**：对接/排查 `@deepseek-ai` 上游包时先查此表，免钻 node_modules。
-> **事实来源**：M1-M3 攻坚实证（坑号 = docs/pitfalls.md）；基线升级（M4-d）时须逐条复核此表并刷新。
+> **事实来源**：M1-M3 攻坚实证（坑号 = docs/pitfalls.md）+ 2026-09-01 M4-d3 迁移实证（0.1.2-alpha.3）。
+> **⚠️ 0.1.2 破坏性变更**：`dsh-host-apiproxy`/`AbstractApiClient`/`dsh-client-runtime` 已删，RPC 通道与载波形态整体重构（见 §1/§2）；§7 契约矩阵已按 M4-d3 迁移后的实际代码刷新，后续上游再升级须逐条复核。
 
-## 1. RPC 三通道归属（renderer → host）
+## 1. RPC 通道归属（renderer → host，0.1.2 新形态）
 
 | 通道 | 承载方法形态 | 代表方法 | 桌面端入口 |
 |---|---|---|---|
-| apiProxy domain 方法 | **点分**（`domain.method`） | `session.list/create/prompt`、`agentPreset.list/select/read/copy/remove`、`settings.update`、`host.describe` | `toFetchHandler(apiProxy)` 经 `http://local/api/<method>` 虚拟路由（坑 2/3）；main.ts `callApi` |
-| Typert remote | **斜杠**（`domain/method`） | `commands/list`、`fileReferences/list`、`goals/*`、`dynamicCordisRunner/*` | apiProxy 返回 404 → `typertGateway.invokeRpc(method, params)`（坑 12） |
-| connection 直拦截 | — | 上游 HTTP 部署经 `connection.rpc.intercept('/api')` 认领 | **零端口不存在**（IPC 载波替代 connection） |
+| **connection unary**（`createSharedFetchHandler('/api')`） | **斜杠**（`domain/method`） | `settings.describe`、`credentials.describe`、`session.list/modelCatalog`、`subagents.list`、`agentPresets.list`、`skills.list`、`commands.list`、`$events/result` | `__DSH_TRANSPORT__.fetch` → bridge `defaultApiProxyHandler` → `connectionFetch.fetch`（main.ts 第 4 步；M4-d3 迁移后） |
+| **typertGateway 逻辑流**（`wireStream.open`） | **斜杠**（`domain/method`） | `$events`（会话/审批/waterfall 下行）、`session.control`、`workspace.follow` | `__DSH_TRANSPORT__.openStream` → bridge `dsh:stream-open` → `typertGateway.wireStream.open`（M4-d3 迁移后） |
+| ~~apiProxy domain 方法~~ | ~~点分（`domain.method`）~~ | ~~`session.list/create/prompt`~~ | **已删除**（`dsh-host-apiproxy` 不存在，0.1.2 由上述两通道取代） |
+| ~~Typert remote 404 兜底~~ | — | ~~`commands/list`~~ | **已删除**（0.1.2 全端点经 connection 认领，无 404 兜底；`typertGateway.invokeRpc` 不再需要） |
 
-**排障判据**：主进程日志 `RPC 失败 (X): HTTP 404` = X 不在 apiProxy 表（查 `dsh-api-remotes/lib/client.js` descriptor 确认归属通道）。
+**排障判据**：主进程日志 `RPC 失败 (X): HTTP 404` = X 无 host 侧 controller 认领（查 §2 服务名是否缺失装配，尤其三 controller：session/settings/workspace——见 `m4-d3-012-alpha3-migration-plan.md`）。
 
-## 2. 服务注册名 vs cordis 条目 id（`ctx.get()` 用左列）
+## 2. 服务注册名 vs cordis 条目 id（`ctx.get()` 用左列 · 0.1.2）
 
 | 服务名（camelCase） | 条目 id（kebab-case） | 包 / 来源 |
 |---|---|---|
 | `agentPresets` | `agent-presets` | @deepseek-ai/dsh-agent-presets（坑 16） |
 | `typertGateway` | `typert-gateway` | @deepseek-ai/dsh-api-gateway（坑 12） |
-| `apiProxy` | `api-gateway` | @deepseek-ai/dsh-host-apiproxy |
+| `connection`（HostConnectionHandle） | `host-connection` | @deepseek-ai/dsh-client-connection（**host 半**，0.1.2 必备；提供 `createSharedFetchHandler`） |
+| `api-remotes`（$events 源） | `api-remotes` | @deepseek-ai/dsh-api-remotes（0.1.2 必备，注册 `$events` forwarded 事件源） |
+| `sessionController`/`settingsController`/`workspaceController` | `session-controller`/`settings-controller`/`workspace-controller` | @deepseek-ai/dsh-api-{session,settings,workspace}-controller（**0.1.2 三 controller 必备**——缺则 unary 404/流 "no active Remote method"） |
+| ~~`apiProxy`~~ | ~~`api-gateway`~~ | ~~@deepseek-ai/dsh-host-apiproxy~~ **已删除**（0.1.2） |
 | `directoryPicker` | （无条目，prepare 钩子注入） | 本项目 ElectronDirectoryPicker（坑 6） |
 | `desktop` / `webServer` / `desktopStartup` | （无条目，prepare 钩子注入） | 本项目 desktop-api / compat-webserver（坑 9） |
 
@@ -35,7 +40,7 @@
 |---|---|
 | Agent 预设（dsh-client-ui-agent-preset） | 空 roster 与服务未装载均 `return null`，无报错文案 |
 | dsh-agent-presets `scanRoot` | root 目录 ENOENT → 返回 `[]`（合法部署态） |
-| apiProxy `static inject` | 不含 agentPresets——插件装载失败时 apiProxy 照常就绪，调用时才报 `this deployment composes no agent presets` |
+| ~~apiProxy `static inject`~~ | ~~不含 agentPresets——插件装载失败时 apiProxy 照常就绪~~ **0.1.2 已删**（`dsh-host-apiproxy` 不存在；agentPresets 端点在 session-controller 认领，缺失装配时 404） |
 | 坑 11 冷会话 | 清单可见但无 live agent，无人主动重挂载 |
 
 对冲手段：宿主侧「启动期扫描结果必显」探针（main.ts 3.5 步 agentPresets 为范例）。
@@ -59,17 +64,17 @@
 
 ## 7. 自有插件 × 官方契约 依赖矩阵（升级基线必备核查表）
 
-> **用途**：`rc.8 → 0.1.1-rc.2` 升级（M4-d）时，逐条核对下方「依赖契约」是否在上游变更。
+> **用途**：上游升级（M4-d）时逐条核对下方「依赖契约」是否变更。**2026-09-01 已按 0.1.2-alpha.3 迁移后的实际代码刷新**（0.1.2 破坏性变更后的契约现状见 §1/§2 与本表各行）；后续再升级须重新逐条核对。
 > **原则**：自有插件只在「拴合面」咬官方——要么消费官方槽位/服务，要么塞进官方 DOM。升级时**先对契约、再改代码**。
 > **新增于 2026-08-27（D-18 拴合面债收口）**，来源 = plugin-inventory.md + boot-graph desktopDecls。
-> **2026-09-01 已核对**：下表各「核查要点」在 0.1.1-rc.2 均无变更（官方 ui-* 包清单与槽位契约零差异，详见 upstream-migrations C 区）。旧版所标目标版本「rc.12」系臆测项，实际最新稳定为 `0.1.1-rc.2`。
+> **2026-09-01 已核对两轮**：① 下表各「核查要点」在 0.1.1-rc.2 均无变更（官方 ui-* 包清单与槽位契约零差异，详见 upstream-migrations C 区；旧版所标目标版本「rc.12」系臆测项）；② **0.1.2-alpha.3 破坏性迁移（M4-d3）后的契约现状已按实际代码刷新**（见本表各行 + §1/§2）。
 
 ### 7.1 Client 半（renderer bundle，消费官方 UI 槽位/运行时）
 
 | 自有插件 | 依赖官方契约 | 风险 | 升级核查要点 |
 |---|---|---|---|
-| `@lansi-ai/dsh-ipc-connection`（ipc-connection.js） | 继承官方 `AbstractApiClient`（dsh-client-connection 基类） | 🔴 高 | 基类 `doFetch`/`readIpFrames`/`start` 签名是否变；connection 服务独占是否仍成立 |
-| `@lansi-ai/dsh-desktop-layout`（desktop-layout-client.js） | **root 槽位**：sidebar/conversation/details/shell.overlay（single/session-maybe/list + scope）；`runtime.defineStore`；`ctx.layout` 服务名 | 🔴 高 | 槽位名/kind/scope 是否变；`defineStore` API；`layout` 服务注入是否仍被官方消费方期望 |
+| `@lansi-ai/dsh-ipc-connection`（ipc-connection.js） | ~~继承官方 `AbstractApiClient`~~ **0.1.2 已改为图谱占位 + HTML boot 脚本注入 `__DSH_TRANSPORT__ = {fetch, openStream, ownsHost:true}`**（官方 `dsh-client-connection` 客户端读之自行 `provide('connection')`） | 🔴 高（已迁移） | 基类已删；`__DSH_TRANSPORT__` 契约（RpcFetch/RpcStreamOpen/ownsHost）是否变；官方 connection apply 是否仍读该全局 |
+| `@lansi-ai/dsh-desktop-layout`（desktop-layout-client.js） | **root 槽位**：sidebar/conversation/details/shell.overlay（single/session-maybe/list + scope）；`defineStore`（**0.1.2 源已由 `dsh-client-runtime/client` 迁至 `@deepseek-ai/dsh-client-store`**）；`ctx.layout` 服务名；AppFrame 渲染 details（strict session scope）须包 `SessionProvider` | 🔴 高（已迁移） | 槽位名/kind/scope 是否变；`defineStore` API；`layout` 服务注入是否仍被官方消费方期望；SessionProvider 是否仍由渲染器注入 |
 | `@lansi-ai/dsh-desktop-sidebar`（desktop-sidebar-client.js） | **sidebar 子槽位**：brand.mark/name/workspaces/settings/footer.action（single/list + root）；官方 `ui-workspace`/`ui-settings` 注册者的 owner props 契约 | 🔴 高 | 子槽位名是否变；workspaces 注册者期望的 props（wide/expandSidebar）是否变 |
 | `@lansi-ai/dsh-desktop-titlebar`（desktop-titlebar-client.js） | 官方 `#root` 结构（顶部 32px 让位）、官方 UI 布局高度 | 🟡 中 | `#root` 容器结构是否变；官方 UI 顶栏高度是否变（顶栏下边线探针同步） |
 | `@lansi-ai/dsh-desktop-settings`（desktop-settings-client.js） | `settings.section` 槽位、`ui-onboarding` namespace（dsh-client-ui-settings-general） | 🟡 中 | settings.section 槽位名是否变；桌面 section 是否仍可注入 |
@@ -96,6 +101,8 @@
 | `dsh-ui-protocol.ts` `injectBootManifest` | 官方 index.html 结构（`</head>` 注入点） | 🟡 中 | 官方 index.html 挂载结构是否变（若自建根容器须此处插入） |
 
 ### 7.4 升级逐条核查 SOP（M4-d 必执行）
+
+> **2026-09-01 已执行两轮**：① `rc.8 → 0.1.1-rc.2` 逐条核对**无破坏性变更**（见 upstream-migrations C 区）；② **`0.1.1-rc.2 → 0.1.2-alpha.3` 破坏性迁移**按 M4-d3 专项执行完毕（载波重构 `__DSH_TRANSPORT__`、三 controller、`__DSH_BOOT_READY__`、M6 插件契约重对——见 `m4-d3-012-alpha3-migration-plan.md`）。下方勾选清单为 `rc.8 → 0.1.1-rc.2` 轮结论（历史）；0.1.2 轮的契约变化已并入 §1/§2/§7.1。
 
 升级 `rc.8 → 0.1.1-rc.2` 时，按以下顺序逐条勾选，**先登记 diff 再适配**（ADR-005）。**2026-09-01 本条已执行完毕**（结论：全部无破坏性变更，详见 upstream-migrations C 区）：
 

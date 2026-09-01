@@ -54,8 +54,8 @@
 
 | ID | 风险 | 评级 | 缓解 | 状态 |
 | --- | --- | --- | --- | --- |
-| R19 | 本地检出与 GitHub 最新 rc 差异导致文档假设过期 | 中×中 | ✅ 2026-08-25 已决策钉基线本地检出 `dsh-v0.1.0-rc.8`（事实表全部可复核）；**2026-09-01 已实测上游最新稳定为 `0.1.1-rc.2`（旧载「rc.12」系臆测项，无 `0.1.0-rc.12`）**，差异 diff 登记 sync-upstream 迁移表 C 区（结论：3 类拴合面无破坏性变更） | closed |
-| R20 | 上游将 apiproxy 迁移/合并至 typert 等新协议面 | 中×高 | 载波语义对接两者公共面（rpcId/帧模型）；迁移登记表预判 | watch |
+| R19 | 本地检出与 GitHub 最新 rc 差异导致文档假设过期 | 中×中 | ✅ 2026-08-25 已决策钉基线本地检出 `dsh-v0.1.0-rc.8`（事实表全部可复核）；**2026-09-01 已实测上游最新稳定为 `0.1.1-rc.2`（旧载「rc.12」系臆测项，无 `0.1.0-rc.12`）**，差异 diff 登记 sync-upstream 迁移表 C 区（结论：3 类拴合面无破坏性变更）；**2026-09-01 已按 M4-d3 实际升级采用 `0.1.2-alpha.3`**（载波整链重写） | closed |
+| R20 | 上游将 apiproxy 迁移/合并至 typert 等新协议面 | 中×高 | ✅ **0.1.2-alpha.3 已实际发生**（M4-d3 迁移消化）：`dsh-host-apiproxy` 删除，RPC 改 `connection`(createSharedFetchHandler) + `typertGateway`(wireStream.open) 双通道，`__DSH_TRANSPORT__` 自持传输接管；详见 `m4-d3-012-alpha3-migration-plan.md` | closed（2026-09-01） |
 
 ---
 

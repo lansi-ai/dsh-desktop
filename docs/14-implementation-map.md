@@ -1,6 +1,6 @@
 # dsh-desktop 实现地图（Implementation Map）
 
-> 基线：`dsh-v0.1.0-rc.8` · Electron 44 · 状态：M3 代码完成，M3-b4 dogfood 与 M4 并行推进（2026-08-27）。
+> 基线：`dsh-v0.1.2-alpha.3`（2026-09-01 M4-d3 由 rc.8 直升；方案见 `m4-d3-012-alpha3-migration-plan.md`）· Electron 44 · 状态：M3 代码完成，M4-d3 0.1.2 升级专项完成，M3-b4 dogfood 与 M4 分发并行推进（2026-09-01）。
 > 本文回答三个问题：**程序由哪些部分组成**（架构）、**每部分代码在哪**（位置）、**关键链路怎么走**（实现细节）。
 
 ![dsh-desktop 架构图](architecture-diagram.jpg)

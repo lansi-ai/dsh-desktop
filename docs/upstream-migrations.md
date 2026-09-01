@@ -1,7 +1,7 @@
 # Upstream 同步与拴合面迁移登记表（sync-upstream · ADR-005）
 
-> 基线版本：**`dsh-v0.1.0-rc.8`**（本地检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
-> **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`**（npm `latest`/`next` 与 GitHub Latest 一致；同版本号的 `dsh-app-boot`/`dsh-web-app`/`dsh-web-frontend` 均已发布，可 4 包对齐）。文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`，真实最新稳定为 `0.1.1-rc.2`（`0.1.2-alpha.3` 为实验性，不作基线）。该版本 3 类拴合面 diff 已完成并登记于「C. 升级核查」。
+> 基线版本：**已升级至 `dsh-v0.1.2-alpha.3`**（2026-09-01 M4-d3 执行完成，详见「C-1」；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
+> **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`** 为官方 `latest`/`next` 稳定基线；文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`。`0.1.2-alpha.3` 为官方实验性版本，**虽非官方转正基线，但已由桌面按 M4-d3 专项实际升级采用**（用户决策，推翻 C-1 预评估「不选」结论）。该两版本 3 类拴合面 diff 均已登记于「C. 升级核查」与「C-1」。
 > 本表随每次上游基线升级滚动更新；升级时必须逐行核对「3 类拴合面」，未核对完不得宣告升级完成。
 
 ## A. 3 类拴合面（耦合收敛的唯一依据）
@@ -61,9 +61,9 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 | ui-slots / ui-layout / ui-sidebar | `ui-slots` store.ts/renderer.ts、`ui-sidebar` SidebarRoot、`ui-layout` AppFrame/DocumentTitle/theme-presenter 均改 | 自绘插件（layout/sidebar/titlebar）拴合面需逐条重对 | 🟡 中 |
 | 全仓规模 | 7036 文件变化，+355K/-144K（含大量测试快照/构建基建重构） | — | 🔴 高 |
 
-**桌面侧追加适配清单（若未来选 0.1.2）**：① 重写载波（不再有 AbstractApiClient，改用 `__DSH_TRANSPORT__` + API Gateway 连接面）；② 重对 client-runtime 的 manifest/装配契约 + 补 `dsh-client-store` 静态注册；③ 补 `__DSH_BOOT_READY__` 就绪门控；④ 自绘插件契约全量重核对。因当前 M6 自绘主线 + 无开版需求，暂不投入。
+**桌面侧适配清单（已按 M4-d3 执行，2026-09-01）**：① 重写载波（不再有 AbstractApiClient，改用 `__DSH_TRANSPORT__` + API Gateway 连接面）——`ipc-connection.js` 弃继承，HTML boot 脚本注入 `__DSH_TRANSPORT__ = {fetch, openStream, ownsHost:true}`；② 重对 client-runtime 的 manifest/装配契约 + 补 `dsh-client-store` 静态注册——`boot-graph.ts` 产 `WebBootGraph{rev,entries,batches}`、`dsh-client-modules` 替代 `client-runtime`、store 由官方 dist 内核 seed；③ 补 `__DSH_BOOT_READY__` 就绪门控；④ 自绘插件契约全量重核对——`defineStore` 迁 `dsh-client-store`、external 对齐 `ui-renderer`、AppFrame 补 `SessionProvider`。实机验证全链路可用。
 
-#### C-1a 否决理由（为什么维持 `0.1.1-rc.2`，不选 `0.1.2-alpha.3`）
+#### C-1a 否决理由（预评估时维持 `0.1.1-rc.2` 的理由 · **已执行后作历史记录**）
 
 | # | 理由 | 说明 | 对应事实 |
 |---|---|---|---|
@@ -72,7 +72,7 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 | R3 | **与我们当前主线（M6 自绘 UI）直接冲突** | M6 正在把官方 `ui-*` 逐个换成自研插件（layout/sidebar/titlebar 已落地）。`0.1.2` 把 ui-slots/layout/sidebar 契约也改了，若现在升，会迫使已上线的自研插件全部重对契约、打断 D-20 自绘主线 | ui-slots store/renderer、SidebarRoot、AppFrame 均变更 |
 | R4 | **收益不明确、风险即时兑现** | `0.1.2` 相对 `0.1.1-rc.2` 的发布说明主要是体验优化（image upload 相关），无当前项目缺失的关键能力；而破坏性适配成本高、与主线冲突大、「先升再说」违背可回滚原则 | 对照 0.1.2 release notes + ADR-005 原则 |
 
-> **维持决策后的行动**：继续按 M4-d2 计划升 `0.1.1-rc.2`（已验证零适配）；`0.1.2-alpha.3` 留待官方转 `rc`/`stable`（`next` 指向它）或 M4-d 后续轮次再评估，届时以官方转正版本重新执行 ADR-005 diff（worktree `_harness-012a3` 已备好）。
+> **预评估后的行动（历史）**：原计划按 M4-d2 升 `0.1.1-rc.2`；`0.1.2-alpha.3` 留待官方转正再评估。**该行动已被用户决策改写（2026-09-01）：直接执行 M4-d3 升 `0.1.2-alpha.3`**（详见 M4-d3 看板 + `docs/m4-d3-012-alpha3-migration-plan.md`）。C-1 差异表（含本 C-1a 否决理由）作为迁移依据与历史记录保留。
 
 ## D. sync-upstream SOP（升级一次跑一遍）
 
