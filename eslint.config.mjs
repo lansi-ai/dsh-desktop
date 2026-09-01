@@ -49,6 +49,9 @@ const BROWSER_GLOBALS = {
   clearTimeout: 'readonly',
   setInterval: 'readonly',
   clearInterval: 'readonly',
+  requestAnimationFrame: 'readonly',
+  cancelAnimationFrame: 'readonly',
+  ResizeObserver: 'readonly',
 }
 
 export default tseslint.config(

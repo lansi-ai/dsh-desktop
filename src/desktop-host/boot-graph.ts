@@ -41,6 +41,12 @@ const CLIENT_EXCLUDE_IDS = new Set([
   // browse（浏览器文件浏览）是互斥副本；两包注册同一 single slot（conversation.hero.workspace.directoryFlow
   // / sidebar.workspaces.directoryFlow）会抛 "already has a registration"。
   '@deepseek-ai/dsh-client-ui-directory-picker-browse',
+  // 桌面版布局插件接管 root 槽位（方案 B），禁用官方布局插件
+  '@deepseek-ai/dsh-client-ui-layout',
+  // M6-P3 侧栏壳自研：@lansi-ai/dsh-desktop-sidebar 接管 sidebar 槽位（fold + 新会话 +
+  // 5 子槽位声明）；官方 ui-sidebar 排除后，ui-workspace/ui-settings 无改动注册其子槽位
+  // （摸底证实 ui-workspace 运行时不 require ui-sidebar，dsh.client.inject 仅为装载顺序提示）。
+  '@deepseek-ai/dsh-client-ui-sidebar',
 ])
 
 // ── 内部状态 ─────────────────────────────────────────────────────────
@@ -70,7 +76,7 @@ const CLIENT_CONNECTION_ID = '@deepseek-ai/dsh-client-connection'
 /** 图谱外预载注册模块（仅注册 factory 供 require，不入图谱、不被官方驱动激活）。 */
 const PRELOAD_ONLY_IDS = [CLIENT_CONNECTION_ID]
 /** 桌面 IPC 载波连接（inject[]，独占提供 connection 服务，替换官方 client-connection）。 */
-const IPC_CONNECTION_ID = '@dsh-desktop/ipc-connection'
+const IPC_CONNECTION_ID = '@lansi-ai/dsh-ipc-connection'
 
 // ── 内部工具 ─────────────────────────────────────────────────────────
 
@@ -301,7 +307,7 @@ function graphRow(decl: BootBundleDecl, rev: string): BootEntry {
  * 特殊处理：
  * - `@deepseek-ai/dsh-client-connection` **不入图谱**（D-9：官方驱动对图谱全量激活，
  *   会使官方 Web 传输 connection 抢走服务 → 404/retry），仅登记为预载注册模块。
- * - 桌面独占 `@dsh-desktop/ipc-connection` 注入图谱，独占提供 connection 服务。
+ * - 桌面独占 `@lansi-ai/dsh-ipc-connection` 注入图谱，独占提供 connection 服务。
  * - 自动扫描结果与 extraBundles（含 ipc-connection 载波）合并后整体拓扑排序。
  *
  * @param rev 图谱版本号；省略时由条目内容哈希推导。
@@ -329,15 +335,27 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 官方 UI 渲染必需的自启动核心（client-modules/client-runtime 由扫描集覆盖，
     // 此处显式确保其在列 + immediately，且 client-runtime 的 inject 依赖由扫描集提供）。
     { id: IPC_CONNECTION_ID, path: resolveLocalWebBundle('ipc-connection.js'), inject: [], immediately: true, external: [`${CLIENT_CONNECTION_ID}/client`] },
+    // 桌面版布局插件：接管 root 槽位，提供三列布局（方案 B）
+    { id: '@lansi-ai/dsh-desktop-layout', path: resolveLocalWebBundle('desktop-layout-client.js'), inject: ['slots', 'theme'], immediately: true },
+    // 桌面自绘标题栏（v2：titlebar 收进布局，不再 body 级 fixed）：
+    // 注册布局 root 槽位的 titlebar 行（拖拽区 + 窗控 + 下边线）；等待 slots + layout，
+    // 借 layout 服务保证布局（root 槽位声明 titlebar）先 apply，规避子槽位未声明
+    { id: '@lansi-ai/dsh-desktop-titlebar', path: resolveLocalWebBundle('desktop-titlebar-client.js'), inject: ['slots', 'layout'], immediately: true },
+    // M6-P3 侧栏壳自研：接管 sidebar 槽位（fold + 新会话 + 5 子槽位声明），
+    // 官方 workspaces/settings 注册者经子槽位无改动继续工作
+    { id: '@lansi-ai/dsh-desktop-sidebar', path: resolveLocalWebBundle('desktop-sidebar-client.js'), inject: ['slots'], immediately: true },
     // M2-e 官方 UI 注入：桌面设置页面 + 桌面面板容器 + 命令面板（经 Slot 系统注入官方 UI）
-    { id: '@dsh-desktop/desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
-    { id: '@dsh-desktop/desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    { id: '@lansi-ai/dsh-desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    { id: '@lansi-ai/dsh-desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
     // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口（纯 DOM 浮层 + 官方运行时导航——坑 13/14/15）
     // entry.inject 是信息性包名依赖边（非服务注入）；服务等待只看插件返回对象的 exports.inject，
     // 故此处恒 []，ctx.sessions/workspaces 由插件 apply 后经 ctx.get 软查找。
-    { id: '@dsh-desktop/desktop-cmdpalette', path: resolveLocalWebBundle('desktop-cmdpalette-client.js'), inject: [], immediately: true },
+    { id: '@lansi-ai/dsh-desktop-cmdpalette', path: resolveLocalWebBundle('desktop-cmdpalette-client.js'), inject: [], immediately: true },
     // M3-b2 审计查看器：会话审计日志查询 UI
-    { id: '@dsh-desktop/desktop-audit-viewer', path: resolveLocalWebBundle('desktop-audit-viewer-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    { id: '@lansi-ai/dsh-desktop-audit-viewer', path: resolveLocalWebBundle('desktop-audit-viewer-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-slots/client'], immediately: true },
+    // 对话区视觉层（子元素侧）：不接管 conversation 槽位（与官方 ui-conversation 单槽位互斥），
+    // 仅注入样式给对话根节点（data-phase）圆角/裁剪——圆角归对话自身，非布局插件职责。
+    { id: '@lansi-ai/dsh-desktop-conversation-visuals', path: resolveLocalWebBundle('desktop-conversation-visuals-client.js'), inject: [], immediately: true },
     ...(extraBundles ?? []),
   ]
 
@@ -428,7 +446,31 @@ export function resolveBundleRequest(pathname: string): { body: Buffer; contentT
 // ── HTML 注入脚本 ───────────────────────────────────────────────────
 
 /**
- * 生成官方格式的 boot 注入脚本（queue shim + parser 预载 script + `window.__DSH_BOOT__`）。
+ * 布局骨架 CSS（HTML 首帧预置，防裸窗口期）。
+ *
+ * 宿主面唯一真源：定义 html/body/#root 骨架（托盘色、主卡片圆角、四周边距），
+ * 值经 `--dsd-*` 外观变量暴露契约（默认值内置）；二开者覆盖该变量即可改骨架，
+ * 宿主源码零改动。变量默认值与 desktop-appearance.ts 的 resolveVars 保持一致。
+ * 与布局插件（@lansi-ai/dsh-desktop-layout）职责分离：本处只做骨架，
+ * 插件只管 .dsh-desktop-layout-* 布局引擎样式。
+ * !important + html 前缀提特异性：官方 UI 运行时动态注入样式表晚于此，
+ * 会以同特异性覆盖 position 导致底部溢出（实机 2026-08-27）。
+ */
+const LAYOUT_SKELETON_CSS = [
+  ':root{--dsd-tray-bg:rgb(242 243 245);--dsd-card-radius:12px;--dsd-frame-gap:15px;--dsd-titlebar-h:50px}',
+  // background 必须 !important：官方运行时动态样式表晚于此（body{background:--dsw-alias-bg-base,#fff}）
+  // 会用同特异性把托盘色盖成白色（实机 2026-08-27：整窗白、卡片不浮起）。
+  'html,body{background:var(--dsd-tray-bg)!important}',
+  'body{overflow:hidden!important}',
+  // 官方 #root 保持原生 height:100% 自适应缩放（不动它的定位，避免破坏放大跟随）。
+  // 我们只做视觉垫层：内边距留出托盘边距 + 主卡片圆角（内层卡片由布局插件接管）。
+  'html body>#root{box-sizing:border-box!important;padding:0!important;margin:0!important}',
+  // 主卡片（官方 #root 内的 UI 容器）圆角 + 托盘分隔；不改变 #root 定位，缩放仍由官方自适应。
+  'html body>#root>div:first-child{border-radius:var(--dsd-card-radius)!important;overflow:hidden!important}',
+].join('')
+
+/**
+ * 生成官方格式的 boot 注入脚本（骨架 CSS + queue shim + parser 预载 script + `window.__DSH_BOOT__`）。
  *
  * 与官方 `injectBootManifest` 逐字对齐：inline 注册队列先于 client-modules / client-runtime 的
  * 普通 classic `<script src>`，其 `create()` 在模块系统创建后切换到 live 注册模式。
@@ -475,7 +517,7 @@ window.__ModuleLoader__={
     const rev = shortHash(readFileSync(bundlePath))
     return `<script src="${escapeHtmlAttribute(`/plugins/${id}/client.js?rev=${rev}`)}"></script>`
   }).join('')
-  return `${queue}${preload}${preloadOnly}<script>window.__DSH_BOOT__ = ${json}</script>`
+  return `<style>${LAYOUT_SKELETON_CSS}</style>${queue}${preload}${preloadOnly}<script>window.__DSH_BOOT__ = ${json}</script>`
 }
 
 /**
