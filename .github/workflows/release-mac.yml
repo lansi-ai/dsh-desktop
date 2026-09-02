@@ -48,10 +48,17 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Package & publish (dmg + zip, arm64/x64)
+      - name: Package (dmg + zip, arm64/x64)
+        run: npx electron-builder --mac --publish never
+
+      - name: Upload mac artifacts to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --mac --publish always
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          gh release upload "$TAG" \
+            release/*.dmg release/*.zip release/*.blockmap release/latest-mac.yml \
+            --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Generate SHA256SUMS-mac
         run: |
