@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- 首启窗口：选择用户数据存储位置（M4）。静态单页零依赖，配色随 first-run:get-state 下发的 isDark。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden}
+  body{display:flex;flex-direction:column;padding:28px 32px 20px;box-sizing:border-box;
+    font-family:'Segoe UI',system-ui,sans-serif;user-select:none;
+    background:var(--bg);color:var(--fg)}
+  .light{--bg:#f2f3f5;--fg:#1a1a1a;--dim:rgba(26,26,26,.55);--line:rgba(26,26,26,.15);
+    --field:#fff;--field-line:rgba(26,26,26,.2)}
+  .dark{--bg:#1c1c1e;--fg:#ececec;--dim:rgba(236,236,236,.55);--line:rgba(236,236,236,.15);
+    --field:#2c2c2e;--field-line:rgba(236,236,236,.25)}
+  h1{font-size:17px;font-weight:600;margin:0 0 8px}
+  p.desc{font-size:12.5px;line-height:1.6;color:var(--dim);margin:0 0 18px}
+  .row{display:flex;gap:8px;margin-bottom:6px}
+  input.path{flex:1;height:34px;padding:0 10px;box-sizing:border-box;border-radius:7px;
+    border:1px solid var(--field-line);background:var(--field);color:var(--fg);
+    font-size:12.5px;font-family:inherit;outline:none}
+  input.path:focus{border-color:#4d6bfe}
+  button{font-family:inherit;font-size:12.5px;border-radius:7px;cursor:pointer;
+    border:1px solid var(--field-line);background:var(--field);color:var(--fg);padding:0 14px;height:34px}
+  button:hover{filter:brightness(1.08)}
+  button.primary{background:#4d6bfe;border-color:#4d6bfe;color:#fff;font-weight:600;height:36px;padding:0 22px}
+  button.primary:disabled{opacity:.45;cursor:default}
+  .hint{font-size:11.5px;color:var(--dim);min-height:16px;margin:2px 0 0}
+  .hint.error{color:#e5484d}
+  .migrate{display:none;align-items:center;gap:7px;font-size:12px;color:var(--fg);
+    margin:12px 0 0;cursor:pointer}
+  .migrate input{accent-color:#4d6bfe;width:14px;height:14px;cursor:pointer}
+  .spacer{flex:1}
+  .footer{display:flex;justify-content:flex-end;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body class="light">
+  <h1>选择用户数据存储位置</h1>
+  <p class="desc">DSH Desktop 将把你的 API 凭据、会话记录、设置等用户数据保存在以下目录。该目录可随时在系统中整体备份或删除。</p>
+  <div class="row">
+    <input class="path" id="path" type="text" spellcheck="false">
+    <button id="browse" type="button">浏览…</button>
+  </div>
+  <p class="hint" id="hint"></p>
+  <label class="migrate" id="migrateRow">
+    <input type="checkbox" id="migrate" checked>
+    <span>迁移默认目录中的现有数据（凭据、会话记录等）</span>
+  </label>
+  <div class="spacer"></div>
+  <div class="footer">
+    <button class="primary" id="confirm" type="button" disabled>开始使用</button>
+  </div>
+<script>
+(() => {
+  const pathEl = document.getElementById('path')
+  const browseEl = document.getElementById('browse')
+  const confirmEl = document.getElementById('confirm')
+  const hintEl = document.getElementById('hint')
+  const migrateRow = document.getElementById('migrateRow')
+  const migrateEl = document.getElementById('migrate')
+  const api = window.firstRunBridge
+
+  function setHint(text, isError) {
+    hintEl.textContent = text
+    hintEl.className = isError ? 'hint error' : 'hint'
+  }
+
+  function refresh() {
+    confirmEl.disabled = pathEl.value.trim().length === 0
+  }
+
+  browseEl.addEventListener('click', async () => {
+    const picked = await api.browse()
+    if (picked) {
+      pathEl.value = picked
+      refresh()
+      setHint('')
+    }
+  })
+
+  pathEl.addEventListener('input', refresh)
+
+  confirmEl.addEventListener('click', async () => {
+    const home = pathEl.value.trim()
+    if (home.length === 0) return
+    confirmEl.disabled = true
+    browseEl.disabled = true
+    setHint('正在准备目录…')
+    const result = await api.confirm(home, migrateRow.style.display === 'flex' && migrateEl.checked)
+    if (result && result.ok) return
+    confirmEl.disabled = false
+    browseEl.disabled = false
+    setHint((result && result.error) || '未知错误', true)
+  })
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    const state = await api.getState()
+    document.body.className = state.isDark ? 'dark' : 'light'
+    pathEl.value = state.defaultHome
+    // 旧数据提示：默认目录已有数据且用户改选其他位置时展示迁移选项。
+    if (state.legacyExists) {
+      setHint('检测到默认目录已存在数据（共 ' + (state.defaultHome) + '）')
+      pathEl.addEventListener('input', () => {
+        migrateRow.style.display = (pathEl.value.trim() !== state.defaultHome) ? 'flex' : 'none'
+      })
+    }
+    refresh()
+  })
+})()
+</script>
+</body>
+</html>

@@ -17,7 +17,7 @@ import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
 import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
 import { closeStartupSplash, createStartupSplash, splashPhase, splashProgress, startSplashDemo } from './splash.js'
-import { refreshTrayIcon } from '../desktop-host/desktop-tray.js'
+import { refreshTrayIcon, markQuitting } from '../desktop-host/desktop-tray.js'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection' with { 'resolution-mode': 'import' }
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway' with { 'resolution-mode': 'import' }
 
@@ -124,6 +124,17 @@ let windowManager: WindowManager | null = null
 
 /** M3-b1：待处理的 dsh:// 协议 URL（second-instance/open-url 先缓存，bootstrap 完成后路由）。 */
 let pendingDshUrl: string | null = null
+
+/**
+ * bootstrap 是否已完成（M4-a4 修复 #7 · 首启窗口 quit 竞态守卫）。
+ *
+ * 首启数据目录窗口（first-run）确认后被销毁，此刻它是唯一窗口 →
+ * `window-all-closed` 触发 → `app.quit()` → `before-quit` 执行
+ * `removeIpcHandlers()`——与 bootstrap 装配竞态：处理器被拆后主窗口才创建，
+ * renderer 全部 invoke 报 "No handler registered"（Electron 因新窗口出现
+ * 中止退出，应用活着但桥已卸）。守卫：bootstrap 完成前忽略 window-all-closed。
+ */
+let bootstrapCompleted = false
 
 /** 应用/窗口图标（官方 harness logo，黑白双版随 nativeTheme 切换；缺失回退另一版）。 */
 function loadAppIcon(): Electron.NativeImage {
@@ -238,7 +249,14 @@ async function bootstrap(): Promise<void> {
     if (app.isPackaged) app.setAppUserModelId('deepseek-harness.desktop')
     if (process.platform === 'darwin') app.dock?.setIcon(loadAppIcon())
 
-    // 0.5 即时响应闪屏：Host 装配在低配机器可达数秒，必须先给「已响应」反馈
+    // 0.5 数据目录决策（M4 · 首启选择用户数据存储位置）：必须在闪屏/Host boot 前
+    // ——官方 16 包（凭据/设置/附件/技能等）在插件激活期解析 DSH_HOME，此处
+    // 设置即全覆盖。首启弹自绘窗口让用户选定（含旧数据迁移），静默启动用默认目录。
+    log.phase('数据目录')
+    const { ensureDataHome } = await import('./data-home.js')
+    await ensureDataHome({ silent: launchOptions.hidden })
+
+    // 0.6 即时响应闪屏：Host 装配在低配机器可达数秒，必须先给「已响应」反馈
     // （纯静态窗口，whenReady 后立即显示；--hidden 静默驻留托盘时不弹）。主窗口
     // ready-to-show 首帧后由 closeStartupSplash() 销毁接管。
     // 调试：DSH_SPLASH_DEMO=1 模拟慢速装配进度（验证进度条动效）——演示模式下
@@ -536,6 +554,9 @@ async function bootstrap(): Promise<void> {
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
+
+    // bootstrap 完成：此后 window-all-closed 恢复正常退出语义（修复 #7 守卫解除）。
+    bootstrapCompleted = true
   } catch (error: unknown) {
     log.error('[dsh-desktop] 启动失败:', error)
     closeStartupSplash()
@@ -544,10 +565,17 @@ async function bootstrap(): Promise<void> {
 }
 
 app.on('window-all-closed', () => {
+  // bootstrap 完成前所有窗口关闭是正常时序（首启窗口确认销毁 → 闪屏/主窗口随后创建），
+  // 不触发退出（修复 #7：否则 before-quit 会拆掉尚未就绪/刚就绪的 IPC 桥）。
+  if (!bootstrapCompleted) return
   if (process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', async () => {
+  // 第一动作：标记真正退出，解除托盘关窗驻留的 close 拦截（修复 #7 第二层）。
+  // 否则任何 app.quit()（启动失败/重启/系统关机）在清理后关窗时被
+  // preventDefault+hide 中止 → 应用残留成「活着但 IPC 桥已拆」的僵尸态。
+  markQuitting()
   // 先确保窗口状态已保存（dispose 内部也会保存，但显式调用更可靠）
   if (windowManager) {
     await windowManager.saveState()
