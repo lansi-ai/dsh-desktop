@@ -1,0 +1,67 @@
+# macOS 发布工作流：GitHub Actions macos runner 构建 dmg + zip（arm64/x64 双架构），
+# 经 electron-builder --publish always 直接上传到 package.json version 对应的 v{version} Release。
+# 触发：push v* tag（按 tag 代码构建）；或 workflow_dispatch（检出 main 最新代码构建，
+# 用于为已有 tag 的 Release 追加 mac 产物，本机 Windows 无法本地打 dmg）。
+name: release-mac
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-mac
+  cancel-in-progress: false
+
+jobs:
+  build-mac:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck & lint
+        run: |
+          npm run typecheck
+          npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Package & publish (dmg + zip, arm64/x64)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --publish always
+
+      - name: Generate SHA256SUMS-mac
+        run: |
+          cd release
+          shasum -a 256 *.dmg *.zip > SHA256SUMS-mac
+          cat SHA256SUMS-mac
+
+      - name: Upload checksums to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          gh release upload "$TAG" release/SHA256SUMS-mac --clobber --repo "$GITHUB_REPOSITORY"

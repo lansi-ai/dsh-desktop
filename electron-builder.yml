@@ -12,15 +12,39 @@ files:
   - dist/**/*
   - package.json
 asar: true
-# 使用本地 node_modules/electron/dist 预编译发行物（与 devDependency 版本一致），
-# 打包机零网络依赖：跳过 electron zip 下载（GitHub 直连超时、镜像也慢）
-electronDist: node_modules/electron/dist
+# electron zip 由 @electron/get 下载（CI 走 GitHub 原源很快；本地 Windows 首次下载后
+# 缓存于 %LOCALAPPDATA%\electron\Cache，后续离线可打包）。注意：不要用 electronDist
+# 指向 node_modules/electron/dist —— mac CI 上它只会是宿主架构（arm64），x64 目标会打进错误内核
 # 跳过原生模块重编译：node-pty 使用 npm install 时的预编译产物（与 dev 模式行为一致，
 # 避免 node-gyp 在打包机上的工具链/缓存依赖）
 npmRebuild: false
 # node-pty 需解出 asar：winpty/conpty 附属 exe/dll 经真实文件路径加载，asar 内无法访问
+# （mac 的 .dylib / Linux 的 .so 同理，glob 已覆盖三平台）
 asarUnpack:
   - "**/node-pty/**"
+# CI 发布通道：GitHub Releases（本地 dist 脚本用 --publish never 覆盖，不会误发布）
+publish:
+  provider: github
+# dsh:// 协议声明：mac 写入 Info.plist CFBundleURLTypes（Windows 仍由运行时 setAsDefaultProtocolClient 注册）
+protocols:
+  - name: DSH Protocol
+    schemes:
+      - dsh
+# macOS：dmg + zip 双 target，Apple Silicon + Intel 双架构
+# icon 传 PNG 源图，electron-builder 在 mac 构建机上自动转 .icns；
+# 无 Apple Developer 证书时按 ad-hoc 签名（本机可跑，外发需用户绕过 Gatekeeper）
+mac:
+  icon: src/desktop-shell/web/app-icon-light.png
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
 # Windows 目标：x64 安装包 + 便携包双产物
 win:
   # exe/安装包图标：官方 harness logo 黑色版（浅色态官方原貌）；运行期任务栏图标
