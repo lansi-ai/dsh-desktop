@@ -104,14 +104,32 @@ function unregisterShortcut(
 /**
  * 安装全局快捷键（预置 + 动态注册能力）。仅在窗口创建后调用。
  *
+ * 预置快捷键失败降级为告警继续（dogfood #7）：全局热键是增强能力，被系统上
+ * 其他应用占用（globalShortcut.register 返回 false）不应致命——此前抛 AppError
+ * 打断 bootstrap → app.quit() → before-quit 拆桥 → 托盘关窗拦截中止退出，
+ * 应用残留成「活着但 IPC 桥已卸」的僵尸态，renderer 全部报 No handler registered。
+ *
  * @param options 安装选项。
  * @returns 清理函数（注销所有快捷键）。
  */
 export function installDesktopShortcuts(options: DesktopShortcutsOptions): () => void {
   // ── 预置快捷键 ──────────────────────────────────────────────────
-  registerShortcut(options, 'Alt+Shift+Q', 'window-show')
-  registerShortcut(options, 'Alt+Shift+Space', 'quick-ask')
-  log.ok('[dsh-shortcuts] 预置快捷键已注册：Alt+Shift+Q(唤起窗口) Alt+Shift+Space(快速问答)')
+  const preset: ReadonlyArray<readonly [string, string]> = [
+    ['Alt+Shift+Q', 'window-show'],
+    ['Alt+Shift+Space', 'quick-ask'],
+  ]
+  const ok: string[] = []
+  for (const [accelerator, action] of preset) {
+    try {
+      registerShortcut(options, accelerator, action)
+      ok.push(accelerator)
+    } catch (error) {
+      log.warn(`[dsh-shortcuts] 预置快捷键注册失败（可能被其他应用占用，已跳过）: ${accelerator}`, error)
+      options.desktop.emitAction('shortcut.register-failed', { accelerator, action })
+    }
+  }
+  if (ok.length > 0) log.ok(`[dsh-shortcuts] 预置快捷键已注册：${ok.join(' ')}`)
+  else log.warn('[dsh-shortcuts] 预置快捷键全部注册失败（增强能力降级，应用功能不受影响）')
 
   // ── 清理 ─────────────────────────────────────────────────────────
   return () => {

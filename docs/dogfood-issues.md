@@ -108,5 +108,22 @@
 
   - ① 协议层 connection fetch 桥：非 POST 且 `/api/` 前缀的请求转发到 host `connection.createSharedFetchHandler('/api')`（`src/desktop-host/connection-fetch-bridge.ts` + `main.ts` 载波桥接处安装 + `dsh-ui-protocol.ts` 转发），不经 compat 信任围栏（桌面信任模型 = preload 白名单 + IPC 载波）。修复后 403 → 404，暴露第二层缺口
 
-  - ② host 树补装 `session-log-download` 行（`boot.ts` §1，对齐官方 web-app cordis.patch.yml insert）：桌面 overlay 补丁栈系手工策展，官方 web-app 补丁的该行从未插入 → `/api/session.export` 精确 fetch 路由从未注册 → 共享处理器查表 404。inject ['commands','connection'] 与导出依赖（sessionQuery/sessionPersistence/attachments）均已在前
+  - ② host 树补装 `session-log-download` 行（`boot.ts` §1，对齐官方 web-app cordis.patch.yml insert）：桌面 overlay 补丁栈系手工策展，官方 web-app 补丁的该行从未插入 → `/api/session.export` 精确 fetch 路由从未注册 → 共享处理器查表 404。inject \['commands','connection'] 与导出依赖（sessionQuery/sessionPersistence/attachments）均已在前
+
+### #7 · renderer 全部 RPC/流报 `No handler registered`（应用活着但载波桥已拆）
+
+- 环境：dev（npm run dev · M4-a4 首启窗口首次实机验证）
+
+- 第一现场：`启动失败: AppError: 快捷键注册失败: Alt+Shift+Q`（desktop-shortcuts.ts）→ 随后主进程刷 `Error occurred in handler for 'dsh:rpc': No handler registered`（dsh:stream-open 同）+ `[renderer] [session-controller] control stream failed`；主窗口渲染正常但载波全断
+
+- 状态：**fixed**（2026-09-02 · 真因两层 + 一处加固）
+
+- 根因（最终定位，初判「首启窗口 window-all-closed 竞态」系误判）：
+  1. **快捷键失败致命化**：预置 `Alt+Shift+Q` 被系统其他应用占用（`globalShortcut.register` 返回 false）→ `installDesktopShortcuts` 抛 AppError → bootstrap catch → `app.quit()`。全局热键是增强能力，不该致命
+  2. **退出被托盘拦截中止**：`before-quit` 拆完 IPC 桥 → Electron 关主窗口 → 托盘「关窗驻留」拦截 close（`quitting` 标志未置位）→ `preventDefault + hide` → 退出中止 → 应用残留成「活着但 IPC 桥已卸」的僵尸态，renderer 全部报 No handler registered
+
+- 修复（三层）：
+  1. `desktop-shortcuts.ts`：预置快捷键注册失败降级为告警继续（逐个 try/catch，成功者照常注册 + 审计 `shortcut.register-failed`），不再打断 bootstrap
+  2. `main.ts` `before-quit` 第一动作 `markQuitting()`：解除托盘 close 拦截，保证任何 app.quit() 路径（启动失败/托盘退出/系统关机）清理后必能真正退出
+  3. `main.ts` `bootstrapCompleted` 守卫：bootstrap 完成前忽略 `window-all-closed`（首启数据目录窗口销毁 → 闪屏/主窗口创建是正常时序；加固，防同类窗口数量竞态）
 

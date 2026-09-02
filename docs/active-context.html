@@ -98,6 +98,7 @@
     li { margin-bottom: 6px; }
     strong { color: var(--text-main); }
     code { background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
+    a { color: var(--accent); }
     .tag {
       display: inline-block;
       padding: 1px 8px;
@@ -122,9 +123,10 @@
       <h2>🎯 当前迭代目标</h2>
       <p><strong>版本阶段：</strong><b>M3 代码全部完成</b>（2026-08-26）→ <b>M6 全量自绘 UI 主线启动（2026-08-27 · D-20 插队优先，ADR-006 启用）</b>；M3-b4 dogfood 进行中；M4 分发整体延后</p>
       <p><strong>M3 核心价值（代码侧已达成）：</strong>多窗口独立会话 + 命令面板（Ctrl+K）+ <code>dsh://</code> 协议唤起 + 会话审计查询 + 开机自启。</p>
-      <p><strong>M3-b4 dogfood（进行中）：</strong>2 周实机验收（日常使用无浏览器）+ 全量回归 + <code>netstat</code> 零监听红线再验证。dogfood 结果作为 M3 正式收尾门禁，<b>不阻塞自绘开发</b>。</p>
-      <p><strong>M4 分发（⏸️ 延后 · D-20）：</strong>electron-builder 基建已完成（M4-a1），a2 之后全部顺延至自绘完成后重启；已产出的安装包对应官方 UI 版。</p>
+      <p><strong>M3-b4 dogfood（进行中）：</strong>2 周实机验收（日常使用无浏览器）+ 全量回归 + <code>netstat</code> 零监听红线再验证 + 崩溃恢复/多窗口组合异常测试。dogfood 结果作为 M3 正式收尾门禁，不阻塞自绘开发。</p>
+      <p><strong>M4 分发（⏸️ 延后 · D-20）：</strong>electron-builder 基建已完成（M4-a1），a2 之后全部顺延至自绘完成后重启；已产出的安装包对应官方 UI 版。<b>M4-d3 0.1.2-alpha.3 升级专项已执行完成（2026-09-01，见 M4-d 节）</b>：基线由 rc.8 直接升至 0.1.2-alpha.3（载波整链重写），M4-d2（0.1.1-rc.2）被覆盖。</p>
       <p><strong>自绘主线（2026-08-27 · D-20）：</strong>全量自绘 = 逐槽位替换官方 ui-*（P1 骨架 ✅ → P2 外壳 → P3 侧栏 → P4 对话区 → P5 过程可视化 → P6 设置底座），每阶段可用可验证；数据面零新增（IPC 载波 + desktopBridge）。</p>
+      <p><strong>并行决策（2026-08-26）：</strong>D-13 M3-b4 dogfood 与 M4 任务并行推进（M4 现延后，dogfood 仍继续）；R10 协议安全白名单 + M3-b3 自启打包版验证随 M4 延后；M2-c 继续置后；R6/R7 技术债留 M5。</p>
     </div>
 
     <!-- 02. 看板 -->
@@ -134,175 +136,200 @@
       <!-- M1 已完成 -->
       <div class="phase-label done">M1 · 桌面骨架 ✅ 已完成</div>
       <ul class="task-list">
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 1:</strong> 基础设施与脚手架搭设（2026-08-25）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 2:</strong> M0 基线核对与事实刷新（2026-08-25）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 3:</strong> 装配原型与 dist 协议加载（2026-08-26）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 4:</strong> IPC 载波实现（四件套）（2026-08-26）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 5:</strong> 零端口 bundle spike（方案 A 定案）（2026-08-26）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 6:</strong> 零端口验证与崩溃恢复初版（2026-08-26）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 7:</strong> M1 门禁验收与收尾（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 1: 基础设施与脚手架搭设</strong>（2026-08-25）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 2: M0 基线核对与事实刷新</strong>（2026-08-25）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 3: 装配原型与 dist 协议加载</strong>（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 4: IPC 载波实现（四件套）</strong>（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 5: 零端口 bundle spike（方案 A 定案）</strong>（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 6: 零端口验证与崩溃恢复初版</strong>（2026-08-26）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>步骤 7: M1 门禁验收与收尾</strong>（2026-08-26）</span></li>
       </ul>
 
       <!-- M2 已完成 -->
       <div class="phase-label done">M2 · 桌面能力插件化 ✅ 已完成</div>
       <ul class="task-list">
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-a 地基:</strong> <code>ctx.desktop</code> 聚合服务 + 配置持久化 + 审计总线</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d1:</strong> 托盘+关窗驻留（关窗隐藏、托盘菜单、快速问答）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d2:</strong> 通知闭环（完成/审批/错误三类 + 点击定位）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d3:</strong> shortcuts/clipboard（Alt+Shift+Q/Space + read/write）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-b:</strong> compat 完整化（动态路由白名单 + 协议拦截动态匹配）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-e:</strong> 官方 UI 注入（桌面设置 section + 悬浮面板 + IPC 双通道）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-a 地基</strong>：<code>desktop-api</code> 提供 <code>ctx.desktop</code>（core 子集 + 配置持久化 + 审计总线 + <code>desktop:event</code> 下行）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d1 托盘+关窗驻留</strong>：关窗即隐藏驻留、托盘菜单/状态、快速问答唤起</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d2 通知闭环</strong>：完成/审批/错误三类通知 + 点击定位会话</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-d3 shortcuts/clipboard</strong>：globalShortcut + Alt+Shift+Q/Space + 剪贴板 readText/writeText</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-b compat 完整化</strong>：动态路由白名单 + 协议拦截动态匹配</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M2-e 官方 UI 注入</strong>：桌面设置 section + 悬浮面板 + IPC 双通道</span></li>
         <li class="task-item deferred"><span class="status-icon">[ ]</span><span><s>M2-c 旧插件门禁</s> <b>置后</b>（载体本地待确认）</span></li>
       </ul>
 
       <!-- M3 进行中 -->
-      <div class="phase-label active">M3 · 多窗口与深度交互 🔄 进行中</div>
+      <div class="phase-label active">M3 · 多窗口与深度交互 🔄 进行中（2026-08-26 启动）</div>
 
-      <h3>M3-a 第一波：多窗口 + 命令面板</h3>
+      <h3>M3-a 第一波：多窗口 + 命令面板 🔄</h3>
       <ul class="task-list">
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a1 窗口管理器基建</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>window-manager.ts</code>: WindowManager 单例（窗口注册表 + 会话绑定 + 创建/销毁/聚焦 API）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>types/window.ts</code>: 窗口契约 zod Schema（WindowRecord、WindowState、广播帧结构）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 白名单扩展：createSessionWindow/closeWindow/listSessions/focusSession/onWindowEvent</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>main.ts bootstrap 集成：WindowManager + registerWindowManagerMethods</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>src/desktop-host/window-manager.ts</code>：WindowManager 单例（窗口注册表 <code>Map&lt;windowId, WindowRecord&gt;</code>、会话绑定 <code>sessionId → windowId</code>、窗口创建/销毁/聚焦 API）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>src/types/window.ts</code>：窗口契约 zod Schema（WindowRecord、WindowState、窗口间广播帧结构）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>src/types/channels.ts</code>：复用 <code>desktop:invoke</code> 通道 + 新增 <code>desktop:window-event</code> 广播通道</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload <code>desktopBridge</code> 新增窗口管理白名单（createSessionWindow/closeWindow/listSessions/focusSession/onWindowEvent）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>main.ts</code> bootstrap 集成：多窗口 WindowManager 启动 + 单实例锁升级</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>typecheck + lint 零错误</span></li>
 
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a2 会话独立窗口</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>新建窗口：renderer → 主进程 → 新 BrowserWindow → <code>dsh-ui://app/index.html</code> + READY 后自动注入会话上下文</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话绑定：独立 IPC 载波路由（carrier-relay per-window）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话同步：会话列表变化广播到所有窗口</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口崩溃恢复：单窗口崩溃不影响其他；会话经 Host 持久化恢复</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口间切换：托盘/命令面板 → 聚焦或创建新窗口（去重逻辑）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>新建窗口：renderer 发起 <code>createSessionWindow(sessionId)</code> → 主进程创建新 BrowserWindow → 加载同一 <code>dsh-ui://app/index.html</code> + READY 后自动注入会话上下文</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话绑定：每个窗口独立 IPC 载波路由（carrier-relay per-window），互不干扰</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话同步：会话列表变化 → 广播帧到所有窗口（新会话/删除会话/未读角标）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口崩溃恢复：单窗口崩溃不影响其他窗口；会话状态经 Host 持久化自动恢复</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口间切换：托盘菜单/命令面板切换会话 → 聚焦对应窗口或创建新窗口（去重逻辑）</span></li>
 
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-a3 窗口状态持久化</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口位置/大小持久化到 userData/window-state.json（debounce 500ms）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话绑定持久化（重启恢复所有会话窗口）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口 Z-order 记忆与恢复（按 zIndex 排序）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口位置/大小持久化到 <code>userData/window-state.json</code>（按 windowId 存储 bounds + debounce 500ms）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口会话绑定持久化（重启后恢复所有打开的会话窗口）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口 Z-order 记忆与恢复（按 zIndex 排序恢复）</span></li>
 
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-a4 命令面板（Ctrl+K 混合方案）⏸️ 暂停（2026-08-27 用户决策：面板价值有限，已隐藏入口）</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>已隐藏</strong>：<code>desktop-cmdpalette-client.js</code> 改为禁用壳（Ctrl+K 不再注册）；仅保留 quick-ask 事件（Ctrl+Shift+P 快速提问）。恢复 = revert 该文件</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>修复过程记录：假 slot <code>app.overlay</code>（坑 13）→ 纯 DOM 浮层；数据源/导航（坑 14）；<code>exports.inject</code> PENDING（坑 15）→ 软查找（会话列表仍空，根因未结）</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-a4 命令面板（Ctrl+K 混合方案）</strong> ⏸️ <b>暂停（2026-08-27 用户决策：面板价值有限，先挂起；已隐藏入口）</b></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>2026-08-27 已隐藏</b>：<code>desktop-cmdpalette-client.js</code> 改为禁用壳（factory 返回空插件，Ctrl+K 不再注册）；仅保留 quick-ask 下行事件（Ctrl+Shift+P 快速提问聚焦输入框）。恢复功能 = revert 该文件（历史实现见 git log）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>修复过程记录</b>：假 slot <code>app.overlay</code>（坑 13）→ 改纯 DOM 浮层；数据源/导航改官方运行时（坑 14）；<code>exports.inject</code> 服务等待致 PENDING（坑 15）→ 软查找 + bridge 回退（会话列表仍空，根因未结）</span></li>
 
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-a5 M3-a 门禁</strong></span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>多窗口实机验证 ⏸️ 暂停（2026-08-27 用户决策：价值存疑，与命令面板一并挂起，不阻塞 dogfood；全量回归时仅验「不崩不干扰」）</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>命令面板冒烟已随 M3-a4 暂停（门禁时仅验 Ctrl+Shift+P）</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>🐕 Dogfood 启动：M3-a 完成后即启动 2 周日常使用</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><s>多窗口实机验证</s> <b>暂停（2026-08-27 用户决策：多窗口价值存疑，与命令面板一并挂起，不阻塞 dogfood）</b></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><s>命令面板冒烟</s>（随 M3-a4 暂停，门禁时仅验 Ctrl+Shift+P 快速提问）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>Dogfood 启动：M3-a 完成后立即启动 2 周日常使用验证</span></li>
       </ul>
 
       <!-- M3-b 第二波 -->
-      <h3>M3-b 第二波：协议 + 审计 + 自启</h3>
+      <h3>M3-b 第二波：协议 + 审计 + 自启 ⏳</h3>
       <ul class="task-list">
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-b1 dsh:// 系统协议</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>协议注册: <code>app.setAsDefaultProtocolClient('dsh')</code></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>open action: <code>dsh://open?session=xxx</code> → 聚焦/创建会话窗口</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>ask action: <code>dsh://ask?q=xxx</code> → 快速提问窗口</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>settings action: <code>dsh://settings</code> → 设置面板</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口去重: 已存在会话 → 聚焦而非重复创建</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>dsh-protocol.ts</code>: 协议路由处理器</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>协议注册：<code>app.setAsDefaultProtocolClient('dsh')</code> + Windows 注册表关联</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>open action：<code>dsh://open?session=xxx</code> → 聚焦/创建指定会话窗口</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>ask action：<code>dsh://ask?q=xxx</code> → 唤起快速提问窗口 + 预填问题</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>settings action：<code>dsh://settings</code> → 打开桌面设置面板</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>窗口去重：已存在会话 → 聚焦而非重复创建</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>src/desktop-host/dsh-protocol.ts</code>：协议路由处理器</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>second-instance/open-url 事件 + 启动命令行参数全链路支持</span></li>
 
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-b2 会话审计查询工具</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计日志持久化：audit.jsonl（JSONL，异步串行写盘）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计日志查看器 UI（官方 UI 槽位注入，过滤+分页+清空）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计查询服务（读取+按动作/会话/时间过滤+分页）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 接口 + boot-graph + main.ts 集成</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计日志持久化：<code>desktop-api.ts</code> 的 <code>log()</code> 方法写入 <code>userData/audit.jsonl</code>（JSONL 格式，异步串行写盘）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计日志查看器 UI（通过官方 UI 槽位注入独立审计 Tab，支持过滤 + 分页 + 清空）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>src/desktop-host/desktop-audit-viewer.ts</code>：审计查询服务（读取 audit.jsonl + 按动作/会话/时间范围过滤 + 分页）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>审计范围：<code>desktop:event</code> + Host 全链路事件（session/window/tray/shortcut/approval 等）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 接口：<code>desktopBridge.audit.query()</code> + <code>desktopBridge.audit.listActions()</code></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>boot-graph + main.ts 集成：审计 client 脚本注入 + 服务装配 + 生命周期清理</span></li>
 
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-b3 开机自启</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>设置开关：desktop-settings 注入 AutoStartSetting Toggle</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>Windows 自启：<code>app.setLoginItemSettings({ openAtLogin, args: ['--hidden'] })</code></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>配置持久化：settings-file UI 偏好 + OS 登录项为唯一真源</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>静默到托盘：--hidden 参数 + dev 模式拦截注册</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 白名单：autostart.setEnabled/getStatus + Schema</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>设置开关：<code>desktop-settings</code> 注入「开机自启」Toggle（<code>desktop-settings-client.js</code> 的 AutoStartSetting 组件）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>Windows 自启：<code>app.setLoginItemSettings({ openAtLogin, args: ['--hidden'] })</code>（<code>src/desktop-host/desktop-autostart.ts</code>）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>配置持久化：开机自启偏好写入 <code>settings-file</code>（UI 偏好）+ OS 登录项为唯一真源（getStatus 实时读取）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>静默到托盘：<code>--hidden</code> 启动参数（<code>argv.ts</code> 解析 + <code>main.ts</code> 跳过主窗口显示与持久化窗口恢复，驻留托盘）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>dev 模式拦截：未打包（electron.exe）时不写系统登录项，console.warn 提示仅打包版生效</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>preload 白名单：<code>desktopBridge.autostart.setEnabled/getStatus</code> + <code>types/desktop.ts</code> autostart Schema</span></li>
 
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-b4 M3 门禁（🔄 dogfood 进行中 · 与 M4 并行）</strong></span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>🐕 完整 dogfood 验收：2 周无浏览器（实机 <code>npm run dev</code> 日常使用，记录问题清单）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #1（2026-08-27）</strong>：冷会话未挂载（点新会话无反应）→ <code>session-rewarm.ts</code> 启动预热（坑 11）；<code>commands/list</code> 404 → typertGateway fallback（坑 12）；终端降噪 <code>DSH_VERBOSE</code> 门控。遗留：<code>dsh-cordis-host-runner</code> 未装载（非阻断，M5 评估）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #2（2026-08-27，实机验证通过）</strong>：设置页 Agent 预设纯空白 —— boot.ts §4 <code>agent-presets</code> 条目不带 <code>insert</code> 键，非 insert 补丁对空根配置是静默 no-op，插件从未装载（坑 16；R8 当年点验系误判）→ 条目并入 insert 数组 + main.ts 启动期预设扫描诊断探针（三态必显）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #3（2026-08-28）</strong>：设置里切换主题色无效 + 启动报 <code>TypeError: options.events.mux is not a function</code> —— 根因① <code>theme-sync.ts</code> 仅订阅 <code>mux</code> 流，<code>settings/document-updated</code> 事件在 <code>host</code> 流中被错过；根因② <code>main.ts</code> 传 <code>apiProxy</code>（整体对象）而非 <code>apiProxy.events</code>（<code>{mux, host}</code> 结构），致 <code>events.mux</code> 为 undefined（<b>坑 22</b>）→ <code>theme-sync.ts</code> 改为双路 <code>mux+host</code> 订阅，<code>main.ts</code> 传参修正；同时修正 SVG 图标（原用 <code>dangerouslySetInnerHTML</code> 直接写路径文本，无 <code>&lt;path&gt;</code> 元素包裹致图标不渲染）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #4（2026-09-01，打包版验证）</strong>：启动期 <code>[dsh-theme]</code> / <code>[session-rewarm]</code> 报错非「启动时序竞态」，而是<strong>自研启动 unary 未对齐 0.1.2 官方 /api wire 契约</strong>（<b>坑 24</b>，三层逐层排查）：① 端点须斜杠 <code>domain/method</code>（<code>settings.describe</code> 点分被官方 <code>claimsEndpoint</code> 判 false → HTTP 404）；② payload 须恰好一个 plain-object <code>args</code> 字段 <code>{args}</code>（裸 params → arguments-invalid）；③ args 内字段名匹配端点签名参数（<code>session.list</code>→<code>_request</code>、<code>session.create</code>→<code>request</code>）。修复：<code>callApi</code> 统一入口做「点分→斜杠 + 裸 params 幂等补包 <code>{args}</code>」两层 wire 规范化；session-rewarm 按签名参数名传参。theme 与 rewarm 共用修复，<strong>启动日志已净</strong>（留 <code>dynamicCordisRunner/syncInspectManifest</code> 404 = 既有 dsh-cordis-host-runner 未装载技术债，非本 bug）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #5（2026-09-01，终端静音清理）</strong>：0.1.2 升级后启动刷 4 类噪音——① <code>[dsh-ui-protocol] 404 .../plugins/events</code>（<code>dsh-client-hmr</code> 客户端半轮询桌面不存在的 dev SSE）；② <code>dynamicCordisRunner/syncInspectManifest</code> 404 + <code>[cordis-client-runner] syncing inspect providers failed</code>（动态双半插件子系统对端 host runner 禁用）；③ <code>console-message arguments are deprecated</code>（自研旧多参回调）；④ <code>Electron Security Warning (CSP)</code>（官方 dist 无 CSP，dev 提示、打包不现）→ 修复：<code>boot-graph.ts</code> CLIENT_EXCLUDE_IDS 排除 hmr/cordis-client-runner/ui-cordis（用户决策「整体排除」；插件清单仍经 cordis-inventory 兼容面在设置页查看）；main.ts + window-manager.ts 改现代 <code>Event</code> 单对象签名并滤 CSP 警告（<b>坑 25</b>）。typecheck/lint/build 零错误</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #6-#8（2026-09-01，用户实机验证通过 · 坑 26 · 主题链三层缺口）</strong>：设置页切外观链式三连——① <code>settings namespace "ui-theme" is not registered</code>：<code>ui-theme</code> namespace 由官方 <code>dsh-client-ui-theme</code> <strong>host 半</strong>注册，boot.ts §1 漏装（M4-d3 只补了 <code>ui-settings-general</code> 同类条目）→ 同口径补装 4 个双面包 host 半（<code>ui-theme</code>/<code>locale</code>/<code>ui-chat</code>/<code>ui-conversation</code>，排查口径=全库 grep <code>settings.register(</code>）；② 补后切换无效果：主题应用与发布分离——官方 <code>ui-layout</code> 的 ThemePresenter 消费 <code>theme/change</code> 事件写 DOM（color-scheme/<code>data-ds-dark-theme</code>/token 变量），M6-P1 排除 ui-layout 时被连带丢掉 → <code>desktop-layout-client.js</code> 增设等价 ThemePresenter（<code>ctx.theme.getTheme()</code> + <code>ctx.on('theme/change')</code> + dispose 回撤）；③ 切深后 titlebar/侧栏仍浅色：二者透明透出硬编码浅色托盘底 <code>--dsd-tray-bg</code> + 自绘 CSS 硬编码黑色系 → 全改 <code>light-dark()</code> 双值（托盘深色 <code>rgb(28 28 30)</code>；boot-graph 骨架 + desktop-appearance 两处同源），删侧栏根 <code>color-scheme: light dark</code> 声明（防劫持改随 OS 偏好）。台账 #6/#7/#8 verified；方法论新增第 18 条（双面包两条装配线都点名 + 排除即承接全部职责）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>启动即时响应优化（2026-09-02，用户实机验证通过）</strong>：低配机器「点击无反应」治理三件——① <strong>启动闪屏</strong>（新增 <code>src/desktop-shell/splash.ts</code>）：<code>whenReady</code> 后立即创建（360×220 无边框，data: URL 内联页零依赖；<code>show:false</code> + 自身 <code>ready-to-show</code> 后显示防空白帧——立即 show 会先闪一帧纯底色）；spinner + 进度条 + 阶段文案随 OS 明暗配色；主窗口 <code>ready-to-show</code> 后销毁接管；<code>--hidden</code> 驻留托盘不弹。② <strong>真实装配进度</strong>：boot.ts 新增 <code>BootOptions.onProgress</code>（prepare 钩子内 200ms 轮询 <code>loader.entries()</code> fiber 状态：2=active / 0=pending / disabled 视为完成；finally 清理 + unref），main.ts 接入驱动进度条与明细行。③ <strong>会话预热后台化</strong>：<code>rewarmPersistedSessions</code> 从 <code>createWindow()</code> 前 await 改为窗口创建后 fire-and-forget + 单会话挂载 10s 超时（<code>withTimeout</code> 壳，超时按失败告警不拖死整体，懒恢复路径兜底）。调试开关（env 门控默认零影响）：<code>DSH_BARE_SCREEN_MS</code>（拉长裸屏期观察骨架首帧，dsh-ui-protocol readyScript 延迟 resolve）；<code>DSH_SPLASH_DEMO=1</code>（400ms/格慢放进度演示，演示模式下不接真实轮询防覆盖）；<code>DSH_STARTUP_DELAY_MS</code> 测试延迟已按用户要求移除。<b>坑</b>：executeJavaScript 脚本片段顶层 <code>const</code> 在多次执行时共享页面全局词法作用域，第二次起报 already declared 被静默吞（表现为进度只动一格）——片段一律 IIFE 包裹</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全量回归：M1+M2+M3 全链可用</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M3-b4 M3 门禁（🔄 dogfood 进行中 · 2026-08-26 启动，与 M4 并行）</strong></span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>完整 dogfood 验收：2 周日常使用无浏览器（实机 <code>npm run dev</code> 日常使用，记录问题清单）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #1（2026-08-27）</strong>：点「新会话」无反应 + 会话 <code>not attached</code> —— 冷会话在清单但无 live agent（blank 复用跳过 session.create）→ 新增 <code>session-rewarm.ts</code> 启动预热重挂载（坑 11）；<code>commands/list</code> 404 —— Typert remote 端点缺 gateway 拦截链 → <code>callApi</code> 404 fallback <code>typertGateway.invokeRpc</code>（坑 12）；终端降噪 <code>DSH_VERBOSE</code> 门控 + bridge 失败必显。遗留：<code>dsh-cordis-host-runner</code> 未装载（<code>dynamicCordisRunner/*</code> service-unavailable，MVP 非阻断，待登记）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #2（2026-08-27，实机验证通过）</strong>：设置页 Agent 预设纯空白 —— boot.ts §4 <code>agent-presets</code> 条目不带 <code>insert</code> 键，cordis-plugin-include 非 insert 补丁对空根配置是静默 no-op，插件从未装载（坑 16；R8 当年点验系误判）→ 条目并入 §4 insert 数组；main.ts 新增启动期预设扫描诊断探针（服务缺失/扫描为空/异常三态必显）。M2 期间「补 name 即装载」注释为伪心智模型，一并修正</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #3（2026-08-28）</strong>：设置里切换主题色无效 + 启动报 <code>TypeError: options.events.mux is not a function</code> —— 根因① <code>theme-sync.ts</code> 仅订阅 <code>mux</code> 流，<code>settings/document-updated</code> 事件在 <code>host</code> 流中被错过；根因② <code>main.ts</code> 传 <code>apiProxy</code>（整体对象）而非 <code>apiProxy.events</code>（<code>{mux, host}</code> 结构），致 <code>events.mux</code> 为 undefined（坑 22）→ <code>theme-sync.ts</code> 改为双路 <code>mux+host</code> 订阅，<code>main.ts</code> 传参修正为 <code>apiProxy.events</code>；同时修正 SVG 图标（原用 <code>dangerouslySetInnerHTML</code> 直接写路径文本，无 <code>&lt;path&gt;</code> 元素包裹致图标不渲染）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #4（2026-09-01，打包版验证）</strong>：启动期 <code>[dsh-theme]</code> / <code>[session-rewarm]</code> 报错非「启动时序竞态」，而是<b>自研启动 unary 未对齐 0.1.2 官方 /api wire 契约</b>（坑 24，三层逐层排查）：① 端点须斜杠 <code>domain/method</code>（<code>settings.describe</code> 点分被官方 <code>claimsEndpoint</code> 判 false → HTTP 404）；② payload 须恰好一个 plain-object <code>args</code> 字段 <code>{args}</code>（裸 params → arguments-invalid）；③ args 内字段名匹配端点签名参数（<code>session.list</code>→<code>_request</code>、<code>session.create</code>→<code>request</code>）。修复：<code>callApi</code> 统一入口做「点分→斜杠 + 裸 params 幂等补包 <code>{args}</code>」两层 wire 规范化；session-rewarm 按签名参数名传参。theme 与 rewarm 共用修复，<b>启动日志已净</b>（留 <code>dynamicCordisRunner/syncInspectManifest</code> 404 = 既有 dsh-cordis-host-runner 未装载技术债，非本 bug）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #5（2026-09-01，终端静音清理）</strong>：0.1.2 升级后启动刷 4 类噪音——① <code>[dsh-ui-protocol] 404 .../plugins/events</code>（<code>dsh-client-hmr</code> 客户端半上榜轮询桌面不存在的 dev SSE）；② <code>dynamicCordisRunner/syncInspectManifest</code> 404 + <code>[cordis-client-runner] syncing inspect providers failed</code>（动态双半插件子系统对端 host runner 已禁用）；③ <code>console-message arguments are deprecated</code>（自研用了旧多参回调）；④ <code>Electron Security Warning (CSP)</code>（官方 dist 无 CSP，dev 提示、打包不现）→ 修复：<code>boot-graph.ts</code> CLIENT_EXCLUDE_IDS 排除 hmr/cordis-client-runner/ui-cordis（用户决策「整体排除」；插件清单仍经 cordis-inventory 兼容面在设置页查看）；main.ts + window-manager.ts 改现代 <code>Event</code> 单对象签名并滤 CSP 警告（坑 25）。typecheck/lint/build 零错误。</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dogfood 问题修复 #6-#8（2026-09-01，用户实机验证通过 · 坑 26 · 主题链三层缺口）</strong>：设置页切外观链式三连——① <code>settings namespace "ui-theme" is not registered</code>：<code>ui-theme</code> namespace 由官方 <code>dsh-client-ui-theme</code> <b>host 半</b>注册，boot.ts §1 漏装（M4-d3 只补了 <code>ui-settings-general</code> 同类条目）→ 同口径补装 4 个双面包 host 半（<code>ui-theme</code>/<code>locale</code>/<code>ui-chat</code>/<code>ui-conversation</code>，排查口径=全库 grep <code>settings.register(</code>）；② 补后切换无效果：主题应用与发布分离——官方 <code>ui-layout</code> 的 ThemePresenter 消费 <code>theme/change</code> 事件写 DOM（color-scheme/<code>data-ds-dark-theme</code>/token 变量），M6-P1 排除 ui-layout 时被连带丢掉 → <code>desktop-layout-client.js</code> 增设等价 ThemePresenter（<code>ctx.theme.getTheme()</code> + <code>ctx.on('theme/change')</code> + dispose 回撤）；③ 切深后 titlebar/侧栏仍浅色：二者透明透出硬编码浅色托盘底 <code>--dsd-tray-bg</code> + 自绘 CSS 硬编码黑色系 → 全改 <code>light-dark()</code> 双值（托盘深色 <code>rgb(28 28 30)</code>；boot-graph 骨架 + desktop-appearance 两处同源），删侧栏根 <code>color-scheme: light dark</code> 声明（防劫持改随 OS 偏好）。台账 #6/#7/#8 verified；方法论新增第 18 条（双面包两条装配线都点名 + 排除即承接全部职责）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>启动即时响应优化（2026-09-02，用户实机验证通过）</strong>：低配机器「点击无反应」治理三件——① <b>启动闪屏</b>（新增 <code>src/desktop-shell/splash.ts</code>）：<code>whenReady</code> 后立即创建（360×220 无边框，data: URL 内联页零依赖；<code>show:false</code> + 自身 <code>ready-to-show</code> 后显示防空白帧——立即 show 会先闪一帧纯底色）；spinner + 进度条 + 阶段文案随 OS 明暗配色；主窗口 <code>ready-to-show</code> 后销毁接管；<code>--hidden</code> 驻留托盘不弹。② <b>真实装配进度</b>：boot.ts 新增 <code>BootOptions.onProgress</code>（prepare 钩子内 200ms 轮询 <code>loader.entries()</code> fiber 状态：2=active / 0=pending / disabled 视为完成；finally 清理 + unref），main.ts 接入驱动进度条与明细行。③ <b>会话预热后台化</b>：<code>rewarmPersistedSessions</code> 从 <code>createWindow()</code> 前 await 改为窗口创建后 fire-and-forget + 单会话挂载 10s 超时（<code>withTimeout</code> 壳，超时按失败告警不拖死整体，懒恢复路径兜底）。调试开关（env 门控默认零影响）：<code>DSH_BARE_SCREEN_MS</code>（拉长裸屏期观察骨架首帧，dsh-ui-protocol readyScript 延迟 resolve）；<code>DSH_SPLASH_DEMO=1</code>（400ms/格慢放进度演示，演示模式下不接真实轮询防覆盖）；<code>DSH_STARTUP_DELAY_MS</code> 测试延迟已按用户要求移除。<b>坑</b>：executeJavaScript 脚本片段顶层 <code>const</code> 在多次执行时共享页面全局词法作用域，第二次起报 already declared 被静默吞（表现为进度只动一格）——片段一律 IIFE 包裹</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全量回归：M1 功能 + M2 桌面能力 + M3 新功能全链可用</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>netstat</code> 零监听红线再验证</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>崩溃恢复 + 多窗口组合异常测试</span></li>
       </ul>
 
       <!-- M3-c 第三波 -->
-      <h3>M3-c 第三波：桌面布局插件（2026-08-27 新增 · 全局布局自主化）</h3>
+      <h3>M3-c 第三波：桌面布局插件（2026-08-27 新增 · 用户驱动的全局布局自主化）</h3>
       <ul class="task-list">
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c1 方案 B：接管 root 槽位</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>desktop-layout-client.js</code>：<code>@lansi-ai/dsh-desktop-layout</code>（三列 grid 布局 sidebar|center|details + <code>ctx.layout</code> 服务 + rAF 拖拽 + &lt;1024px 窄屏折叠 + 主题 token 注入）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>槽位契约对齐官方：sidebar/conversation/details/shell.overlay，store 经 <code>runtime.defineStore</code>，官方槽位消费方无需改动</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>boot-graph.ts</code>：官方 <code>@deepseek-ai/dsh-client-ui-layout</code> 加入 CLIENT_EXCLUDE_IDS（root 槽位互斥）；桌面插件 desktopDecls 显式注册</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>src/desktop-shell/web/desktop-layout-client.js</code>：<code>@lansi-ai/dsh-desktop-layout</code> 插件（三列 grid 布局 sidebar|center|details + LayoutController 服务 <code>ctx.layout</code> + rAF 节流拖拽 + &lt;1024px 窄屏折叠 rail + 官方主题 token 样式注入）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>槽位契约对齐官方：sidebar(single/root) + conversation(single/session-maybe) + details(single/session) + shell.overlay(list/root)，store 经 <code>runtime.defineStore</code>，官方槽位消费方无需改动</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>boot-graph.ts</code>：官方 <code>@deepseek-ai/dsh-client-ui-layout</code> 加入 CLIENT_EXCLUDE_IDS（root 槽位互斥）；桌面插件以 desktopDecls 显式注册</span></li>
+
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c2 插件命名规范迁移（scope 定名 @lansi-ai · D-19）</strong></span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>6 个桌面插件 id 全量更名：<code>@dsh-desktop/*</code> → <code>@lansi-ai/dsh-*</code>（蓝思公司 scope + dsh 生态前缀，与官方 <code>@deepseek-ai/dsh-client-*</code> 按公司区分）</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>代码 8 文件（boot-graph/cordis-inventory + 6 个 web bundle）+ 验证脚本 2 个 + 文档 11 处同步（ADR-004 / 11-risks R18 / 04/07/10/14 / architecture*.html / pitfalls）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c3 dev 实机验证 ✅（2026-09-01 用户实机确认，与 M6-P3 sidebar 点验一并完成）</strong>：三列 + 拖拽 + 窄屏折叠 + 官方槽位消费方无回归 + 与自绘标题栏/边框叠加</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c4 标题栏装饰层插件化（2026-08-27）</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>新增 <code>@lansi-ai/dsh-desktop-titlebar</code>：32px 拖拽顶栏 + 窗控三钮（<code>windowControl</code> 白名单）+ 分割线探针（<code>.dsh-desktop-layout-sidebar</code>）+ 双层 z-index（遮罩联动）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>boot-graph HTML 预置<strong>布局骨架 CSS</strong>（<code>LAYOUT_SKELETON_CSS</code>：环绕带 + #root 内缩 + 右下圆角）——首帧即正确布局，<b>无裸窗口期</b></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>视觉契约（对齐 TRAE Work）</strong>：去主区四边 1px 描边（仅色带间隔）；保留 15px 右/底边距 + 右下圆角 10px；设置入口侧栏底部不变</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>titlebar.ts</code> <b>删除</b>（注入方式废弃）；main.ts / window-manager.ts 仅留 <code>titleBarStyle: 'hidden'</code>；侧栏固定色 <code>rgb(242 243 245)</code> 收敛进布局插件</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>职责边界修正（用户 review）</strong>：布局类样式（环绕带/内缩/圆角/body overflow/内容分割线）迁回 <code>dsh-desktop-layout</code>；titlebar 只留标题栏自身（顶栏/窗控/下边线/按钮样式）；<code>LAYOUT_SKELETON_CSS</code> 注明归布局插件、HTML 层仅防闪烁投递</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>typecheck + lint 零告警（实机验证归入 M3-c3）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>M3-c4-v2（2026-08-28 · titlebar 收进布局）</strong>：titlebar 不再 body 级 <code>position:fixed</code> 浮层，改为布局 root 槽位的 <code>titlebar</code> 行——布局壳改 <b>flex column</b>（行1 titlebar <code>flex:0 0 --dsd-titlebar-h</code> 固定高、行2 <code>.dsh-desktop-layout-body</code> <code>flex:1</code> 撑满 + 内部 grid 三列）；<code>dsh-desktop-titlebar</code> 改注册 <code>titlebar</code> 槽位渲染拖拽/窗控/下边线；<code>#root</code> 无 padding（主卡铺满）；<code>--dsd-titlebar-h</code> 32→50px；<b>坑 21</b>（<code>--dsd-*</code> 长度变量曾无单位致 <code>var()</code> 非法 → 高度 auto，标题栏/按钮变小）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>M3-c4-v3（2026-08-28 · 品牌区迁移 + SVG 图标 + 主题同步修复）</strong>：① 品牌元素（logo + 品牌名 + 折叠按钮）从 sidebar 迁至 titlebar 左侧，点击品牌区 = 新建会话；② 窗控三钮 + 折叠按钮改用 SVG 内联图标；③ <code>theme-sync.ts</code> 改为双路 <code>mux+host</code> 订阅 + <code>main.ts</code> 传参修正（<b>坑 22</b>：<code>TypeError: options.events.mux is not a function</code>）；④ 移除 titlebar 底部 1px 下边线，色带间隔；⑤ <b>品牌区渲染方式修复（2026-09-01 · 坑 23）</b>：品牌区初版用 <code>renderSlot('sidebar.brand.*')</code> 跨槽位渲染违反槽位所有权（<code>SlotOwnershipError</code>）致左上角 DeepSeek 品牌消失 → 改 <code>getOfficialBrand()</code> 直接 <code>require('@deepseek-ai/dsh-client-ui-primitives')</code> 取 <code>FishLogo</code>+<code>BrandWordmark</code>（<code>includeMark:false</code>）渲染，回退占位兜底；实机验证通过</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c3 dev 实机验证 ✅（2026-09-01 用户实机确认，与 M6-P3 sidebar 点验一并完成）</strong>：新布局插件渲染（三列 + 拖拽 + 窄屏折叠）+ 官方槽位消费方（会话列表/对话区/审计 Tab/设置页）无回归 + 与自绘标题栏/边框叠加效果</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c5 布局演化决策（2026-08-27 · 放大窗口 bug 试错沉淀）</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>骨架宿主化（D-21）</b>：<code>LAYOUT_SKELETON_CSS</code> 从布局插件剥离 + 外观变量化（<code>--dsd-*</code>），宿主新增 <code>desktop-appearance.ts</code> 注入 <code>:root</code> 变量；布局插件只留 <code>.dsh-desktop-layout-*</code> 引擎，删除越界骨架（html/body/#root/composer 分割线）——职责专一：骨架=宿主、内容=插件</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>放大窗口布局不跟随（已修复 · 坑 20）</b>：现象=窗口放大布局不变、<code>#root</code> 尺寸锁死（实测 876×960）+ <code>frameW=0</code>；试错过程=①先用 <code>position:fixed</code>+<code>inset</code> 强制定位 <code>#root</code>（<b>错误</b>——破坏官方 <code>height:100%</code> 原生自适应，放大反而不变）→ ②再试 <code>#dsh-root</code> 套壳 B-0（<b>过度</b>——用户纠正「官方根容器没问题，不需要动」）→ ③<b>回退正确</b>：官方 <code>#root</code> 保留原生 <code>height:100%</code> 自适应，我们只加 <code>box-sizing:border-box</code> + <code>padding</code>（托盘边距）+ 内层卡片圆角垫层；用户实机确认<b>缩放正常</b></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>铁律沉淀（用户强调）</b>：绝不改官方代码；官方未自有化处只能走适配器，不得侵入。根容器判断=官方 <code>#root</code> 本身是好的，不要用 CSS 去覆盖它的定位/缩放（坑 20）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>升级拴合面速查表已补全</b>：<code>upstream-contracts.md</code> 第 7 节新增「自有插件 × 官方契约依赖矩阵 + 升级逐条核查 SOP」，暂不细分 UI/Host 层（等 UI 自有化到阶段再分）</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c4 标题栏装饰层插件化（2026-08-27 · 用户决策「需要插件化」）</strong></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>新增 <code>@lansi-ai/dsh-desktop-titlebar</code> client 插件（<code>desktop-titlebar-client.js</code>）：32px 拖拽顶栏 + 窗控三钮（经 <code>desktopBridge.windowControl</code> 白名单）+ 顶部横分割线探针（<code>.dsh-desktop-layout-sidebar</code>，ResizeObserver + 轮询兜底）+ 双层 z-index（背景 500 &lt; 官方遮罩 / 按钮层最上）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>boot-graph HTML 注入预置<b>布局骨架 CSS</b>（<code>LAYOUT_SKELETON_CSS</code>：环绕带底色 + <code>#root</code> 内缩 top:32/right:15/bottom:15 + 右下圆角 10px）——首帧即正确布局，插件装载后只补动态件，<b>无裸窗口期</b></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>视觉契约（对齐 TRAE Work）</b>：去掉主区四边 1px 描边（仅色带间隔）；保留 15px 右/底边距 + 右下圆角 10px；设置入口侧栏底部不变</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>desktop-host/titlebar.ts</code> <b>删除</b>（executeJavaScript 注入方式废弃）；main.ts / window-manager.ts 仅保留 <code>titleBarStyle: 'hidden'</code> 窗口参数</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>布局插件侧栏固定色收敛：<code>dsh-desktop-layout-sidebar</code> 背景直接写 <code>rgb(242 243 245)</code>（原 titlebar 注入 <code>[class*=sidebarCol]</code> 覆盖废弃），颜色策略单一来源</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>职责边界修正（用户 review）</b>：布局类样式（html 环绕带 / <code>#root</code> 内缩 / 圆角 / <code>body</code> overflow / composer+header 分割线增强）从 titlebar 插件<b>迁回 <code>dsh-desktop-layout</code></b>；titlebar 只留标题栏自身（顶栏/窗控/顶栏下边线/按钮样式）；boot-graph 常量更名 <code>LAYOUT_SKELETON_CSS</code> 并注明「内容归布局插件、此处仅为防闪烁投递通道，与插件 CSS 同源需两处同步」</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>typecheck + lint 零告警（dev 实机验证归入 M3-c3 一并做）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>M3-c4-v2（2026-08-28 · titlebar 收进布局）</b>：titlebar 不再 body 级 <code>position:fixed</code> 浮层（此前悬在主区上方致遮挡），改为布局插件 root 槽位的 <code>titlebar</code> 行——布局壳改 <b>flex column</b>（行1 titlebar <code>flex:0 0 --dsd-titlebar-h</code> 固定高、行2 <code>.dsh-desktop-layout-body</code> <code>flex:1</code> 撑满，内部再 grid 三列），<code>dsh-desktop-titlebar</code> 改注册 <code>titlebar</code> 槽位渲染拖拽区/窗控/下边线；<code>#root</code> 顶部 padding 归零（titlebar 让位交给布局行）+ 整卡无 padding（主卡铺满窗口）；<code>--dsd-titlebar-h</code> 由 32px 调为 50px（窗控三钮随之填满）；<b>坑 21</b>（<code>desktop-appearance.ts</code> <code>--dsd-*</code> 长度变量曾注入无单位值致 <code>var()</code> 非法 → <code>height:auto</code> 标题栏/按钮变小）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>M3-c4-v3（2026-08-28 · 品牌区迁移 + SVG 图标 + 主题同步修复）</b>：</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span><b>品牌元素迁移</b>：DeepSeek 图标 + 品牌名 + 折叠按钮从 sidebar 移至 titlebar 左侧（<code>.dsh-desktop-titlebar-left</code>），点击品牌区 = 新建会话，折叠按钮图标随 sidebar 状态切换（◀/▶）；sidebar 仅保留新会话按钮 + 会话浏览区 + 底部栏</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span><b>SVG 图标化</b>：窗控三钮（最小化/最大化-还原/关闭）+ 折叠按钮全部改用 SVG 内联图标（<code>viewBox 10x10</code>，<code>currentColor</code> 继承主题色，关闭按钮 hover 红色背景 + 白色图标）</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span><b>主题同步修复</b>：<code>theme-sync.ts</code> 从单路 <code>mux</code> 订阅改为 <b>双路订阅</b>（<code>mux</code> + <code>host</code> 事件流），确保 <code>settings/document-updated</code> 事件不遗漏；修复 <code>main.ts</code> 传参错误（<code>apiProxy</code> 改为 <code>apiProxy.events</code>，<b>坑 22</b>：<code>TypeError: options.events.mux is not a function</code>）</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span><b>视觉契约对齐</b>：移除 titlebar 底部 1px 下边线（<code>.dsh-desktop-titlebar::after</code>），仅用色带间隔</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span><b>品牌区渲染方式修复（2026-09-01 · 坑 23）</b>：品牌区初版用 <code>renderSlot('sidebar.brand.*')</code> 跨槽位渲染，违反「槽位组件只能渲染自己 children 声明的子槽位」（<code>SlotOwnershipError</code>），左上角 DeepSeek 品牌消失/空白 → 改 <code>getOfficialBrand()</code> 直接 <code>require('@deepseek-ai/dsh-client-ui-primitives')</code> 取 <code>FishLogo</code>+<code>BrandWordmark</code>（<code>includeMark:false</code>）渲染，解析失败回退内置占位；实机验证通过，<code>desktop-titlebar-client.js</code></span></li>
       </ul>
 
       <!-- M4 延后 -->
-      <div class="phase-label pending">M4 · 分发与更新 ⏸️ 整体延后（D-20 自绘优先 · 2026-08-27 起暂停）</div>
+      <div class="phase-label pending">M4 · 分发与更新 ⏸️ 整体延后（D-20 自绘优先 · 2026-08-27 起暂停推进）</div>
 
-      <h3>M4-a 第一波：Win 安装包首发</h3>
+      <h3>M4-a 第一波：Win 安装包首发 🔄</h3>
       <ul class="task-list">
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>v0.1.1-alpha.1 GitHub Release 发布（2026-09-02 · 用户驱动，alpha 预览非门禁版）</strong>：升版 <code>0.1.1-alpha.1</code> + <code>npm run dist</code> 全量重打（setup 135MB / portable 135MB / blockmap / latest.yml / SHA256SUMS，asar 抽查 splash/导出插件/布局插件均已打入）→ tag <code>v0.1.1-alpha.1</code> 推送 → GitHub Release 创建 + 5 产物上传（<a href="https://github.com/lansi-ai/dsh-desktop/releases/tag/v0.1.1-alpha.1">https://github.com/lansi-ai/dsh-desktop/releases/tag/v0.1.1-alpha.1</a>，prerelease 标注）。<b>打包链坑</b>：① electron zip 下载慢/超时 → <code>electronDist: node_modules/electron/dist</code> 指向本地发行物零网络（electron-builder.yml 已固化）；② electron-builder v26 需下载 <code>icons@1.1.0</code> PNG→ICO 转换工具被沙箱拦截 → 预下载 <code>icons-bundle.tar.gz</code>（SHA256 校验一致）解压至 <code>.tools/icons-tool</code>（已 gitignore）+ <code>ELECTRON_BUILDER_ICONS_TOOLSET_DIR</code> 环境变量指向；③ PS1 无 BOM 中文会被 ANSI 误读吃换行致 here-string 解析失败 → 写盘须 UTF-8 with BOM</span></li>
+
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-a1 electron-builder 基建（2026-08-26 完成）</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>electron-builder v26.15.3 + <code>electron-builder.yml</code>（nsis + portable 双 target）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>app.isPackaged</code> 路径适配：userData 重定向仅 dev / <code>RUNTIME_ROOT</code> 收敛 / asar 布局天然兼容</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>npm run dist</code> 脚本（build → electron-builder → make-sums，<code>--publish never</code>）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>Win 安装包（127.4MB）+ 便携包（127.1MB）+ <code>SHA256SUMS</code>；asar 关键路径核验 OK</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span>附注：npmRebuild false（node-pty 预编译）；镜像下载需 <code>ELECTRON_MIRROR</code> 环境变量</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>安装 <code>electron-builder</code>（v26.15.3）+ <code>electron-builder.yml</code> 打包配置（appId/产品名/图标/Win nsis+portable 双 target）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>app.isPackaged</code> 路径适配：<code>main.ts</code> userData 重定向仅 dev 生效；<code>boot.ts</code> 三处 <code>.runtime</code> 硬编码收敛为 <code>RUNTIME_ROOT</code>（打包 → 系统 userData/.runtime，asar 只读收口）；<code>bareModuleBaseUrl</code> 相对路径在 asar 布局天然兼容</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>npm run dist</code> 脚本（build → electron-builder → make-sums 一条龙，<code>--publish never</code> 防 CI 误判发布）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>Win 安装包产出 + 便携包（portable target）+ <code>SHA256SUMS</code> 校验文件生成（setup 127.4MB / portable 127.1MB，asar 内 main/preload/web-frontend dist/agent-presets/node_modules 全路径核验 OK，node-pty asarUnpack 解出）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span>附注：<code>npmRebuild: false</code>（node-pty 用预编译产物，与 dev 行为一致）；镜像下载需 <code>ELECTRON_MIRROR</code>/<code>ELECTRON_BUILDER_BINARIES_MIRROR</code> 环境变量（GitHub 直连超时）</span></li>
 
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a2 R10 协议安全白名单（分发前必补）</strong></span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>dsh://</code> 来源校验：open-url/second-instance 参数白名单过滤（R10 收口）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>dsh://</code> 协议来源校验：open-url/second-instance 参数白名单过滤，防恶意链接构造（R10 收口）</span></li>
         <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>协议参数 zod 强校验（session id 格式 / query 长度限制）</span></li>
 
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a3 零依赖实机验证</strong></span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全新 Win10 x64 干净环境安装即用（零 Node/pnpm 依赖）</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>M3-b3 开机自启打包版验证：开关 → 注册表 → 重启登录静默驻留托盘全链</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>dsh-ui:// / IPC 载波 / 审计 / 托盘 / 快捷键打包版全链冒烟</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>全新 Win10 x64 虚拟机/干净环境安装即用（零 Node/pnpm 依赖）</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>M3-b3 开机自启打包版验证：设置开关 → 注册表写入 → 重启登录静默驻留托盘全链</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>dsh-ui:// 协议 / IPC 载波 / 审计 / 托盘 / 快捷键在打包版全链冒烟</span></li>
       </ul>
 
-      <h3>M4-b 第二波：自动更新</h3>
+      <h3>M4-b 第二波：自动更新 ⏳</h3>
       <ul class="task-list">
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-b1 更新描述符与校验</strong>：latest.yml + SHA256 校验 + 更新回滚</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-b2 更新通道</strong>：stable / rc / off 三通道切换（desktop-settings 注入）</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-b1 更新描述符与校验</strong>：latest.yml 描述符 + SHA256 校验 + 更新回滚</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-b2 更新通道</strong>：stable / rc / off 三通道切换（经 desktop-settings 注入）</span></li>
       </ul>
 
-      <h3>M4-c 第三波：离线启动 e2e</h3>
+      <h3>M4-c 第三波：离线启动 e2e ⏳</h3>
       <ul class="task-list">
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-c1 离线路径</strong>：网络不可用时 UI 降级 + 历史会话读取 e2e（Playwright + Electron）</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-c1 离线路径</strong>：网络不可用时的 UI 降级 + 历史会话读取 e2e（Playwright + Electron）</span></li>
       </ul>
 
-      <h3>M4-d 第四波：上游基线升级（已升 0.1.2-alpha.4 · 原计划 0.1.1-rc.2 被覆盖）</h3>
+      <h3>M4-d 第四波：上游基线升级（已升 0.1.2-alpha.4 · 原计划 0.1.1-rc.2 被覆盖）⏳</h3>
       <ul class="task-list">
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1 升级目标核实 + 拴合面 diff 登记（2026-09-01）</strong>：实测上游最新稳定为 <code>dsh-v0.1.1-rc.2</code>（npm latest/next 与 GitHub Latest 一致，4 包对齐；旧载「rc.12」系臆测项，npm/GitHub 均无）；拉取 tag 检出 <code>_harness-011rc2</code> worktree，3 类拴合面逐行 diff → 结论无破坏性变更，桌面零适配（登记 upstream-migrations C 区 + upstream-contracts 7.4 全部 [x]）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1b 最新 alpha 预评估（2026-09-01，只读）</strong>：实测最新发布 <code>0.1.2-alpha.3</code>（未转正，latest/next 仍为 0.1.1-rc.2）。0.1.1→0.1.2 为破坏性重构（S2 <code>AbstractApiClient</code> 删除→载波整条重写、S3b runtime 净-7000 行重组+拆 <code>dsh-client-store</code>、S1 新增 <code>__DSH_BOOT_READY__</code> 门控、ui-* 契约变更）。预评估结论：不选，维持计划 0.1.1-rc.2；该结论已被 M4-d3 用户决策推翻（见下）；评估登记 upstream-migrations C-1 区，worktree <code>_harness-012a3</code> 保留</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1 升级目标核实 + 拴合面 diff 登记（2026-09-01）</strong>：实测上游最新稳定为 <code>dsh-v0.1.1-rc.2</code>（npm latest/next 与 GitHub Latest 一致，4 包对齐；<b>旧载「rc.12」系臆测项，npm/GitHub 均无</b>）；拉取 tag 检出 <code>_harness-011rc2</code> worktree，3 类拴合面逐行 diff → 结论<b>无破坏性变更，桌面零适配</b>（登记 upstream-migrations C 区 + upstream-contracts 7.4 全部 [x]）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1b 最新 alpha 预评估（2026-09-01，只读）</strong>：实测最新发布 <code>0.1.2-alpha.3</code>（未转正，latest/next 仍为 0.1.1-rc.2）。0.1.1→0.1.2 为<b>破坏性重构</b>（S2 <code>AbstractApiClient</code> 删除→载波整条重写、S3b runtime 净-7000行重组+拆 <code>dsh-client-store</code>、S1 新增 <code>__DSH_BOOT_READY__</code> 门控、ui-* 契约变更）。<b>预评估结论：不选，维持计划 0.1.1-rc.2</b>；该结论已被 M4-d3 用户决策推翻（见下）；评估登记 upstream-migrations C-1 区，worktree <code>_harness-012a3</code> 保留</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d2 代码级升级执行（0.1.1-rc.2 计划）</strong>：<s>待 M4 重启</s> <b>被 M4-d3 覆盖</b>——2026-09-01 实际直接升 <code>0.1.2-alpha.3</code>（见下），不再单独执行 0.1.1-rc.2 升级</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d4 <code>0.1.2-alpha.4</code> 升级专项（2026-09-02 执行完成 · 零适配增量升级）</strong>：官方发布 <code>dsh-v0.1.2-alpha.4</code>（父/子 Agent <code>send_message</code> 双向消息、模型目录搜索筛选、UI 圆角/描边/投影打磨、超长会话渲染优化）。四包 npm 全可得，直接升版：</span>
-          <ul class="task-list sub">
-            <li class="task-item done"><span class="status-icon">[x]</span><span>拴合面 diff（浅克隆 tag 快照比对 <code>_harness-012a3</code>，commit <code>4e84901</code>）：<b>无破坏性变更</b>——官方两处「开发者注意兼容性」提示（<code>Session.events</code> → <code>seq/eventAt()/snapshotEvents()</code> 按需读取、<code>SessionSeq</code>/<code>SessionLogOffset</code> 强类型）均为 host 内部重构（随 npm 包封装，wire 契约仅类型层品牌化、运行时仍 number；<code>session.list/create/control</code> 端点签名未动）；ui-slots/ui-renderer 新增 <code>keyedHooks</code> 为增量可选隔间；ui-* 包清单零增删（<code>CLIENT_EXCLUDE_IDS</code> 不变）；S1 装载协议/S2 载波/S3 装配全零差异。登记 upstream-migrations <b>C-2 区</b></span></li>
-            <li class="task-item done"><span class="status-icon">[x]</span><span>升级执行：package.json 四包 → <code>0.1.2-alpha.4</code> + npm install；typecheck / lint / build 全零错误（无任何代码改动）</span></li>
-            <li class="task-item done"><span class="status-icon">[x]</span><span>文档登记：upstream-migrations C-2 + upstream-contracts 头部复核标注 + 12-references 版本时点</span></li>
-            <li class="task-item todo"><span class="status-icon">[ ]</span><span>实机冒烟：随 M3-b4 dogfood 合并观察（重点看 session 域重构后对话流/历史分页/审计无回归）</span></li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d4 <code>0.1.2-alpha.4</code> 升级专项（2026-09-02 执行完成 · 1 处 roster 收口）</strong>：官方发布 <code>dsh-v0.1.2-alpha.4</code>（release：父/子 Agent <code>send_message</code> 双向消息、模型目录搜索筛选、UI 圆角/描边/投影打磨、超长会话渲染优化）。四包 npm 全可得，直接升版。</span>
+          <ul class="task-list">
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>拴合面 diff（浅克隆 tag 快照比对 <code>_harness-012a3</code>，commit <code>4e84901</code>）：<b>无破坏性变更</b>——官方两处「开发者注意兼容性」提示（<code>Session.events</code> → <code>seq/eventAt()/snapshotEvents()</code> 按需读取、<code>SessionSeq</code>/<code>SessionLogOffset</code> 强类型）均为 <b>host 内部重构</b>（随 npm 包封装，wire 契约仅类型层品牌化、运行时仍 number；<code>session.list/create/control</code> 端点签名未动）；ui-slots/ui-renderer 新增 <code>keyedHooks</code> 为<b>增量可选</b>隔间；ui-* 包清单零增删（<code>CLIENT_EXCLUDE_IDS</code> 不变）；S1 装载协议/S2 载波/S3 装配全零差异。登记 upstream-migrations <b>C-2 区</b></span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>升级执行：package.json 四包 → <code>0.1.2-alpha.4</code> + npm install；typecheck / lint / build 全零错误（无任何代码改动）</span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>实机首启修复（2026-09-02）</b>：<code>Cannot find package '@deepseek-ai/dsh-tool-subagent-report'</code> —— release 的 <code>send_message</code> 取代单向 <code>report</code> 后官方<b>未发布该独立包 alpha.4 版</b>（npm 最高 alpha.3），新工具并入 <code>dsh-tool-subagent</code> 本体；桌面 roster 残留条目（boot.ts + desktop-patch.yml 两处同源）→ 移除并对齐官方 web-app roster；roster 全量 99 引用/97 包存在性+版本核对通过；复验 typecheck/lint/build 零错误（登记 upstream-migrations C-2 行为面行）</span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>文档登记：upstream-migrations C-2 + upstream-contracts 头部复核标注 + 12-references 版本时点</span></li>
+            <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>实机冒烟：随 M3-b4 dogfood 合并观察（重点看 session 域重构后对话流/历史分页/审计无回归）</span></li>
           </ul>
         </li>
+
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d3 <code>0.1.2-alpha.3</code> 升级专项（2026-09-01 执行完成 · 用户决策实际升级，推翻 M4-d1b「不选」）</strong>：桌面按官方 worker-preview 自持传输形态迁移（方案见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>）。依赖 4 官方包升 <code>0.1.2-alpha.3</code>（npm 4 包对齐可装）；<code>@lnyanhongyan/dsh-opencode-usage</code> 因 peer 锁 rc.7 与 0.1.2 不兼容被移除（登记衍生挂起）。4 项专项：</span>
-          <ul class="task-list sub">
-            <li class="task-item done"><span class="status-icon">[x]</span><span>① 重写 IPC 载波：<code>ipc-connection.js</code> 弃继承 AbstractApiClient（基类已删），改 HTML boot 脚本注入 <code>__DSH_TRANSPORT__ = {fetch, openStream, ownsHost:true}</code>；preload 新增多路流通道（stream-open/frame/close）；bridge 新增流管理（<code>dsh:stream-open</code> → <code>typertGateway.wireStream.open</code>）；<code>carrier-relay.ts</code> 删除（下行改 renderer 经 <code>$events</code> 逻辑流拉取）</span></li>
-            <li class="task-item done"><span class="status-icon">[x]</span><span>② 适配 runtime/manifest 装配：<code>boot-graph.ts</code> 产 <code>WebBootGraph{rev,entries,batches}</code>（batches 必填，client-modules bootstrap + 其余 application）；<code>@deepseek-ai/dsh-client-runtime</code> → <code>dsh-client-modules</code>（store 由官方 dist 内核 seed，M6 <code>defineStore</code> 改 require <code>dsh-client-store</code>）；boot.ts §1 装 host <code>connection</code>+<code>api-remotes</code>+三 controller（session/settings/workspace）+<code>subagent-model-selection-settings</code>；manifest <code>getIpcCarrierPatchEntries</code> 置空</span></li>
-            <li class="task-item done"><span class="status-icon">[x]</span><span>③ 补 <code>__DSH_BOOT_READY__</code> 就绪门控（boot 脚本注入 <code>Promise.withResolvers()</code> resolve，对齐官方 READY_MARKUP）</span></li>
-            <li class="task-item done"><span class="status-icon">[x]</span><span>④ M6 自研插件契约重对：<code>defineStore</code> 源迁 <code>dsh-client-store</code>；external <code>ui-slots/client</code>→<code>ui-renderer/client</code>；layout AppFrame 补 <code>SessionProvider</code> 包裹 details 槽位（strict session scope）</span></li>
-            <li class="task-item done"><span class="status-icon">[x]</span><span>实机验证（2026-09-01）：<code>npm run start</code> 全链路可用——图谱 54 条目/batches 合法、全部官方+自绘插件 bundle 装载、unary（settings/credentials/session/modelCatalog/subagents/agentPresets/commands/skills）与流（workspace/follow、session/control）经 <code>__DSH_TRANSPORT__</code> 正常解析、details 槽位 scope 错误消失。遗留：<code>dynamicCordisRunner/syncInspectManifest</code> 404（<code>dsh-cordis-host-runner</code> 未装载，既有 MVP 非阻断项，登记看板；2026-09-01 由修复 #5 排除客户端半，噪音已清零）</span></li>
-            <li class="task-item done"><span class="status-icon">[x]</span><span>gating：commit 以 <code>feat(carrier)!</code> / <code>build(upstream)!</code> 标注（破坏性依赖变更）</span></li>
+          <ul class="task-list">
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>① 重写 IPC 载波：<code>ipc-connection.js</code> 弃继承 AbstractApiClient（基类已删），改 HTML boot 脚本注入 <code>__DSH_TRANSPORT__ = {fetch, openStream, ownsHost:true}</code>；preload 新增多路流通道（stream-open/frame/close）；bridge 新增流管理（<code>dsh:stream-open</code> → <code>typertGateway.wireStream.open</code>）；<code>carrier-relay.ts</code> 删除（下行改 renderer 经 <code>$events</code> 逻辑流拉取）</span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>② 适配 runtime/manifest 装配：<code>boot-graph.ts</code> 产 <code>WebBootGraph{rev,entries,batches}</code>（batches 必填，client-modules bootstrap + 其余 application）；<code>@deepseek-ai/dsh-client-runtime</code> → <code>dsh-client-modules</code>（store 由官方 dist 内核 seed，M6 <code>defineStore</code> 改 require <code>dsh-client-store</code>）；boot.ts §1 装 host <code>connection</code>+<code>api-remotes</code>+三 controller（session/settings/workspace）+<code>subagent-model-selection-settings</code>；manifest <code>getIpcCarrierPatchEntries</code> 置空</span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>③ 补 <code>__DSH_BOOT_READY__</code> 就绪门控（boot 脚本注入 <code>Promise.withResolvers()</code> resolve，对齐官方 READY_MARKUP）</span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>④ M6 自研插件契约重对：<code>defineStore</code> 源迁 <code>dsh-client-store</code>；external <code>ui-slots/client</code>→<code>ui-renderer/client</code>；layout AppFrame 补 <code>SessionProvider</code> 包裹 details 槽位（strict session scope）</span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>实机验证（2026-09-01）：<code>npm run start</code> 全链路可用——图谱 54 条目/batches 合法、全部官方+自绘插件 bundle 装载、unary（settings/credentials/session/modelCatalog/subagents/agentPresets/commands/skills）与流（workspace/follow、session/control）经 <code>__DSH_TRANSPORT__</code> 正常解析、details 槽位 scope 错误消失。遗留：<code>dynamicCordisRunner/syncInspectManifest</code> 404（<code>dsh-cordis-host-runner</code> 未装载，既有 MVP 非阻断项，登记看板；2026-09-01 由修复 #5 排除客户端半，噪音已清零）</span></li>
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span>gating：commit 以 <code>feat(carrier)!</code> / <code>build(upstream)!</code> 标注（破坏性依赖变更）</span></li>
           </ul>
         </li>
       </ul>
@@ -315,112 +342,127 @@
 
       <h3>M6 · 全量自绘 UI（🔥 主线 · 2026-08-27 启动 · D-20 插队优先 · ADR-006 启用）</h3>
       <ul class="task-list">
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M6-P1 布局骨架</strong>（= M3-c 已完成）：<code>@lansi-ai/dsh-desktop-layout</code>（root 槽位）+ <code>dsh-desktop-titlebar</code>；官方 <code>ui-layout</code> 已排除</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M3-c5 布局演化决策（2026-08-27 · 放大窗口 bug 试错沉淀 · 坑 20）</strong></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>骨架宿主化（D-21）</strong>：<code>LAYOUT_SKELETON_CSS</code> 剥离自布局插件 + 外观变量化（<code>--dsd-*</code>），宿主新增 <code>desktop-appearance.ts</code>；布局插件只留引擎，删除越界骨架——职责专一（骨架=宿主、内容=插件）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>放大窗口布局不跟随（已修复）</strong>：试错①<code>position:fixed</code>+<code>inset</code> 强制定位 <code>#root</code>（错误，破坏官方 <code>height:100%</code> 自适应）→ ②<code>#dsh-root</code> 套壳 B-0（过度，用户纠正「官方根容器没问题」）→ ③<b>回退正确</b>：官方 <code>#root</code> 保留原生自适应，只加 <code>box-sizing+border-box+padding</code> 垫层 + 内层圆角，实机缩放正常</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>铁律</strong>：绝不改官方代码；官方未自有化处走适配器不侵入；官方 <code>#root</code> 是好的，别用 CSS 覆盖其定位/缩放（只加不破坏）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>升级拴合面速查表已补全</strong>：<code>upstream-contracts.md</code> 第 7 节「自有插件 × 官方契约依赖矩阵 + 升级逐条核查 SOP」，暂不细分 UI/Host 层</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P2 外壳小件</strong>（热身）：</span>
-          <ul class="task-list sub">
-            <li class="task-item done"><span class="status-icon">[x]</span><span><strong><code>@lansi-ai/dsh-desktop-session-export</code>：Session 日志导出自有化（2026-09-02 完成 · 用户驱动）</strong>：官方 client 半文案写死「浏览器正在下载 Session ZIP 文件」桌面语义错误（locale 重复注册即 throw 无覆盖口）→ 自研 client 半（<code>conversation.session.header.utilities</code> 槽位胶囊 + 弹层 + controller，文案改「正在将 Session ZIP 保存到系统"下载"文件夹」）；<b>host 半保留</b>（<code>session-log-download</code> 行继续提供 /export 命令 + <code>/api/session.export</code> ZIP 流式路由）；boot-graph 排除官方 client bundle + 注册桌面件；primitives 守卫 require + 回退弹层。typecheck/lint/build 零错误，dist 反查通过；<b>dev 实机验证通过（2026-09-02 用户确认）</b></span></li>
-            <li class="task-item todo"><span class="status-icon">[ ]</span><span><code>@lansi-ai/dsh-desktop-brand</code>：注册官方 <code>sidebar.brand.mark/name</code> 洞（logo 自有化，不动 sidebar 壳）</span></li>
-            <li class="task-item todo"><span class="status-icon">[ ]</span><span>会话 header 重排评估（「1 + 对话/轨迹 Tab + Session log」→ TRAE 式会话名 + 按钮组）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M6-P1 布局骨架</strong>（= M3-c，已完成）：<code>@lansi-ai/dsh-desktop-layout</code>（root 槽位）+ <code>dsh-desktop-titlebar</code>（标题栏装饰层）；官方 <code>ui-layout</code> 已排除</span></li>
+
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P2 外壳小件</strong>（小体量热身）：</span>
+          <ul class="task-list">
+            <li class="task-item sub done"><span class="status-icon">[x]</span><span><b><code>@lansi-ai/dsh-desktop-session-export</code>：Session 日志导出自有化（2026-09-02 完成 · 用户驱动）</b>：官方 client 半中文文案写死「浏览器正在下载 Session ZIP 文件」在桌面语义错误（locale 同 ns 同语言重复注册即 throw，无覆盖口）→ 按 M6 模式自有化：自研 client 半（<code>conversation.session.header.utilities</code> 槽位导出胶囊 + 结果弹层 + 下载 controller + locale NS <code>desktop-session-export</code>，文案改「正在将 Session ZIP 保存到系统"下载"文件夹」）；<b>host 半保留</b>（boot.ts §1 <code>session-log-download</code> 行继续提供 /export 命令 + <code>/api/session.export</code> ZIP 流式路由，零重复实现）；boot-graph CLIENT_EXCLUDE_IDS 排除 <code>@deepseek-ai/dsh-session-log-export</code>（client bundle id=包名）+ desktopDecls 注册；primitives Modal/Button 守卫 require + 内置弹层回退（坑 23 同款）；<code>command/executed</code> 监听自动触发下载对齐官方。typecheck/lint/build 零错误，dist 反查通过；<b>dev 实机验证通过（2026-09-02 用户确认：胶囊/弹层新文案/ZIP 落盘全链正常）</b></span></li>
+            <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><code>@lansi-ai/dsh-desktop-brand</code>：注册官方 <code>sidebar.brand.mark</code> + <code>sidebar.brand.name</code> 洞（logo/品牌名自有化，不动 sidebar 壳）</span></li>
+            <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>会话 header 重排评估（「1 + 对话/轨迹 Tab + Session log」→ TRAE 式会话名 + 按钮组）</span></li>
           </ul>
         </li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P3 侧栏自研</strong>（首件 · 壳已落地，dev 实机验证待做）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>摸底结论（两轮深化）</strong>：① ui-sidebar 是壳插件（fold + 新会话 + 5 子槽位声明），会话树由 ui-workspace 注册在 workspaces 洞——<b>先换壳不换内容成立</b>；② ui-workspace 运行时不 require ui-sidebar（dsh.client.inject 仅为装载顺序提示），<b>排除不连坐</b>；③ startSession 由壳经 <code>ctx.workspaces.startSession</code> 实现，布局 owner props <code>{collapsed,width}</code> 天然匹配，<b>布局插件无需改动</b></span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>dsh-desktop-sidebar</code> 壳已创建：fold 状态机（settling 延迟切 rail）+ 新会话 + 折叠钮（<code>layout.toggleSidebar</code>）+ 5 子槽位声明渲染；不依赖 ui-primitives（内联 SVG），v1 中文硬编码（P6 接 locale）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>boot-graph.ts</code>：<code>ui-sidebar</code> 入 CLIENT_EXCLUDE_IDS + 桌面壳注册（inject: slots/layout/workspaces 服务等待）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dev 验证问题 #1（已修复 · 坑 18）</strong>：首启报 sidebar 双注册冲突——排除编辑被同文件并发编辑覆盖丢失（静默失败，typecheck/lint 不报）→ 重补排除 + 完整 build + dist 产物 grep 反查；方法论新增「同文件编辑串行 + 落盘反查」</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>dev 验证问题 #2（已修复 · 坑 19）</strong>：右/底 15px 边距失效 + 底部设置/输入框溢出截断 ≈32px——<code>#root{position:fixed}</code> 被官方运行时动态注入样式表同特异性覆盖（fixed 降级 → top:32 作为偏移「看似生效」、bottom/right 失效）→ 规则强化 <code>html body>#root{...!important}</code>（布局插件 + 骨架两处同步）；方法论新增「自绘样式一律 important 化」</span></li>
+
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P3 侧栏自研</strong>（首件 · 壳已落地，dev 实机验证待做）：</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>摸底结论（2026-08-27，两轮深化）</b>：① 官方 <code>ui-sidebar</code> 是<b>壳插件</b>（fold 折叠状态机 + 新会话按钮 + 5 个子槽位声明），会话树/搜索/分组由 <code>ui-workspace</code> 注册在 <code>sidebar.workspaces</code> 洞——<b>先换壳不换内容成立</b>；② <code>ui-workspace</code> 运行时只 require runtime/react/primitives（package.json <code>dsh.client.inject: [ui-sidebar]</code> 仅为装载顺序提示），<b>排除 ui-sidebar 不连坐</b>；③ <code>startSession</code> 由壳自己经 <code>ctx.workspaces.startSession()</code> 实现（非布局 store action），布局插件 owner props <code>{collapsed,width}</code> 与官方 SidebarRoot 签名天然匹配，<b>布局插件无需改动</b></span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>@lansi-ai/dsh-desktop-sidebar</code> 壳已创建（<code>desktop-sidebar-client.js</code>）：fold 状态机（settling 延迟切 rail）+ 新会话（<code>workspaces.startSession</code>）+ 折叠钮（<code>layout.toggleSidebar</code>）+ 5 子槽位声明与渲染（brand 洞带占位 fallback 待 P2 替换）；不依赖 ui-primitives（内联 SVG + title 替代），v1 中文硬编码（P6 接 locale）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>boot-graph.ts</code>：<code>ui-sidebar</code> 入 CLIENT_EXCLUDE_IDS + 桌面壳插件注册（inject: ['slots','layout','workspaces'] 服务等待）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>dev 验证问题 #1（2026-08-27，已修复）</b>：首启报 <code>single slot "sidebar" already has a registration (registered by B5)</code> —— CLIENT_EXCLUDE_IDS 的 ui-sidebar 排除编辑被同文件并发编辑覆盖丢失（坑 18，静默失败 typecheck/lint 不报）→ 重补排除 + 完整 build + dist 产物 grep 反查确认；方法论新增第 13 条（同文件编辑串行 + 落盘反查）</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>dev 验证问题 #2（2026-08-27，已修复）</b>：右/底 15px 边距失效 + 底部设置/输入框溢出截断 ≈32px —— <code>#root{position:fixed}</code> 被官方<b>运行时动态注入</b>的样式表同特异性覆盖（fixed 降级 → top:32 作为 relative 偏移「看似生效」、bottom/right 失效，坑 19）→ 规则强化 <code>html body&gt;#root{...!important}</code>（布局插件 injectStyles 与 LAYOUT_SKELETON_CSS 两处同步）；方法论新增第 14 条（自绘样式一律 important 化）</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span>dev 实机验证：会话树/搜索/新会话/设置入口/折叠全功能点验（对照官方侧栏）✅（2026-09-01 用户实机确认通过）</span></li>
-        <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong><code>dsh-desktop-workspaces</code> 摸底完成（2026-09-01 · v1 范围=全量复刻，用户决策）</strong>：一插件两注册（browser→sidebar.workspaces + picker→conversation.hero.workspace），排除须双注册全覆盖；inject 6 服务（slots/sessions/workspaces/locale/remote/remote.directoryPicker）；须接管 provideRoot(useWorkspaces hook) + locale 字典；directoryFlow occupant=picker-native 无改动；store=defineStore 同款；tree 派生纯函数（Groups/Flat/Search + subagent lineage）；拖拽 Manual=Host-durable</span></li>
-        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><strong>W1-W5 全量复刻实现（每步原子提交）</strong>：W1 骨架+store+locale+provideRoot+双注册+排除 ui-workspace → W2 tree 派生层 → W3 Rows 行组件 → W4 Browser+Picker 主组件 → W5 dev 实机对照点验收口</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P4 对话主区</strong>（最大单件）：ui-conversation / renderer / input-trigger / attachment / reference → 自研族</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P5 过程可视化</strong>：ui-tool / subagent / plan / goal / jobs / skill / workflow-run / trajectory → 自研等价件</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P6 设置与底座</strong>：ui-settings 6 section + theme / locale / model-selection / permission-presets → 自研等价件</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6 门禁</strong>：每阶段对照官方不回归 + dogfood 无感切换；完成后功能性 ui-* 全量入 CLIENT_EXCLUDE_IDS</span></li>
+        <li class="task-item sub done"><span class="status-icon">[x]</span><span><b><code>dsh-desktop-workspaces</code> 摸底（2026-09-01 完成 · v1 范围=全量复刻，用户决策）</b>：</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span>包形态：双半包，host 半空 apply 占位；client 半 126KB bundle ≈2600 行（Browser 主组件 1240 + Rows 437 + lineage 派生 267 + Picker 154 + zh/en 字典 139 + store/navigation 等）；当前桌面图谱<b>激活中</b></span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span><b>一个插件两个注册</b>，排除它两处 UI 同时消失：WorkspaceBrowser → <code>sidebar.workspaces</code>（我们壳声明的洞，owner share <code>{wide, expandSidebar}</code>）+ 子洞 <code>sidebar.workspaces.directoryFlow</code>；WorkspacePicker → <code>conversation.hero.workspace</code>（<b>官方 ui-conversation 声明</b>，P4 前不消失）+ 子洞 → <b>替换件必须双注册全覆盖</b></span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span>服务依赖 <code>inject=['slots','sessions','workspaces','locale','remote','remote.directoryPicker']</code>；全部动作由其 inject 工厂从 controller 组装（sessions.open/search/rename/fork、workspaces.rename/delete/insertBefore/insertSessionBefore/create、startSession/archiveSession）；UiWorkspaceService 为 apply 局部实例未注册 ctx 服务，<b>排除不连坐</b></span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span><b>排除时必须接管两项全局贡献</b>：① <code>ctx.slots.provideRoot({hooks:{workspaces: workspaces.list}})</code>（全局 useWorkspaces selector hook）；② <code>ctx.locale.register('workspace',{zh,en})</code></span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span>directoryFlow 洞 occupant = <code>dsh-client-ui-directory-picker-native</code>（已在图谱，browse 已排除），桌面走 Electron chooser 无改动继续工作</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span>viewing store：<code>createWorkspaceViewStore()</code>（dsh-client-store defineStore，M6 同款）：groupBy(workspace|flat)/orderBy(manual|updated)/groupExpansion/sessionOrderByAccount/updatedAt</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span>tree 派生纯函数：deriveGroups/deriveFlat/deriveSearchResults/workspaceLabel + indexSubagentDescendants（uninterrupted subagent-origin lineage → runningSubagentCount）；行状态=pendingInteraction 琥珀点（approval/plan-review/question）&gt; running 蓝点（含后代冒泡）&gt; completed 绿点；hasActiveSchedule 闹钟（非交互标记）</span></li>
+        <li class="task-item sub-2 done"><span class="status-icon">[x]</span><span>拖拽：RowDragProps start/active/marker(before|after)/hover/drop/end；Manual 模式真实 Workspace 拖拽 Host-durable（insertWorkspaceBefore/insertSessionBefore），Ungrouped/flat 浏览器本地</span></li>
+        <li class="task-item sub todo"><span class="status-icon">[ ]</span><span><b>W1-W5 实现计划（全量复刻 · 每步原子提交）</b>：W1 插件骨架+store+locale+provideRoot+双注册空壳+boot-graph 排除 ui-workspace → W2 tree 派生层（deriveGroups/Flat/Search + lineage）→ W3 Rows 行组件（行/drag/菜单/hover/对话框）→ W4 Browser 主组件+Picker（视图切换/搜索 debounce/折叠/Show more/拖拽 owner）→ W5 dev 实机对照点验 + 看板收口</span></li>
+
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P4 对话主区</strong>（最大单件）：<code>ui-conversation</code> + <code>ui-renderer</code>（markdown/代码高亮/流式）+ <code>ui-input-trigger</code> + <code>ui-attachment</code> + <code>ui-reference</code> → 自研 <code>dsh-desktop-conversation</code> 族</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P5 过程可视化</strong>：<code>ui-tool</code>/<code>ui-subagent</code>/<code>ui-plan</code>/<code>ui-goal</code>/<code>ui-jobs</code>/<code>ui-skill</code>/<code>ui-workflow-run</code>/<code>ui-trajectory</code> → 自研等价件</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P6 设置与底座</strong>：<code>ui-settings</code> 6 section + <code>ui-theme</code>/<code>ui-locale</code>/<code>ui-model-selection</code>/<code>ui-permission-presets</code> → 自研等价件</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6 门禁</strong>：每阶段「对照官方 UI 不回归」+ dogfood 无感切换；全部完成后功能性 <code>ui-*</code> 全量入 CLIENT_EXCLUDE_IDS；最终以自绘 UI 日常使用 2 周收尾 M3</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-x harness 基线动态化</strong>（D-16 · 前置依赖 M4-b，随 M4 延后）</span></li>
       </ul>
     </div>
 
     <!-- 03. 决策 -->
     <div class="card">
-      <h2>💡 关键决策与遗留记录</h2>
+      <h2>💡 关键决策与架构遗留 (Key Decisions &amp; Context)</h2>
       <p><strong>M4 新增决策（2026-08-26）：</strong></p>
       <ul>
-        <li><strong>D-17 提效三件套（2026-08-27）</strong>：① <code>docs/dogfood-issues.md</code> dogfood 问题跨会话移交台账（修前登记现象+第一现场，修后标坑号；新会话提示「按 dogfood-issues.md #N 处理」直接起跑）；② <code>docs/upstream-contracts.md</code> 上游拴合面速查（RPC 三通道归属 / 服务注册名表 / 补丁语义 / 静默空态清单，免钻 node_modules；M4-d 升级时逐条复核刷新）；③ workflow.md 05 节轻量分级——dogfood 小 bug 坑档+看板落盘按日批次合并（台账仍即时登记、commit 仍原子）</li>
-        <li><strong>D-16</strong> harness 基线动态化排入 M6（P2 探索期）：应用内可更新/切换 harness 基线版本（基线外置 + 拴合面兼容矩阵 + 版本回滚）；前置依赖 M4-b 更新描述符基建；M4-d 首次 0.1.1-rc.2 升级仍走整包重发（sync-upstream SOP），作为动态化的对照基线</li>
-        <li><strong>D-13</strong> M3-b4 dogfood 与 M4 并行推进（dogfood 结果作 M3 收尾门禁，不阻塞 M4 开发）</li>
-        <li><strong>D-14</strong> M4 首发钉 rc.8 基线打包；0.1.1-rc.2 升级为 M4-d 独立节点（build(upstream) SOP）</li>
-        <li><strong>D-15</strong> R10 协议安全 + M3-b3 自启打包验证排入 M4-a（分发前必须补安全面）；M2-c 置后；R6/R7 留 M5</li>
+        <li><b>D-17 提效三件套（2026-08-27）</b>：① <code>docs/dogfood-issues.md</code> dogfood 问题跨会话移交台账（修前登记现象+第一现场，修后标坑号；新会话提示「按 dogfood-issues.md #N 处理」直接起跑）；② <code>docs/upstream-contracts.md</code> 上游拴合面速查（RPC 三通道归属 / 服务注册名表 / 补丁语义 / 静默空态清单，免钻 node_modules；M4-d 升级时逐条复核刷新）；③ workflow.md 05 节轻量分级——dogfood 小 bug 坑档+看板落盘按日批次合并（台账仍即时登记、commit 仍原子）</li>
+        <li>D-16 harness 基线动态化排入 M6（P2 探索期）：应用内可更新/切换 harness 基线版本（基线外置 + 拴合面兼容矩阵 + 版本回滚）；前置依赖 M4-b 更新描述符基建；M4-d 首次 0.1.1-rc.2 升级仍走整包重发（sync-upstream SOP），作为动态化的对照基线</li>
+        <li>D-13 M3-b4 dogfood 与 M4 并行推进（dogfood 结果作 M3 收尾门禁，不阻塞 M4 开发）</li>
+        <li>D-14 M4 首发钉 rc.8 基线打包；0.1.1-rc.2 升级为 M4-d 独立节点（<code>build(upstream)</code> SOP）</li>
+        <li>D-15 R10 协议安全 + M3-b3 自启打包验证排入 M4-a（分发前必须补安全面）；M2-c 置后；R6/R7 留 M5</li>
       </ul>
       <p style="margin-top: 12px;"><strong>M3 新增决策：</strong></p>
       <ul>
-        <li><strong>D-9</strong> 多窗口 = 每个会话独立 BrowserWindow（非 Tab），窗口间广播帧同步</li>
-        <li><strong>D-10</strong> 命令面板 = 混合方案（renderer Ctrl+K + 主进程 Ctrl+Shift+P）</li>
-        <li><strong>D-11</strong> <code>dsh://</code> 协议 MVP = 全覆盖（open + ask + settings），窗口去重聚焦</li>
-        <li><strong>D-12</strong> Dogfood = M3-a 完成后即启动，不等全量</li>
+        <li>D-9 多窗口 = 每个会话独立 BrowserWindow（非 Tab 模式），窗口间通过广播帧同步</li>
+        <li>D-10 命令面板 = 混合方案（renderer 内 Ctrl+K + 主进程全局快捷键 Ctrl+Shift+P）</li>
+        <li>D-11 <code>dsh://</code> 协议 MVP = 全覆盖（open + ask + settings），窗口去重聚焦</li>
+        <li>D-12 Dogfood 策略 = M3-a 完成后即启动，不等待全量</li>
       </ul>
       <p style="margin-top: 12px;"><strong>布局与命名决策（2026-08-27）：</strong></p>
       <ul>
-        <li><strong>D-18</strong> 桌面布局插件 = 方案 B 接管 root 槽位：官方 <code>dsh-client-ui-layout</code> 禁用（CLIENT_EXCLUDE_IDS 互斥），<code>@lansi-ai/dsh-desktop-layout</code> 自研三列布局 + 兼容 <code>ctx.layout</code> 服务面；动机 = 桌面侧自主掌控全局布局（用户决策）；代价 = 上游升级时槽位契约需人工对齐（登记拴合面债）</li>
-        <li><strong>D-19</strong> 插件命名规范 = <code>@lansi-ai/dsh-*</code>：scope 用公司名 <code>@lansi-ai</code>（蓝思），保留 <code>dsh</code> 生态前缀（插件即 DSH 生态组件），与官方 <code>@deepseek-ai/dsh-client-*</code> 按公司 scope 区分；R18 商标边界结论同步刷新</li>
+        <li>D-18 桌面布局插件 = 方案 B 接管 root 槽位：官方 <code>dsh-client-ui-layout</code> 禁用（CLIENT_EXCLUDE_IDS 互斥），<code>@lansi-ai/dsh-desktop-layout</code> 自研三列布局 + 兼容 <code>ctx.layout</code> 服务面；动机 = 桌面侧自主掌控全局布局（用户决策）；代价 = 上游升级时槽位契约需人工对齐（登记拴合面债）</li>
+        <li>D-19 插件命名规范 = <code>@lansi-ai/dsh-*</code>：scope 用公司名 <code>@lansi-ai</code>（蓝思），保留 <code>dsh</code> 生态前缀（插件即 DSH 生态组件），与官方 <code>@deepseek-ai/dsh-client-*</code> 按公司 scope 区分；R18 商标边界结论同步刷新</li>
       </ul>
       <p style="margin-top: 12px;"><strong>全量自绘决策（2026-08-27）：</strong></p>
       <ul>
-        <li><strong>D-20</strong> UI 路线 = <b>全量自绘（C 路线）+ 排期插队</b>：逐槽位替换官方 ui-* 直至全部自有（P1 骨架 ✅ → P2 外壳 → P3 侧栏 → P4 对话区 → P5 过程可视化 → P6 设置底座），每阶段可用可验证；ADR-006 正式启用（原「暂缓」）；<b>自绘优先于 M4 分发（M4 整体延后）</b>；数据面零新增（IPC 载波帧 + desktopBridge，纯 renderer 侧）；侧栏摸底确认「壳 + 洞」结构支持先换壳不换内容（渐进低风险）</li>
+        <li><b>D-20 UI 路线 = 全量自绘（C 路线）+ 排期插队</b>：逐槽位替换官方 <code>ui-*</code> 直至全部自有（P1 骨架 ✅ → P2 外壳 → P3 侧栏 → P4 对话区 → P5 过程可视化 → P6 设置底座），每阶段可用可验证；ADR-006 正式启用（原「暂缓」）；<b>自绘优先于 M4 分发（M4 整体延后）</b>；数据面零新增（IPC 载波帧 + desktopBridge，纯 renderer 侧）；侧栏摸底确认「壳 + 洞」结构支持先换壳不换内容（渐进低风险）</li>
       </ul>
       <p style="margin-top: 12px;"><strong>布局演化决策（2026-08-27 · 坑 20）：</strong></p>
       <ul>
-        <li><strong>D-21</strong> 骨架宿主化：<code>LAYOUT_SKELETON_CSS</code>（骨架/外观）归宿主、布局插件只留 <code>.dsh-desktop-layout-*</code> 引擎；宿主新增 <code>desktop-appearance.ts</code> 注入 <code>--dsd-*</code> 外观变量（托盘色/圆角/边距/标题栏高）为「外观契约」——改骨架=宿主一处，二开可经配置或插件覆盖；配合坑 20 铁律「官方 <code>#root</code> 保留原生自适应，只用 padding/圆角垫层，不覆盖其定位/缩放」</li>
+        <li><b>D-21 骨架宿主化</b>：<code>LAYOUT_SKELETON_CSS</code>（骨架/外观）归宿主、布局插件只留 <code>.dsh-desktop-layout-*</code> 引擎；宿主新增 <code>desktop-appearance.ts</code> 注入 <code>--dsd-*</code> 外观变量（托盘色/圆角/边距/标题栏高）为「外观契约」——改骨架=宿主一处，二开可经配置或插件覆盖；配合坑 20 铁律「官方 <code>#root</code> 保留原生自适应，只用 padding/圆角垫层，不覆盖其定位/缩放」</li>
       </ul>
       <p style="margin-top: 12px;"><strong>启动体验决策（2026-09-02）：</strong></p>
       <ul>
-        <li><strong>D-22 启动即时响应</strong>：点击图标必须在数百 ms 内有可视反馈（低配可慢、不可无响应）。落地三件 = 启动闪屏（<code>splash.ts</code>，data: URL 零依赖，自身 ready-to-show 后显示）+ 真实装配进度（boot.ts <code>onProgress</code> 轮询 loader fiber 状态）+ 会话预热后台化（fire-and-forget + 10s/会话超时）。启动链路全本地零网络，网络差不影响窗口出现；调试开关一律 env 门控，默认零影响</li>
+        <li><b>D-22 启动即时响应</b>：点击图标必须在数百 ms 内有可视反馈（低配可慢、不可无响应）。落地三件 = 启动闪屏（<code>splash.ts</code>，data: URL 零依赖，自身 ready-to-show 后显示）+ 真实装配进度（boot.ts <code>onProgress</code> 轮询 loader fiber 状态）+ 会话预热后台化（fire-and-forget + 10s/会话超时）。启动链路全本地零网络，网络差不影响窗口出现；调试开关一律 env 门控，默认零影响</li>
       </ul>
-      <p style="margin-top: 12px;"><strong>已有关键决策：</strong></p>
+      <p style="margin-top: 12px;"><strong>已做出的关键技术决策：</strong></p>
       <ul>
-        <li><strong>D-1</strong> Electron 主进程内嵌 Cordis Host（非外部子进程）</li>
-        <li><strong>D-2</strong> IPC fetch 载波零端口（--serve 显式兼容）</li>
-        <li><strong>D-3</strong> 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2）</li>
-        <li><strong>D-4</strong> 基线钉本地 rc.8（2026-09-01 实测上游最新稳定为 0.1.1-rc.2，diff 登记 sync-upstream）</li>
-        <li><strong>D-5</strong> 载波替换 = roster/manifest 覆盖 IPC 变体</li>
-        <li><strong>D-6</strong> 兼容层 = ctx.webServer 等价面 + fetch 协议拦截</li>
-        <li><strong>D-8</strong> 第三方无改动装载 = boot-graph → host patch → ctx.webServer</li>
+        <li>D-1 Electron 主进程内嵌 Cordis Host（非外部子进程）</li>
+        <li>D-2 IPC fetch 载波零端口（<code>--serve</code> 显式兼容）</li>
+        <li>D-3 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2，ADR-006 启用）</li>
+        <li>D-4 基线钉本地检出 <code>dsh-v0.1.0-rc.8</code>（<b>2026-09-01 实测上游最新稳定为 0.1.1-rc.2</b>；<b>2026-09-01 M4-d3 已实际升级采用 <code>0.1.2-alpha.3</code></b>；<b>2026-09-02 M4-d4 已升级 <code>0.1.2-alpha.4</code>（零适配）</b>，见 M4-d 节）</li>
+        <li>D-5 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）</li>
+        <li>D-6 兼容层 = <code>ctx.webServer</code> 等价面（<code>compat-webserver.ts</code> + 同源 fetch 协议拦截）</li>
+        <li>D-8 第三方无改动装载 = <code>boot-graph.buildThirdPartyBundleDecl</code> → host patch INSERT → <code>ctx.webServer</code> 等价服务注入</li>
       </ul>
-      <p style="margin-top: 12px;"><strong>风险与技术债：</strong></p>
+      <p style="margin-top: 12px;"><strong>风险与技术债记录：</strong></p>
       <ul>
-        <li><s><strong>R8</strong> <strong>closed</strong>（实机点验通过）</s> 插件列表 + agent 预设实机点验（插件列表 Tab 读 <code>pluginInventory/list</code> 等价面；第三方插件清单与 HTML 注入共享唯一源码）。<em><strong>勘误（2026-08-27）</strong>：其中「agent 预设点验」系误判——插件因补丁形态错误从未装载（坑 16），本轮 dogfood 才真实验证修复闭环；R8 以修复后状态 closed</em></li>
-        <li><strong>R6 open</strong> !!js 表达式在 overlay patches 中不被 Cordis Loader 求值</li>
-        <li><strong>R7 open</strong> session-persistence-jsonl 硬编码 .runtime/user-data/...</li>
-        <li><strong>R9 多窗口资源开销</strong> 3+ 窗口常驻内存 ≤ 400MB（M5 验证）</li>
-        <li><strong>R10 协议安全</strong> dsh:// 协议需校验来源，防恶意链接（<b>已排入 M4-a2</b>，分发前收口）</li>
-        <li><strong>桌面布局插件拴合面债（2026-08-27 · D-18 代价）</strong> ① 0.1.1-rc.2 升级时 root 槽位契约需对照新版本人工对齐（open → 2026-09-01 已核对无变更）；② <s>titlebar 探针类名失效</s> <b>已消化（M3-c4）</b>：装饰层插件化后探针直接使用 <code>.dsh-desktop-layout-sidebar</code>，与布局插件同层运行，拴合面收窄为「类名 + 服务面」；③ <b>升级速查表已补全（2026-08-27）</b>——<code>docs/upstream-contracts.md</code> 第 7 节新增「自有插件 × 官方契约依赖矩阵 + 升级逐条核查 SOP」，作 M4-d 0.1.1-rc.2 升级的必备核查清单</li>
+        <li><s>R5</s> <b>closed</b>：<code>dsh-ui://</code> 自定义协议路径已实机验证</li>
+        <li><s>R4</s> <b>closed</b>：dist 构建产物可得性</li>
+        <li>R6 open：<code>!!js</code> 表达式在 overlay patches 中不被 Cordis Loader 求值</li>
+        <li>R7 open：<code>session-persistence-jsonl</code> / <code>storage-json</code> 硬编码 <code>.runtime/user-data/...</code></li>
+        <li><s>R8</s> <b>closed</b>（实机点验通过）：插件列表 + agent 预设实机点验（插件列表 Tab 读 <code>pluginInventory/list</code> 等价面；第三方插件清单与 HTML 注入共享唯一源码）。<b>勘误（2026-08-27）</b>：其中「agent 预设点验」系误判——<code>dsh-agent-presets</code> 插件因补丁形态错误从未装载（坑 16），本轮 dogfood 才真实验证修复闭环；R8 现以修复后状态 closed</li>
+        <li><b>R9 多窗口资源开销</b>：每个 BrowserWindow 独立渲染进程，3+ 窗口常驻内存 ≤ 400MB（M5 性能项验证）</li>
+        <li><b>R10 协议安全</b>：<code>dsh://</code> 协议需校验来源，防止恶意应用构造恶意链接（<b>已排入 M4-a2</b>，分发前收口）</li>
+        <li><b>桌面布局插件拴合面债（2026-08-27 · D-18 代价）</b>：① 0.1.1-rc.2 升级时 root 槽位契约（children 结构/scope 语义/store 契约）需对照新版本人工对齐（<b>open → 2026-09-01 已核对无变更</b>）；② <s>titlebar 探针类名失效</s> <b>已消化（M3-c4）</b>：装饰层插件化后探针直接使用 <code>.dsh-desktop-layout-sidebar</code>，且与布局插件同层运行，拴合面收窄为「类名 + 服务面」；③ <b>升级速查表已补全（2026-08-27）</b>——<code>docs/upstream-contracts.md</code> 第 7 节新增「自有插件 × 官方契约依赖矩阵 + 升级逐条核查 SOP」，作为 M4-d 0.1.1-rc.2 升级的必备核查清单</li>
       </ul>
     </div>
 
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
-      <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前里程碑：</strong>M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>D-20 全量自绘插队（2026-08-27）：M6 升为主线，M4 分发整体延后</b> → <b>M6-P1 骨架 ✅（= M3-c）→ M3-c5 布局演化决策（骨架宿主化 D-21 + 放大窗口 bug 修复，坑 20）→ M3-c4-v2 titlebar 收进布局 → M3-c4-v3 品牌区迁移 + SVG 图标 + 主题同步修复（2026-08-28）+ 品牌区渲染方式修复（2026-09-01 · 坑 23）→ <b>M6-P3 sidebar 壳 dev 实机验证通过（2026-09-01，用户确认）</b>；M3-b4 dogfood 继续进行。</p>
-      <p style="margin:4px 0 0 0;"><strong>🛠️ titlebar 已收口（2026-08-28 · v3 最终版）：</strong>左侧品牌区（logo + 品牌名 + 折叠按钮，点击 = 新建会话）+ 右侧窗控三钮（SVG 图标，关闭 hover 红色）+ 底部无 1px 描边（色带间隔）+ 窗口最大化/还原状态同步（图标切换）。品牌元素已从 sidebar 迁移完毕。相关文件：<code>src/desktop-shell/web/desktop-titlebar-client.js</code>、<code>src/desktop-shell/web/desktop-sidebar-client.js</code>、<code>src/desktop-shell/web/desktop-layout-client.js</code>。</p>
-      <p style="margin:4px 0 0 0;"><strong>🛠️ 品牌区渲染方式已修复（2026-09-01 · 坑 23）：</strong>品牌区跨槽位 <code>renderSlot('sidebar.brand.*')</code> 违反槽位所有权（<code>SlotOwnershipError</code>）致左上角 DeepSeek 品牌消失 → 改 <code>getOfficialBrand()</code> 直取官方 <code>FishLogo</code>+<code>BrandWordmark</code> 渲染（回退占位兜底），实机验证通过。相关文件：<code>src/desktop-shell/web/desktop-titlebar-client.js</code>。</p>
-      <p style="margin:4px 0 0 0;"><strong>🛠️ 主题同步已修复（2026-08-28）：</strong><code>theme-sync.ts</code> 双路订阅（mux + host 事件流）+ <code>main.ts</code> 传参修正（<code>apiProxy.events</code> 而非 <code>apiProxy</code>）。相关文件：<code>src/desktop-host/theme-sync.ts</code>、<code>src/desktop-shell/main.ts</code>。</p>
-      <p style="margin:4px 0 0 0;"><strong>🛠️ 启动即时响应优化已收口（2026-09-02，用户实机验证通过）：</strong>启动闪屏（即时反馈 + 真实装配进度条 + 阶段文案）+ 会话预热后台化（不再阻塞窗口首帧）+ 单会话挂载 10s 超时。相关文件：<code>src/desktop-shell/splash.ts</code>（新增）、<code>src/desktop-shell/main.ts</code>、<code>src/desktop-host/boot.ts</code>（onProgress）、<code>src/desktop-host/session-rewarm.ts</code>、<code>src/desktop-shell/dsh-ui-protocol.ts</code>（DSH_BARE_SCREEN_MS）。提交：<code>0d7c11c</code> / <code>51748d2</code> / <code>ac368d3</code>。</p>
-      <p style="margin:4px 0 0 0;"><strong>M6-P3 sidebar 自研（壳验证已通过 · 2026-09-01）：</strong>壳 dev 实机验证通过（会话树/搜索/新会话/设置入口/折叠对照点验 ✅ 用户确认）；品牌元素已迁出至 titlebar，sidebar 仅保留新会话 + 会话区 + 底部栏。<b>下一件 = <code>@lansi-ai/dsh-desktop-workspaces</code> 自研会话浏览区替换 ui-workspace（P3 收尾）</b>，随后 M6-P2 外壳小件（brand 洞 + 会话 header 重排评估）。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">⏸️ M3-a4 命令面板 + M3-a5 多窗口验证已暂停（2026-08-27 用户决策）：Ctrl+K 入口已隐藏（禁用壳，仅保留快速提问），恢复路径见看板对应节。</p>
-      <p style="margin:8px 0 0 0;"><strong>M4 分发（⏸️ 延后）：</strong>重启时机 = 自绘 UI 可日常使用后；届时先做 M4-a2 R10 协议安全白名单（<code>dsh://</code> 来源校验 + zod 强校验）再走分发门禁。</p>
-      <p style="margin:8px 0 0 0;"><strong>🛠️ M4-d3 0.1.2 升级专项已完成（2026-09-01）：</strong>依赖升 <code>0.1.2-alpha.3</code>，载波按 worker-preview 自持传输形态整链重写（<code>__DSH_TRANSPORT__</code> + typertGateway + 三 controller + <code>__DSH_BOOT_READY__</code> + M6 插件契约重对），实机验证全链路可用。方案见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>；<code>@lnyanhongyan/dsh-opencode-usage</code> 因 0.1.2 不兼容暂移除（待其升版重装）。M4-d2（0.1.1-rc.2 升级）已被 M4-d3 覆盖，不再单独执行。</p>
-      <p style="margin:8px 0 0 0;"><strong>🛠️ M4-d4 0.1.2-alpha.4 升级已完成（2026-09-02 · 零适配）：</strong>拴合面 diff 结论无破坏性变更（session 域 host 内部重构随包封装；ui-slots/ui-renderer 增量 <code>keyedHooks</code>；ui-* 包清单零增删），package.json 四包直升 <code>0.1.2-alpha.4</code>，typecheck/lint/build 零错误、无代码改动。登记 upstream-migrations C-2 区；实机冒烟随 M3-b4 dogfood 合并观察。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建/修改的文件（M4-a2）：</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/types/protocol.ts</code>（dsh:// URL 契约 zod Schema：action 白名单/session id 格式/query 长度上限）</p>
-      <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/desktop-host/dsh-protocol.ts</code>（入口校验：非法 URL 拒绝 + 审计记录）</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">M3-b4 dogfood（并行进行）：实机日常使用打包版（<code>release/DSH Desktop-0.1.0-portable.exe</code>）或 <code>npm run dev</code>；<b>问题统一登记 <code>docs/dogfood-issues.md</code></b>（修前登记现象+第一现场，新会话按 #N 直取）；排障时 <code>$env:DSH_VERBOSE='1'</code> 开全量日志。<b>最近处理（2026-09-01）</b>：① 启动期 theme/rewarm 报错已修复（坑 24，修复 #4）——真实根因是自研启动 unary 未对齐 0.1.2 官方 /api wire 契约（斜杠端点 + args 信封 + 签名参数名），非启动时序；② 终端静音清理完成（坑 25，修复 #5）——<code>/plugins/events</code> 404 与 <code>syncInspectManifest</code> 404 + <code>console-message</code> deprecation + CSP 警告共 4 类噪音清零（boot-graph 排除 hmr/cordis-client-runner/ui-cordis + console-message 现代签名 + CSP 消息过滤）。</p>
-      <p style="margin:4px 0 0 0; font-size:0.9rem; color:#f59e0b;">技术债（M3-b4 发现 · 2026-09-01 更新）：<code>dsh-cordis-host-runner</code> 未装载 → <code>dynamicCordisRunner/*</code>（inspect 同步 / 动态插件运行）service-unavailable。客户端半边（client-runner + ui-cordis 面板）已随修复 #5 移出渲染图谱，噪音清零；插件清单仍经 cordis-inventory 兼容面在设置页查看。留 M5 评估装载链。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>阻塞项：</strong> M2-c 旧插件门禁载体待确认，<b>不阻塞 M3/M4</b>。</p>
-      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);">💡 提示：直接在浏览器中打开本 HTML 即可随时查看最新进度；后续会话可提示 "按照 active-context.md 的 M4-a2 继续执行"。</p>
+      <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动 (Next Immediate Actions)</h2>
+      <p style="margin:0;"><strong>当前里程碑进度</strong>：M1 ✅ → M2 ✅ → M3 代码侧完成 → <b>D-20 全量自绘插队（2026-08-27）：M6 升为主线，M4 分发整体延后</b> → M6-P1 骨架 ✅（= M3-c）→ M3-c5 布局演化决策（骨架宿主化 D-21 + 放大窗口 bug 修复，坑 20）→ M3-c4-v2 titlebar 收进布局 → M3-c4-v3 品牌区迁移 + SVG 图标 + 主题同步修复（2026-08-28）+ 品牌区渲染方式修复（2026-09-01 · 坑 23）→ <b>M6-P3 sidebar 壳 dev 实机验证通过（2026-09-01，用户确认）</b>；M3-b4 dogfood 继续进行。</p>
+      <p style="margin:4px 0 0 0;"><strong>🛠️ titlebar 已收口（2026-08-28 · v3 最终版）</strong>：左侧品牌区（logo + 品牌名 + 折叠按钮，点击 = 新建会话）+ 右侧窗控三钮（SVG 图标，关闭 hover 红色）+ 底部无 1px 描边（色带间隔）+ 窗口最大化/还原状态同步（图标切换）。品牌元素已从 sidebar 迁移完毕。相关文件：<code>src/desktop-shell/web/desktop-titlebar-client.js</code>、<code>src/desktop-shell/web/desktop-sidebar-client.js</code>、<code>src/desktop-shell/web/desktop-layout-client.js</code>。</p>
+      <p style="margin:4px 0 0 0;"><strong>🛠️ 品牌区渲染方式已修复（2026-09-01 · 坑 23）</strong>：品牌区跨槽位 <code>renderSlot('sidebar.brand.*')</code> 违反槽位所有权（<code>SlotOwnershipError</code>）致左上角 DeepSeek 品牌消失 → 改 <code>getOfficialBrand()</code> 直取官方 <code>FishLogo</code>+<code>BrandWordmark</code> 渲染（回退占位兜底），实机验证通过。相关文件：<code>src/desktop-shell/web/desktop-titlebar-client.js</code>。</p>
+      <p style="margin:4px 0 0 0;"><strong>🛠️ 主题同步已修复（2026-08-28）</strong>：<code>theme-sync.ts</code> 双路订阅（mux + host 事件流）+ <code>main.ts</code> 传参修正（<code>apiProxy.events</code> 而非 <code>apiProxy</code>）。相关文件：<code>src/desktop-host/theme-sync.ts</code>、<code>src/desktop-shell/main.ts</code>。</p>
+      <p style="margin:4px 0 0 0;"><strong>🛠️ 启动即时响应优化已收口（2026-09-02，用户实机验证通过）</strong>：启动闪屏（即时反馈 + 真实装配进度条 + 阶段文案）+ 会话预热后台化（不再阻塞窗口首帧）+ 单会话挂载 10s 超时。相关文件：<code>src/desktop-shell/splash.ts</code>（新增）、<code>src/desktop-shell/main.ts</code>、<code>src/desktop-host/boot.ts</code>（onProgress）、<code>src/desktop-host/session-rewarm.ts</code>、<code>src/desktop-shell/dsh-ui-protocol.ts</code>（DSH_BARE_SCREEN_MS）。提交：<code>0d7c11c</code> / <code>51748d2</code> / <code>ac368d3</code>。</p>
+      <p style="margin:4px 0 0 0;"><strong>M6-P3 sidebar 自研（壳验证已通过 · 2026-09-01）</strong>：壳 dev 实机验证通过（会话树/搜索/新会话/设置入口/折叠对照点验 ✅ 用户确认）；品牌元素已迁出至 titlebar，sidebar 仅保留新会话 + 会话区 + 底部栏。<b>下一件 = <code>@lansi-ai/dsh-desktop-workspaces</code> 自研会话浏览区替换 ui-workspace（P3 收尾）</b>，随后 M6-P2 外壳小件（brand 洞 + 会话 header 重排评估）。</p>
+      <p style="margin:4px 0 0 0;"><strong>M3-a4 命令面板 + M3-a5 多窗口验证已暂停</strong>（2026-08-27 用户决策：价值存疑，一并挂起，不阻塞 dogfood/M4）：<b>Ctrl+K 入口已隐藏</b>（desktop-cmdpalette-client.js 禁用壳，仅保留快速提问聚焦）；恢复路径见看板对应节；M3-b4 全量回归时多窗口仅验「不崩不干扰」，不验完整链路。</p>
+      <p style="margin:4px 0 0 0;"><strong>M4 分发（⏸️ 延后）</strong>：重启时机 = 自绘 UI 可日常使用后；届时先做 M4-a2 R10 协议安全白名单（<code>dsh://</code> 来源校验 + zod 强校验），再走零依赖实机验证与分发门禁；已产出的安装包对应官方 UI 版。</p>
+      <p style="margin:4px 0 0 0;"><strong>🛠️ M4-d3 0.1.2 升级专项已完成（2026-09-01）</strong>：依赖升 <code>0.1.2-alpha.3</code>，载波按 worker-preview 自持传输形态整链重写（<code>__DSH_TRANSPORT__</code> + typertGateway + 三 controller + <code>__DSH_BOOT_READY__</code> + M6 插件契约重对），实机验证全链路可用。方案与过程见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>；<code>@lnyanhongyan/dsh-opencode-usage</code> 第三方插件因 0.1.2 不兼容暂移除（待其升版重装）。M4-d2（0.1.1-rc.2 升级）已被 M4-d3 覆盖，不再单独执行。</p>
+      <p style="margin:4px 0 0 0;"><strong>M3-b4 dogfood（并行进行）</strong>：实机日常使用打包版（<code>release/DSH Desktop-0.1.0-portable.exe</code>）或 <code>npm run dev</code>；<b>问题统一登记 <code>docs/dogfood-issues.md</code></b>（修前登记现象+第一现场，新会话按 #N 直取）；排障时 <code>$env:DSH_VERBOSE='1'</code> 开全量日志。<b>最近处理（2026-09-01）</b>：① 启动期 theme/rewarm 报错已修复（坑 24，修复 #4）——真实根因是自研启动 unary 未对齐 0.1.2 官方 /api wire 契约（斜杠端点 + args 信封 + 签名参数名），非启动时序；② 终端静音清理完成（坑 25，修复 #5）——<code>/plugins/events</code> 404 与 <code>syncInspectManifest</code> 404 + <code>console-message</code> deprecation + CSP 警告共 4 类噪音清零（boot-graph 排除 hmr/cordis-client-runner/ui-cordis + console-message 现代签名 + CSP 消息过滤）。</p>
+      <p style="margin:4px 0 0 0;"><strong>技术债登记（M3-b4 发现·2026-09-01 更新）</strong>：<code>dsh-cordis-host-runner</code> 未装载 → <code>dynamicCordisRunner/*</code>（inspect providers 同步 / 动态插件运行）service-unavailable。<b>客户端半边（client-runner + ui-cordis 面板）已随修复 #5 移出渲染图谱，噪音清零</b>；动态插件运行能力仍不支持（desktop 零端口架构刻意禁用），插件清单经 cordis-inventory 兼容面在设置页查看。留 M5 评估是否补齐装载链（依赖 <code>tools</code> 服务）。</p>
+      <p style="margin:8px 0 0 0;"><strong>即将创建/修改的文件（M4-a2）：</strong></p>
+      <ul style="margin:4px 0 0 0;">
+        <li><code>src/types/desktop.ts</code> 或 <code>src/types/protocol.ts</code>（dsh:// URL 契约 zod Schema：action 白名单/session id 格式/query 长度上限）</li>
+        <li><code>src/desktop-host/dsh-protocol.ts</code>（入口校验：非法 URL 拒绝 + 审计记录）</li>
+      </ul>
+      <p style="margin:8px 0 0 0;"><strong>关键阻塞项</strong>：M2-c 旧插件门禁（<code>dsh-terminal</code>/<code>dsh-rule-manager</code>/<code>dsh-restart</code>）载体来源待确认，<b>不阻塞 M3/M4</b>。</p>
+      <p style="margin:8px 0 0 0; font-size:0.9rem; color:var(--text-muted);"><strong>AI 交互指令提示</strong>：后续会话可直接提示 "按照 active-context.md 的 M4-a2 继续执行"。</p>
+    </div>
+
+    <!-- 05. 维护 -->
+    <div class="card">
+      <h2>🔄 规则自我演进维护</h2>
+      <p>本文件为动态看板。每次完成任务节点或发生业务需求变更时，AI 必须按 <code>workflow.md</code> 场景 C 规则更新协议，同步更新 MD 版并重新渲染 <code>docs/active-context.html</code>，确保任务状态与工程代码一致。</p>
     </div>
   </div>
 </body>
