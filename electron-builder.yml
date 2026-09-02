@@ -39,6 +39,11 @@ protocols:
 mac:
   icon: src/desktop-shell/web/app-icon-light.png
   category: public.app-category.productivity
+  # ad-hoc 签名：默认无证书时完全跳过签名，未签名 app 在 mac 上会被 Gatekeeper 杀掉
+  # （M 系列更是直接无法启动）；ad-hoc 保证签名完整性，无需 Apple 开发者账号。
+  # hardenedRuntime 关闭：ad-hoc + hardened 需要额外 entitlements，且 node-pty 需加载 asar 外 dylib
+  identity: '-'
+  hardenedRuntime: false
   target:
     - target: dmg
       arch:
