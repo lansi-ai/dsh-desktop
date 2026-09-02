@@ -390,11 +390,6 @@ async function bootstrap(): Promise<void> {
     })
     await themeSyncHandle.ready
 
-    // 4.5 持久化会话预热：冷会话仅 session-scoped 懒路径可恢复，清单中的会话
-    // （含 blank 复用路径）需要 live agent；启动后统一经 session.create 重挂载。
-    const { rewarmPersistedSessions } = await import('../desktop-host/session-rewarm.js')
-    await rewarmPersistedSessions(callApi)
-
     // 5. 注册 IPC 载波服务到 Cordis 上下文（0.1.2：走 connection createSharedFetchHandler）
     registerIpcCarrierServices(hostCtx, {
       handleRpc: async (request: RpcRequest) => {
@@ -424,6 +419,13 @@ async function bootstrap(): Promise<void> {
 
     // 6.1 骨架外观注入主窗口（:root 外观变量；did-finish-load 后生效，已加载则立即注入）
     desktopAppearanceHandle?.attach(win)
+
+    // 6.2 持久化会话预热：冷会话仅 session-scoped 懒路径可恢复，清单中的会话
+    // （含 blank 复用路径）需要 live agent；启动后统一经 session.create 重挂载。
+    // 不 await（fire-and-forget）：低配机器单会话挂载可达秒级，串行等待会显著
+    // 推迟窗口首帧；窗口先行展示，预热在后台进行（单会话超时见 session-rewarm.ts）。
+    const { rewarmPersistedSessions } = await import('../desktop-host/session-rewarm.js')
+    void rewarmPersistedSessions(callApi)
 
     // 7.5. 初始化窗口管理器（M3·多窗口基建 + 持久化）
     const windowStateFilePath = join(app.getPath('userData'), 'window-state.json')

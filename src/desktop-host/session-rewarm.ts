@@ -27,6 +27,20 @@ const sessionListValueSchema = z.object({
   items: z.array(sessionSummarySchema).default([]),
 })
 
+/** 单会话挂载超时：低配机器挂载可达秒级，超时按失败计（告警），不拖死整体预热。 */
+const REWARM_TIMEOUT_MS = 10_000
+
+/** 给 Promise 套超时壳（超时即 reject，底层调用不取消，由 host 侧自然结束）。 */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} 超时（${ms}ms）`)), ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (error) => { clearTimeout(timer); reject(error) },
+    )
+  })
+}
+
 /** host 侧 RPC 调用入口（复用 apiProxy 的 toFetchHandler 通路）。 */
 export type ApiRpcCaller = (method: string, params: unknown) => Promise<unknown>
 
@@ -51,7 +65,13 @@ export async function rewarmPersistedSessions(call: ApiRpcCaller): Promise<void>
     if (candidates.length === 0) return
 
     const results = await Promise.allSettled(
-      candidates.map((s) => call('session.create', { request: { sessionId: s.sessionId, cwd: s.cwd } })),
+      candidates.map((s) =>
+        withTimeout(
+          call('session.create', { request: { sessionId: s.sessionId, cwd: s.cwd } }),
+          REWARM_TIMEOUT_MS,
+          `会话 ${s.sessionId} 挂载`,
+        ),
+      ),
     )
     const failed = results.filter((r) => r.status === 'rejected')
     log.ok(`[session-rewarm] 持久化会话预热完成: ${candidates.length - failed.length}/${candidates.length} 个已挂载`)
