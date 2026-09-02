@@ -265,8 +265,8 @@
         toolName: subagent_fork
         backgroundMode: one-shot
 
-    - id: tool-subagent-report
-      name: '@deepseek-ai/dsh-tool-subagent-report'
+    # 0.1.2-alpha.4：tool-subagent-report 条目移除（report 工具被 send_message 取代，
+    # 并入 dsh-tool-subagent 本体；独立包 npm 漏发 alpha.4，与 boot.ts 同步）
 
     - id: workflow-worker-thread
       name: '@deepseek-ai/dsh-workflow-worker-thread'

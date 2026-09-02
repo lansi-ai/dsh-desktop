@@ -213,7 +213,8 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'tool-subagent-list-agents', name: '@deepseek-ai/dsh-tool-subagent-control/list-agents' },
       { id: 'tool-subagent', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', toolName: 'subagent', backgroundMode: 'continuable' } },
       { id: 'tool-subagent-fork', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'fork', toolName: 'subagent_fork', backgroundMode: 'one-shot' } },
-      { id: 'tool-subagent-report', name: '@deepseek-ai/dsh-tool-subagent-report' },
+      // 0.1.2-alpha.4：单向 report 工具被 send_message 取代（并入 dsh-tool-subagent 本体），
+      // 独立包 dsh-tool-subagent-report 已废且 npm 漏发 alpha.4，条目移除（对齐官方 web-app roster）。
       // 0.1.2：subagent 模型选择设置（Host 平面顶层，对齐官方 web-app insert）。
       // 缺此服务时，任何带 `modelSelectionSettings: true` 的 tool-subagent 装载
       // （含恢复历史会话）会抛 "requires @deepseek-ai/dsh-tool-subagent/model-selection-settings

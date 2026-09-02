@@ -1,6 +1,6 @@
 # Upstream 同步与拴合面迁移登记表（sync-upstream · ADR-005）
 
-> 基线版本：**已升级至 `dsh-v0.1.2-alpha.3`**（2026-09-01 M4-d3 执行完成，详见「C-1」；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
+> 基线版本：**已升级至 `dsh-v0.1.2-alpha.4`**（2026-09-02 执行，详见「C-2」；前基线 `0.1.2-alpha.3` 由 2026-09-01 M4-d3 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
 > **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`** 为官方 `latest`/`next` 稳定基线；文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`。`0.1.2-alpha.3` 为官方实验性版本，**虽非官方转正基线，但已由桌面按 M4-d3 专项实际升级采用**（用户决策，推翻 C-1 预评估「不选」结论）。该两版本 3 类拴合面 diff 均已登记于「C. 升级核查」与「C-1」。
 > 本表随每次上游基线升级滚动更新；升级时必须逐行核对「3 类拴合面」，未核对完不得宣告升级完成。
 
@@ -73,6 +73,25 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 | R4 | **收益不明确、风险即时兑现** | `0.1.2` 相对 `0.1.1-rc.2` 的发布说明主要是体验优化（image upload 相关），无当前项目缺失的关键能力；而破坏性适配成本高、与主线冲突大、「先升再说」违背可回滚原则 | 对照 0.1.2 release notes + ADR-005 原则 |
 
 > **预评估后的行动（历史）**：原计划按 M4-d2 升 `0.1.1-rc.2`；`0.1.2-alpha.3` 留待官方转正再评估。**该行动已被用户决策改写（2026-09-01）：直接执行 M4-d3 升 `0.1.2-alpha.3`**（详见 M4-d3 看板 + `docs/m4-d3-012-alpha3-migration-plan.md`）。C-1 差异表（含本 C-1a 否决理由）作为迁移依据与历史记录保留。
+
+### C-2 升级核查：`0.1.2-alpha.3` → `0.1.2-alpha.4`（2026-09-02 执行完成 · 无破坏性变更）
+
+> **结论：桌面零适配直接升级**（仅 package.json 四包版本号 + lockfile）。diff 工作区 = 浅克隆 tag 快照（`desktop/.tmp-harness-012a4`，commit `4e84901`，diff 完毕已删除；标准 worktree `_harness-012a4` 可按需重建）。全仓 2397 文件变更，大头为 `invariant.ts` 样板删除 + tsconfig/README 噪声，实质变更聚焦 session 域内部重构与 ui-* CSS 打磨。
+
+| 拴合面 | alpha.3 → alpha.4 diff 结论 | 桌面影响 | 迁移风险 |
+| --- | --- | --- | --- |
+| S1 · 装载协议 (`web/src/boot.ts` + `__DSH_BOOT_READY__`) | **零差异**（`apps/web` 仅 tests 变更；`dsh-client-web` 仅 boot-page CSS） | 无 | 🟢 低 |
+| S2 · IPC 载波 (`client-connection` + api gateway/remotes) | `client/connection` 主源码零实质变更（仅 fixture/invariant 样板）；`api/gateway`、`api/remotes`、`workspace/settings-controller` 仅构建配置变更。`__DSH_TRANSPORT__` 契约不变 | 载波零改动 | 🟢 低 |
+| S3/S3b · 装配 profile (`app-boot`) + roster/manifest (`client-modules`) | `dsh-app-boot` 仅 tsdown/样板变更；`client/modules` 仅版本号。`__DSH_BOOT__` 图谱格式、PLATFORM_MODULES seed 不变 | 装配零改动 | 🟢 低 |
+| **session 域内部重构**（`core/session` +785/-401、`api/session-controller`） | 官方 release 注明两项：① `Session.events` 数组 → 按需读取 API（`seq`/`eventAt()`/`snapshotEvents()`）；② `SessionSeq`/`SessionLogOffset` 品牌强类型拆分。**全部为 host 内部实现**，随 npm 包整体升级封装；wire 契约仅类型层（`SessionSeq` 运行时仍 number、`SessionWireSurfaceOp` 与旧 `SurfaceOp` 变体完全一致 = `append \| {op:'replace',start,end}`）；`session.list`/`session.create`/`session.control` 端点与参数签名未动 | session-rewarm（wire 消费）不受影响；桌面源码无 `.events`/`SessionSeq` 直接消费 | 🟢 低（官方提示开发者关注兼容性，已核对） |
+| ui-* 包清单 | 与 alpha.3 **完全一致**，零增删 | `CLIENT_EXCLUDE_IDS` 无需新增 | 🟢 低 |
+| ui-slots / ui-renderer | **增量式**：新增可选 `keyedHooks` 隔间（`KeyedHooksSources`/`KeyedSnapshotSelectorHook`）+ `bindInjectSources` 对其绑定；既有 `hooks` 契约与 `SessionProvider`/scoped slots 语义不变 | 自研 layout/sidebar/titlebar 零改动 | 🟢 低 |
+| ui-theme | `ctx.theme` API 不变；新增 `corner-shape.css`/`gradient-shadow-text.css` 样式注入（官方「圆角、描边、投影」打磨） | ThemePresenter 等价面零改动 | 🟢 低 |
+| 其余 ui-*（chat/conversation/tool/trajectory 等） | CSS 打磨 + 内部重构（deliverables/trajectory 内聚），槽位契约未变 | 官方 UI dist 整体受益，无适配 | 🟢 低 |
+| dist 构建产物 | `dsh-web-frontend`/`dsh-web-app` 发布 `0.1.2-alpha.4`，4 包 npm 可对齐；`index.html` 结构未变 | dsh-ui-protocol 注入点稳定 | 🟢 低 |
+| 行为面（非代码） | 官方 release：父/子 Agent `send_message` 双向消息取代单向 `report`；Web PTC 默认撤下通用 `workflow` 工具；Python SDK/Headless/ACP/自定义 Profile 默认启用 `web_fetch` | **实机启动失败一处（已修）**：`send_message` 取代 `report` 后，官方未再发布独立包 `@deepseek-ai/dsh-tool-subagent-report`（npm 最高 alpha.3，**漏发 alpha.4**），新工具并入 `dsh-tool-subagent` 本体——桌面 roster（boot.ts + desktop-patch.yml 两处同源）残留 `tool-subagent-report` 条目致 loader import 失败 → 条目移除（对齐官方 web-app roster），typecheck/lint/build 复验零错误 | 🟡 中（已收口） |
+
+**验证记录（2026-09-02）**：`npm install` 成功（四包对齐 `0.1.2-alpha.4`）；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功。**实机首启暴露 1 处 roster 残留**（上行为面行，tool-subagent-report 条目移除后收口）；roster 全量 99 引用/97 包存在性 + 版本核对通过。实机对话冒烟待做（与 M3-b4 dogfood 合并观察）。
 
 ## D. sync-upstream SOP（升级一次跑一遍）
 

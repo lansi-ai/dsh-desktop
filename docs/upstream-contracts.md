@@ -1,8 +1,9 @@
-# 上游拴合面速查（dsh-v0.1.2-alpha.3 · 2026-09-01 M4-d3 迁移后）
+# 上游拴合面速查（dsh-v0.1.2-alpha.4 · 2026-09-02 复核）
 
 > **用途**：对接/排查 `@deepseek-ai` 上游包时先查此表，免钻 node_modules。
 > **事实来源**：M1-M3 攻坚实证（坑号 = docs/pitfalls.md）+ 2026-09-01 M4-d3 迁移实证（0.1.2-alpha.3）。
 > **⚠️ 0.1.2 破坏性变更**：`dsh-host-apiproxy`/`AbstractApiClient`/`dsh-client-runtime` 已删，RPC 通道与载波形态整体重构（见 §1/§2）；§7 契约矩阵已按 M4-d3 迁移后的实际代码刷新，后续上游再升级须逐条复核。
+> **2026-09-02 alpha.4 复核（C-2）**：`0.1.2-alpha.3 → 0.1.2-alpha.4` **无破坏性变更**，本表全部契约条目在 alpha.4 仍然成立（session 域为 host 内部重构；ui-slots/ui-renderer 新增 `keyedHooks` 为增量可选）。详见 upstream-migrations「C-2」。
 
 ## 1. RPC 通道归属（renderer → host，0.1.2 新形态）
 
