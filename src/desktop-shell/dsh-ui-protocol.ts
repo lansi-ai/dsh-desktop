@@ -187,10 +187,20 @@ function bootManifestScript(useDist: boolean): string {
   // 0.1.2 就绪门控：官方 `AppWebEntry.run()` 首行 `await __DSH_BOOT_READY__.promise`。
   // 桌面在 `__DSH_BOOT__` + 模块系统 bootstrap 脚本之后 resolve（对齐官方 webserver
   // tail 脚本 `READY_MARKUP`：`??= Promise.withResolvers()` 后 resolve）。
+  // 调试：`DSH_BARE_SCREEN_MS` > 0 时延迟 resolve，拉长「骨架裸屏期」（插件未装载）
+  // 供观察首帧样式，如 `$env:DSH_BARE_SCREEN_MS='10000'`。
+  const bareScreenMs = Number.parseInt(process.env.DSH_BARE_SCREEN_MS ?? '', 10)
+  const bareScreenDelay = Number.isFinite(bareScreenMs) && bareScreenMs > 0 ? bareScreenMs : 0
   const readyScript = `<script>
 (()=>{
   const ready = globalThis.__DSH_BOOT_READY__ ??= Promise.withResolvers()
-  ready.resolve()
+  const delay = ${bareScreenDelay}
+  if (delay > 0) {
+    console.warn('[dsh-ui-protocol] 裸屏观察模式：延迟 ' + delay + 'ms 后再装载插件')
+    setTimeout(() => ready.resolve(), delay)
+  } else {
+    ready.resolve()
+  }
 })()</script>`
   return boot + versionScript + transportScript + readyScript
 }

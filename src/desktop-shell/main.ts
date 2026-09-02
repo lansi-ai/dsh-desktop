@@ -16,6 +16,7 @@ import {
 import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
 import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
+import { closeStartupSplash, createStartupSplash, splashPhase, startSplashDemo } from './splash.js'
 import { refreshTrayIcon } from '../desktop-host/desktop-tray.js'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection' with { 'resolution-mode': 'import' }
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway' with { 'resolution-mode': 'import' }
@@ -183,6 +184,7 @@ function createWindow(): BrowserWindow {
 
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     log.error(`[dsh-desktop] 页面加载失败 (${errorCode}): ${errorDescription} URL: ${validatedURL}`)
+    splashPhase('加载失败，正在重试…')
   })
 
   // 渲染进程崩溃自愈：自动 reload 窗口，超次升级整体重启
@@ -207,6 +209,8 @@ function createWindow(): BrowserWindow {
   // M3-b3：--hidden 静默模式下不显示主窗口（开机自启登录后驻留托盘）
   win.once('ready-to-show', () => {
     if (!launchOptions.hidden) win.show()
+    // 主窗口首帧就绪，启动闪屏完成使命（多窗口/activate 复建时闪屏已不存在，静默忽略）
+    closeStartupSplash()
   })
   win.on('closed', () => {
     cleanupWindowState(win.id)
@@ -234,6 +238,18 @@ async function bootstrap(): Promise<void> {
     if (app.isPackaged) app.setAppUserModelId('deepseek-harness.desktop')
     if (process.platform === 'darwin') app.dock?.setIcon(loadAppIcon())
 
+    // 0.5 即时响应闪屏：Host 装配在低配机器可达数秒，必须先给「已响应」反馈
+    // （纯静态窗口，whenReady 后立即显示；--hidden 静默驻留托盘时不弹）。主窗口
+    // ready-to-show 首帧后由 closeStartupSplash() 销毁接管。
+    // 调试：DSH_SPLASH_DEMO=1 模拟慢速装配进度（验证进度条动效）——演示模式下
+    // 不接真实 onProgress（200ms 真实轮询会覆盖 400ms 慢放演示）；须配合
+    // DSH_STARTUP_DELAY_MS 拉长装配期，否则真实首帧会提前销毁闪屏。
+    const splashDemo = process.env.DSH_SPLASH_DEMO === '1'
+    if (!launchOptions.hidden) {
+      createStartupSplash()
+      if (splashDemo) startSplashDemo()
+    }
+
     // 1. 协议注册（必须在 boot 前：boot 期间可能触发 dsh-ui:// 加载）
     registerDshUiProtocol()
 
@@ -251,6 +267,7 @@ async function bootstrap(): Promise<void> {
     const { bootDesktopHost } = await import('../desktop-host/boot.js')
     const auditLogFilePath = join(app.getPath('userData'), 'audit.jsonl')
     log.phase('宿主装配')
+    splashPhase('正在装配宿主…')
     log.info('[dsh-boot] 启动 Cordis Host...')
     const hostCtx = await bootDesktopHost({
       // 开发模式：bareModuleBaseUrl 指向项目 node_modules（生产模式由打包配置覆盖）
@@ -288,6 +305,7 @@ async function bootstrap(): Promise<void> {
 
     // 4. 连接 IPC 桥与 Cordis Host 的 0.1.2 传输背板（connection + typertGateway）
     log.phase('载波桥接')
+    splashPhase('正在桥接载波…')
     // 0.1.2 中 host 传输由官方 connection(HostConnectionHandle) + typertGateway 提供：
     //   - unary：connection.createSharedFetchHandler('/api').fetch(request)（业务端点 + $events/result）
     //   - 逻辑流：typertGateway.wireStream.open(endpoint, payload, signal)（$events + 业务流）
@@ -401,6 +419,7 @@ async function bootstrap(): Promise<void> {
 
     // 6. 创建窗口并加载官方 UI
     log.phase('窗口装配')
+    splashPhase('正在加载界面…')
     const win = createWindow()
 
     // 6.1 骨架外观注入主窗口（:root 外观变量；did-finish-load 后生效，已加载则立即注入）
@@ -511,6 +530,7 @@ async function bootstrap(): Promise<void> {
     })
   } catch (error: unknown) {
     log.error('[dsh-desktop] 启动失败:', error)
+    closeStartupSplash()
     app.quit()
   }
 }
