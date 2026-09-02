@@ -49,6 +49,24 @@ export interface BootOptions {
   readonly servePort?: number
   /** 审计日志文件路径（M3-b2，JSONL 格式）。 */
   readonly auditLogPath?: string
+  /**
+   * 插件树装配进度回调（启动闪屏进度条数据源）。
+   *
+   * 实现口径：prepare 钩子内起 200ms 轮询，读 `ctx.loader.entries()` 的 fiber
+   * 状态（2=active / 0=pending / 3=failed，disabled 视为完成）；boot 返回后
+   * 停止轮询并回调终值。轮询定时器已 unref，绝不影响进程退出。
+   */
+  readonly onProgress?: (progress: BootProgress) => void
+}
+
+/** 插件树装配进度快照（onProgress 回调负载）。 */
+export interface BootProgress {
+  /** 已完成激活的条目数（含 disabled）。 */
+  readonly active: number
+  /** 当前已发现的条目总数（随树解析增长）。 */
+  readonly total: number
+  /** 正在挂载的插件名（pending 状态的第一个条目；无则空串）。 */
+  readonly current: string
 }
 
 // ── Desktop profile overlay patches ─────────────────────────────────────────
@@ -351,12 +369,41 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
   const configPath = options.configPath ?? createRootConfig()
   const patches = options.patches ?? buildPatches(serveMode, servePort)
 
-  const ctx = await boot(
+  // 装配进度轮询句柄（prepare 钩子内启动，finally 统一清理）。
+  let progressTimer: ReturnType<typeof setInterval> | undefined
+
+  try {
+    return await boot(
     'dsh-desktop',
     configPath,
     patches,
     // prepare 钩子：在 Loader 安装后、插件树挂载前注入 cmdlineArgs 服务 + desktopStartup 元信息
     async (hostCtx) => {
+      // 装配进度轮询（BootOptions.onProgress）：读 loader entries 的 fiber 状态
+      // （2=active / 0=pending，disabled 视为完成；状态值与 dsh-app-boot 镜像对齐），
+      // 200ms 上报一次给启动闪屏进度条。定时器 unref，绝不影响进程退出。
+      if (options.onProgress) {
+        const loader = hostCtx.get('loader') as
+          | { entries(): Iterable<{ options: { name?: string }; disabled?: boolean; fiber?: { state?: number } }> }
+          | undefined
+        if (loader !== undefined) {
+          const onProgress = options.onProgress
+          progressTimer = setInterval(() => {
+            let active = 0
+            let total = 0
+            let current = ''
+            for (const entry of loader.entries()) {
+              total++
+              if (entry.disabled) { active++; continue }
+              if (entry.fiber?.state === 2) { active++; continue }
+              if (entry.fiber?.state === 0 && current === '') current = entry.options.name ?? ''
+            }
+            onProgress({ active, total, current })
+          }, 200)
+          progressTimer.unref?.()
+        }
+      }
+
       provideCmdline(hostCtx, {
         args: Object.freeze([]),
         exit: (code: number) => {
@@ -432,9 +479,11 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
       }
     },
     options.bareModuleBaseUrl,
-  )
-
-  return ctx
+    )
+  } finally {
+    // 装配结束（成功或失败）都停掉进度轮询，避免定时器残留。
+    if (progressTimer !== undefined) clearInterval(progressTimer)
+  }
 }
 
 /**

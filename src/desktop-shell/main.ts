@@ -16,7 +16,7 @@ import {
 import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
 import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
-import { closeStartupSplash, createStartupSplash, splashPhase, startSplashDemo } from './splash.js'
+import { closeStartupSplash, createStartupSplash, splashPhase, splashProgress, startSplashDemo } from './splash.js'
 import { refreshTrayIcon } from '../desktop-host/desktop-tray.js'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection' with { 'resolution-mode': 'import' }
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway' with { 'resolution-mode': 'import' }
@@ -277,6 +277,9 @@ async function bootstrap(): Promise<void> {
       servePort: launchOptions.servePort,
       // M3-b2 审计日志路径
       auditLogPath: auditLogFilePath,
+      // 启动闪屏进度条：真实装配进度（loader entries fiber 状态轮询，见 BootOptions.onProgress）；
+      // 演示模式（DSH_SPLASH_DEMO=1）下不接，避免真实轮询覆盖慢放演示。
+      onProgress: splashDemo ? undefined : splashProgress,
     })
     log.ok('[dsh-boot] Cordis Host 已就绪')
     if (isVerbose()) log.info('[dsh-desktop] hostCtx:', hostCtx)
