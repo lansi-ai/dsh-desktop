@@ -124,7 +124,7 @@
       <p><strong>版本阶段：</strong><b>M3 代码全部完成</b>（2026-08-26）→ <b>M6 全量自绘 UI 主线启动（2026-08-27 · D-20 插队优先，ADR-006 启用）</b>；M3-b4 dogfood 进行中；M4 分发整体延后</p>
       <p><strong>M3 核心价值（代码侧已达成）：</strong>多窗口独立会话 + 命令面板（Ctrl+K）+ <code>dsh://</code> 协议唤起 + 会话审计查询 + 开机自启。</p>
       <p><strong>M3-b4 dogfood（进行中）：</strong>2 周实机验收（日常使用无浏览器）+ 全量回归 + <code>netstat</code> 零监听红线再验证 + 崩溃恢复/多窗口组合异常测试。dogfood 结果作为 M3 正式收尾门禁，不阻塞自绘开发。</p>
-      <p><strong>M4 分发（⏸️ 延后 · D-20）：</strong>electron-builder 基建已完成（M4-a1），a2 之后全部顺延至自绘完成后重启；已产出的安装包对应官方 UI 版。<b>M4-d3 0.1.2-alpha.3 升级专项已执行完成（2026-09-01，见 M4-d 节）</b>：基线由 rc.8 直接升至 0.1.2-alpha.3（载波整链重写），M4-d2（0.1.1-rc.2）被覆盖。</p>
+      <p><strong>M4 分发（⏸️ 延后 · D-20）：</strong>electron-builder 基建已完成（M4-a1），a2 之后全部顺延至自绘完成后重启；已产出的安装包对应官方 UI 版。<b>M4-d3 0.1.2-alpha.3 升级专项已执行完成（2026-09-01，见 M4-d 节）</b>：基线由 rc.8 直接升至 0.1.2-alpha.3（载波整链重写），M4-d2（0.1.1-rc.2）被覆盖。<b>M4-d4/M4-d5 已升至 0.1.2-alpha.5（2026-09-02/03，零适配）</b>；<b>M4-d5 起由自动化工具 <code>scripts/upstream.cjs</code> 执行（check/assess/upgrade/auto，判定 safe 才自动升级）</b>。</p>
       <p><strong>自绘主线（2026-08-27 · D-20）：</strong>全量自绘 = 逐槽位替换官方 ui-*（P1 骨架 ✅ → P2 外壳 → P3 侧栏 → P4 对话区 → P5 过程可视化 → P6 设置底座），每阶段可用可验证；数据面零新增（IPC 载波 + desktopBridge）。</p>
       <p><strong>并行决策（2026-08-26）：</strong>D-13 M3-b4 dogfood 与 M4 任务并行推进（M4 现延后，dogfood 仍继续）；R10 协议安全白名单 + M3-b3 自启打包版验证随 M4 延后；M2-c 继续置后；R6/R7 技术债留 M5。</p>
     </div>
@@ -306,7 +306,7 @@
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-c1 离线路径</strong>：网络不可用时的 UI 降级 + 历史会话读取 e2e（Playwright + Electron）</span></li>
       </ul>
 
-      <h3>M4-d 第四波：上游基线升级（已升 0.1.2-alpha.4 · 原计划 0.1.1-rc.2 被覆盖）⏳</h3>
+      <h3>M4-d 第四波：上游基线升级（已升 0.1.2-alpha.5 · 原计划 0.1.1-rc.2 被覆盖）⏳</h3>
       <ul class="task-list">
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1 升级目标核实 + 拴合面 diff 登记（2026-09-01）</strong>：实测上游最新稳定为 <code>dsh-v0.1.1-rc.2</code>（npm latest/next 与 GitHub Latest 一致，4 包对齐；<b>旧载「rc.12」系臆测项，npm/GitHub 均无</b>）；拉取 tag 检出 <code>_harness-011rc2</code> worktree，3 类拴合面逐行 diff → 结论<b>无破坏性变更，桌面零适配</b>（登记 upstream-migrations C 区 + upstream-contracts 7.4 全部 [x]）</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1b 最新 alpha 预评估（2026-09-01，只读）</strong>：实测最新发布 <code>0.1.2-alpha.3</code>（未转正，latest/next 仍为 0.1.1-rc.2）。0.1.1→0.1.2 为<b>破坏性重构</b>（S2 <code>AbstractApiClient</code> 删除→载波整条重写、S3b runtime 净-7000行重组+拆 <code>dsh-client-store</code>、S1 新增 <code>__DSH_BOOT_READY__</code> 门控、ui-* 契约变更）。<b>预评估结论：不选，维持计划 0.1.1-rc.2</b>；该结论已被 M4-d3 用户决策推翻（见下）；评估登记 upstream-migrations C-1 区，worktree <code>_harness-012a3</code> 保留</span></li>
@@ -319,6 +319,12 @@
             <li class="task-item sub done"><span class="status-icon">[x]</span><span><b>实机首启修复（2026-09-02）</b>：<code>Cannot find package '@deepseek-ai/dsh-tool-subagent-report'</code> —— release 的 <code>send_message</code> 取代单向 <code>report</code> 后官方<b>未发布该独立包 alpha.4 版</b>（npm 最高 alpha.3），新工具并入 <code>dsh-tool-subagent</code> 本体；桌面 roster 残留条目（boot.ts + desktop-patch.yml 两处同源）→ 移除并对齐官方 web-app roster；roster 全量 99 引用/97 包存在性+版本核对通过；复验 typecheck/lint/build 零错误（登记 upstream-migrations C-2 行为面行）</span></li>
             <li class="task-item sub done"><span class="status-icon">[x]</span><span>文档登记：upstream-migrations C-2 + upstream-contracts 头部复核标注 + 12-references 版本时点</span></li>
             <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>实机冒烟：随 M3-b4 dogfood 合并观察（重点看 session 域重构后对话流/历史分页/审计无回归）</span></li>
+          </ul>
+        </li>
+
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d5 <code>0.1.2-alpha.5</code> 自动升级（2026-09-03 执行完成 · 自动化工具首跑 · 无破坏性变更）</strong>：官方发布 <code>dsh-v0.1.2-alpha.5</code>。<b>新增 <code>scripts/upstream.cjs</code> 自动化工具</b>（sync-upstream 自动化 · ADR-005）：<code>check</code>（npm dist-tags 查新版本）/ <code>assess &lt;ver&gt;</code>（GitHub Tree/Contents API 自动 diff 拴合面 S1/S2/S3/S3b + ui-* 契约 + roster 包存在性 + 官方 web-app roster 包集，判定 blocked/review/safe）/ <code>upgrade &lt;ver&gt;</code>（safe 则自动 bump+install+typecheck/lint/build+迁移登记）/ <code>auto</code>（全自动流水线）；npm 脚本 <code>upstream:check</code>/<code>upstream:auto</code>。<b>首次实跑</b>：check 检出 alpha.5 → assess 判定 <b>SAFE</b>（拴合面 4 面 + ui-* 契约零差异、roster 92 包全存在、官方 roster 包集无增删）→ upgrade 自动完成（30 依赖升 alpha.5 + install + typecheck/lint/build 零错误 + 迁移登记 C-3）。<b>坑</b>：roster 存在性检查首版误报 <code>cordis-plugin-timer/hmr</code> 缺失——二者为<b>独立版本线</b>（1.x，不跟随 dsh 0.1.2-alpha 线），修正为「版本对齐包查目标版本、独立版本包查任意存在」。登记 upstream-migrations <b>C-3 区</b> + upstream-contracts 头部 + 12-references 版本时点 + workflow.md 场景 D</span>
+          <ul class="task-list">
+            <li class="task-item sub todo"><span class="status-icon">[ ]</span><span>实机冒烟：随 M3-b4 dogfood 合并观察（alpha.5 与 alpha.4 契约零差异，预期无回归）</span></li>
           </ul>
         </li>
 
@@ -418,7 +424,7 @@
         <li>D-1 Electron 主进程内嵌 Cordis Host（非外部子进程）</li>
         <li>D-2 IPC fetch 载波零端口（<code>--serve</code> 显式兼容）</li>
         <li>D-3 主线 = 官方 Web UI 发行物复用（自绘 UI 为 P2，ADR-006 启用）</li>
-        <li>D-4 基线钉本地检出 <code>dsh-v0.1.0-rc.8</code>（<b>2026-09-01 实测上游最新稳定为 0.1.1-rc.2</b>；<b>2026-09-01 M4-d3 已实际升级采用 <code>0.1.2-alpha.3</code></b>；<b>2026-09-02 M4-d4 已升级 <code>0.1.2-alpha.4</code>（零适配）</b>，见 M4-d 节）</li>
+        <li>D-4 基线钉本地检出 <code>dsh-v0.1.0-rc.8</code>（<b>2026-09-01 实测上游最新稳定为 0.1.1-rc.2</b>；<b>2026-09-01 M4-d3 已实际升级采用 <code>0.1.2-alpha.3</code></b>；<b>2026-09-02 M4-d4 已升级 <code>0.1.2-alpha.4</code>（零适配）</b>；<b>2026-09-03 M4-d5 自动工具升级 <code>0.1.2-alpha.5</code>（零适配）</b>，见 M4-d 节）</li>
         <li>D-5 载波替换 = roster/manifest 覆盖 IPC 变体（不改 dist）</li>
         <li>D-6 兼容层 = <code>ctx.webServer</code> 等价面（<code>compat-webserver.ts</code> + 同源 fetch 协议拦截）</li>
         <li>D-8 第三方无改动装载 = <code>boot-graph.buildThirdPartyBundleDecl</code> → host patch INSERT → <code>ctx.webServer</code> 等价服务注入</li>
@@ -448,6 +454,7 @@
       <p style="margin:4px 0 0 0;"><strong>M3-a4 命令面板 + M3-a5 多窗口验证已暂停</strong>（2026-08-27 用户决策：价值存疑，一并挂起，不阻塞 dogfood/M4）：<b>Ctrl+K 入口已隐藏</b>（desktop-cmdpalette-client.js 禁用壳，仅保留快速提问聚焦）；恢复路径见看板对应节；M3-b4 全量回归时多窗口仅验「不崩不干扰」，不验完整链路。</p>
       <p style="margin:4px 0 0 0;"><strong>M4 分发（⏸️ 延后）</strong>：重启时机 = 自绘 UI 可日常使用后；届时先做 M4-a2 R10 协议安全白名单（<code>dsh://</code> 来源校验 + zod 强校验），再走零依赖实机验证与分发门禁；已产出的安装包对应官方 UI 版。</p>
       <p style="margin:4px 0 0 0;"><strong>🛠️ M4-d3 0.1.2 升级专项已完成（2026-09-01）</strong>：依赖升 <code>0.1.2-alpha.3</code>，载波按 worker-preview 自持传输形态整链重写（<code>__DSH_TRANSPORT__</code> + typertGateway + 三 controller + <code>__DSH_BOOT_READY__</code> + M6 插件契约重对），实机验证全链路可用。方案与过程见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>；<code>@lnyanhongyan/dsh-opencode-usage</code> 第三方插件因 0.1.2 不兼容暂移除（待其升版重装）。M4-d2（0.1.1-rc.2 升级）已被 M4-d3 覆盖，不再单独执行。</p>
+      <p style="margin:4px 0 0 0;"><strong>🛠️ 上游版本自动检查工具已上线（2026-09-03 · M4-d5）</strong>：<code>scripts/upstream.cjs</code>（npm 脚本 <code>upstream:check</code> / <code>upstream:auto</code>）自动查 dsh 上游新版本 → 评估破坏性（拴合面 diff + roster 存在性）→ 判定 safe 自动升级、blocked/review 停下报人工。<b>当前基线已自动升至 <code>0.1.2-alpha.5</code></b>（C-3，零适配）。日常可跑 <code>npm run upstream:check</code> 查新版本；新版本出现时跑 <code>npm run upstream:auto</code> 全自动升级。</p>
       <p style="margin:4px 0 0 0;"><strong>M3-b4 dogfood（并行进行）</strong>：实机日常使用打包版（<code>release/DSH Desktop-0.1.0-portable.exe</code>）或 <code>npm run dev</code>；<b>问题统一登记 <code>docs/dogfood-issues.md</code></b>（修前登记现象+第一现场，新会话按 #N 直取）；排障时 <code>$env:DSH_VERBOSE='1'</code> 开全量日志。<b>最近处理（2026-09-01）</b>：① 启动期 theme/rewarm 报错已修复（坑 24，修复 #4）——真实根因是自研启动 unary 未对齐 0.1.2 官方 /api wire 契约（斜杠端点 + args 信封 + 签名参数名），非启动时序；② 终端静音清理完成（坑 25，修复 #5）——<code>/plugins/events</code> 404 与 <code>syncInspectManifest</code> 404 + <code>console-message</code> deprecation + CSP 警告共 4 类噪音清零（boot-graph 排除 hmr/cordis-client-runner/ui-cordis + console-message 现代签名 + CSP 消息过滤）。</p>
       <p style="margin:4px 0 0 0;"><strong>技术债登记（M3-b4 发现·2026-09-01 更新）</strong>：<code>dsh-cordis-host-runner</code> 未装载 → <code>dynamicCordisRunner/*</code>（inspect providers 同步 / 动态插件运行）service-unavailable。<b>客户端半边（client-runner + ui-cordis 面板）已随修复 #5 移出渲染图谱，噪音清零</b>；动态插件运行能力仍不支持（desktop 零端口架构刻意禁用），插件清单经 cordis-inventory 兼容面在设置页查看。留 M5 评估是否补齐装载链（依赖 <code>tools</code> 服务）。</p>
       <p style="margin:8px 0 0 0;"><strong>即将创建/修改的文件（M4-a2）：</strong></p>

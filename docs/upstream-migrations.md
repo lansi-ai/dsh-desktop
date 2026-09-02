@@ -1,6 +1,6 @@
 # Upstream 同步与拴合面迁移登记表（sync-upstream · ADR-005）
 
-> 基线版本：**已升级至 `dsh-v0.1.2-alpha.4`**（2026-09-02 执行，详见「C-2」；前基线 `0.1.2-alpha.3` 由 2026-09-01 M4-d3 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
+> 基线版本：**已升级至 `dsh-v0.1.2-alpha.5`**（2026-09-03 自动工具执行，详见「C-3」；前基线 `0.1.2-alpha.4` 由 2026-09-02 C-2 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
 > **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`** 为官方 `latest`/`next` 稳定基线；文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`。`0.1.2-alpha.3` 为官方实验性版本，**虽非官方转正基线，但已由桌面按 M4-d3 专项实际升级采用**（用户决策，推翻 C-1 预评估「不选」结论）。该两版本 3 类拴合面 diff 均已登记于「C. 升级核查」与「C-1」。
 > 本表随每次上游基线升级滚动更新；升级时必须逐行核对「3 类拴合面」，未核对完不得宣告升级完成。
 
@@ -92,6 +92,22 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 | 行为面（非代码） | 官方 release：父/子 Agent `send_message` 双向消息取代单向 `report`；Web PTC 默认撤下通用 `workflow` 工具；Python SDK/Headless/ACP/自定义 Profile 默认启用 `web_fetch` | **实机启动失败一处（已修）**：`send_message` 取代 `report` 后，官方未再发布独立包 `@deepseek-ai/dsh-tool-subagent-report`（npm 最高 alpha.3，**漏发 alpha.4**），新工具并入 `dsh-tool-subagent` 本体——桌面 roster（boot.ts + desktop-patch.yml 两处同源）残留 `tool-subagent-report` 条目致 loader import 失败 → 条目移除（对齐官方 web-app roster），typecheck/lint/build 复验零错误 | 🟡 中（已收口） |
 
 **验证记录（2026-09-02）**：`npm install` 成功（四包对齐 `0.1.2-alpha.4`）；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功。**实机首启暴露 1 处 roster 残留**（上行为面行，tool-subagent-report 条目移除后收口）；roster 全量 99 引用/97 包存在性 + 版本核对通过。实机对话冒烟待做（与 M3-b4 dogfood 合并观察）。
+
+### C-3 升级核查：`0.1.2-alpha.4` → `0.1.2-alpha.5`（2026-09-03 自动执行 · 无破坏性变更）
+
+> **结论：桌面零适配直接升级**（`scripts/upstream.cjs` 自动评估判定 safe）。拴合面 4 面 + ui-* 槽位契约零差异，roster 92 包全部存在，官方 web-app roster 包集无新增/删除。升级过程自动化工具完成（bump 30 依赖 + install + typecheck/lint/build + 本登记）。
+
+| 拴合面 | alpha.4 → alpha.5 diff 结论 | 桌面影响 | 迁移风险 |
+| --- | --- | --- | --- |
+| S1 · 装载协议面 | 零差异 | 无 | 🟢 低 |
+| S2 · IPC 载波面 | 零差异 | 无 | 🟢 低 |
+| S3 · 装配 profile 面 | 零差异 | 无 | 🟢 低 |
+| S3b · roster/manifest 面 | 零差异 | 无 | 🟢 低 |
+| ui-* 槽位契约 | 零差异 | 无 | 🟢 低 |
+| roster 包存在性（92 包） | 全部存在 | 无 | 🟢 低 |
+| 官方 web-app roster 包集 | 无新增/删除 | 无 | 🟢 低 |
+
+**验证记录（2026-09-03）**：`npm install` 成功（30 依赖升 `0.1.2-alpha.5`）；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功。实机冒烟待做（与 M3-b4 dogfood 合并观察）。
 
 ## D. sync-upstream SOP（升级一次跑一遍）
 
