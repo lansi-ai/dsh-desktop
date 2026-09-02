@@ -12,9 +12,12 @@ files:
   - dist/**/*
   - package.json
 asar: true
-# electron zip 由 @electron/get 下载（CI 走 GitHub 原源很快；本地 Windows 首次下载后
-# 缓存于 %LOCALAPPDATA%\electron\Cache，后续离线可打包）。注意：不要用 electronDist
-# 指向 node_modules/electron/dist —— mac CI 上它只会是宿主架构（arm64），x64 目标会打进错误内核
+# electron zip 走 npmmirror 镜像（@electron/get 缓存键与 URL 绑定，镜像必须写死在配置里
+# 才能保证每次缓存命中；直连 GitHub 慢且易超时）。首次下载后缓存于
+# %LOCALAPPDATA%\electron\Cache，后续离线可打包。注意：不要用 electronDist 指向
+# node_modules/electron/dist —— mac CI 上它只会是宿主架构（arm64），x64 目标会打进错误内核
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
 # 跳过原生模块重编译：node-pty 使用 npm install 时的预编译产物（与 dev 模式行为一致，
 # 避免 node-gyp 在打包机上的工具链/缓存依赖）
 npmRebuild: false

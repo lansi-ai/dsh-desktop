@@ -31,7 +31,13 @@ const CRASH_WINDOW_MS = 60_000
 /** 日志前缀。 */
 const TAG = '[dsh-relaunch]'
 
-const RUNTIME_DIR = join(__dirname, '..', '..', '.runtime')
+/**
+ * 状态目录：打包版 asar 只读（写报 ENOTDIR），收敛到系统 userData/.runtime；
+ * dev 保持项目内 .runtime（与 boot.ts RUNTIME_ROOT 同口径）。
+ */
+const RUNTIME_DIR = app.isPackaged
+  ? join(app.getPath('userData'), '.runtime')
+  : join(__dirname, '..', '..', '.runtime')
 const STATE_FILE = join(RUNTIME_DIR, 'relaunch-state.json')
 
 /** 本次进程是否因崩溃引导退出（用于区分正常退出以清零计数）。 */
