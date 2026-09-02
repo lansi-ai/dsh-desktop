@@ -94,3 +94,19 @@
 
   - 宿主侧 `boot.ts` §3 本就禁用 client-hmr/cordis-client-runner/cordis-host-runner，此修复补齐渲染端排除。
 
+### #6 · 会话头部「Session 日志」导出报 `Export failed: HTTP 403 forbidden`
+
+- 环境：dev + 打包版（0.1.2 载波形态）
+
+- 第一现场：官方导出弹窗错误 `Export failed: HTTP 403 forbidden`；协议层日志 `[dsh-ui-protocol] 403 dsh-ui://app/api/session.export?... (越界)` 同源出现（HEAD 探测请求）；无 RPC 失败日志
+
+- 状态：**fixed**（2026-09-02）
+
+- 根因：官方 `dsh-session-log-export` client 半用**浏览器原生 fetch**（非 `__DSH_TRANSPORT__`）请求同源 `dsh-ui://app/api/session.export`（HEAD 探测 + anchor 下载）。请求落 `dsh-ui://` 协议层 → `matchesCompatRoute('/api/...')` 命中官方 host 半 `dsh-client-connection` 装配时注册在 webServer 等价面的 `/api` **前缀**路由 → 该路由首行 Host/Origin 信任围栏（`isTrustedApiRequest`，`trustedHosts=[]`）判 false → 403 'forbidden'。桌面零端口下浏览器层 GET/HEAD `/api/*` 无人认领（POST unary 走 IPC 载波）
+
+- 修复（两层）：
+
+  - ① 协议层 connection fetch 桥：非 POST 且 `/api/` 前缀的请求转发到 host `connection.createSharedFetchHandler('/api')`（`src/desktop-host/connection-fetch-bridge.ts` + `main.ts` 载波桥接处安装 + `dsh-ui-protocol.ts` 转发），不经 compat 信任围栏（桌面信任模型 = preload 白名单 + IPC 载波）。修复后 403 → 404，暴露第二层缺口
+
+  - ② host 树补装 `session-log-download` 行（`boot.ts` §1，对齐官方 web-app cordis.patch.yml insert）：桌面 overlay 补丁栈系手工策展，官方 web-app 补丁的该行从未插入 → `/api/session.export` 精确 fetch 路由从未注册 → 共享处理器查表 404。inject ['commands','connection'] 与导出依赖（sessionQuery/sessionPersistence/attachments）均已在前
+

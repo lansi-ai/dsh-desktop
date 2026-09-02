@@ -192,6 +192,13 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       // 纯 cordis service 库（static inject: storageDomain/sessionPersistence/sessions，
       // 三者本清单均已装载）；maxNoteBytes 对齐官方 Web bundle（8192）。
       { id: 'message-feedback', name: '@deepseek-ai/dsh-message-feedback', config: { maxNoteBytes: 8192 } },
+      // Session 日志导出 host 半（dogfood #6）：对齐官方 web-app cordis.patch.yml
+      // `session-log-download` insert 行。apply 注册 /api/session.export 精确 fetch 路由
+      // （GET/HEAD，ZIP 流）+ /export 命令；浏览器原生导出请求经协议层 connection fetch 桥
+      // （dsh-ui-protocol.ts）转发到此路由。缺此行 → 导出 HEAD 探测 404（共享处理器
+      // 精确路由表为空）。inject ['commands','connection']，导出依赖 sessionQuery/
+      // sessionPersistence/attachments（本清单均已装载）。
+      { id: 'session-log-download', name: '@deepseek-ai/dsh-session-log-export' },
       { id: 'goal', name: '@deepseek-ai/dsh-goal' },
       { id: 'goal-round-driver', name: '@deepseek-ai/dsh-goal-round-driver' },
       { id: 'command-goal', name: '@deepseek-ai/dsh-command-goal' },

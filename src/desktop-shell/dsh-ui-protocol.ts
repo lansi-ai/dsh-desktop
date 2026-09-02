@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundles } from '../desktop-host/manifest.js'
 import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
+import { dispatchConnectionFetch } from '../desktop-host/connection-fetch-bridge.js'
 import { log, logVerbose } from '../desktop-host/log.js'
 
 /**
@@ -261,6 +262,23 @@ export function registerDshUiProtocol(): void {
       if (bundle !== undefined) {
         logVerbose('dsh-ui-protocol', `200 (bundle route) ${request.url}`)
         return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
+      }
+
+      // connection fetch 精确路由桥（0.1.2 · dogfood #6）：官方 client 半部分能力
+      // （Session 日志导出等）用浏览器原生 fetch 同源请求 /api/<route>（HEAD 探测 +
+      // anchor 下载），不经 __DSH_TRANSPORT__。非 POST 的 /api/ 请求转发到 host
+      // connection 共享 fetch 处理器：命中 connection.fetch 精确路由（如
+      // /api/session.export，GET/HEAD）→ 官方流式响应；未命中 → 官方处理器自身 404。
+      // 必须在 compat 匹配前判断（官方 host connection 注册的 /api 前缀 compat 路由
+      // 首行做浏览器信任围栏检查，对桌面请求恒 403）；POST /api unary 走
+      // desktopBridge.request IPC 载波，不经协议层。
+      if (request.method !== 'POST' && url.pathname.startsWith('/api/')) {
+        const bridged = dispatchConnectionFetch(request)
+        if (bridged !== null) {
+          logVerbose('dsh-ui-protocol', `connection fetch bridge ${request.method} ${url.pathname}`)
+          return bridged
+        }
+        return new Response('not found', { status: 404 })
       }
 
       // 第三方 web 插件同源 fetch 拦截（M1 门禁·ADR-007 → M2-b 动态白名单）：

@@ -327,6 +327,12 @@ async function bootstrap(): Promise<void> {
       throw new Error('Cordis Host 未装配 typertGateway（检查 boot.ts 的 dsh-api-gateway）')
     }
     const connectionFetch = connection.createSharedFetchHandler('/api')
+    // 协议层 connection fetch 桥（dogfood #6）：官方 client 半部分能力（Session 日志导出等）
+    // 用浏览器原生 fetch 同源请求 dsh-ui://app/api/<route>（HEAD 探测 + anchor 下载），
+    // 不走 __DSH_TRANSPORT__。安装后 dsh-ui-protocol 把非 POST /api/ 请求转发到此共享
+    // 处理器，命中 connection 精确 fetch 路由（/api/session.export）即流式返回。
+    const { installConnectionFetchBridge } = await import('../desktop-host/connection-fetch-bridge.js')
+    installConnectionFetchBridge((request) => connectionFetch.fetch(request))
     // 解包官方 server-response 信封：result.ok 为真返回 result.value（bridge 包成 {rpcId,data}），
     // result.ok 为假抛错（bridge catch → {rpcId, error}），使 renderer 端正确分流。
     // 注意：非 2xx（如 404）是纯文本 "not found"，需先判 ok，否则 res.json 会抛 SyntaxError。
