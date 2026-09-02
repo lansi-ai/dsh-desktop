@@ -282,11 +282,19 @@
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-c1 离线路径</strong>：网络不可用时 UI 降级 + 历史会话读取 e2e（Playwright + Electron）</span></li>
       </ul>
 
-      <h3>M4-d 第四波：上游基线升级（已升 0.1.2-alpha.3 · 原计划 0.1.1-rc.2 被覆盖）</h3>
+      <h3>M4-d 第四波：上游基线升级（已升 0.1.2-alpha.4 · 原计划 0.1.1-rc.2 被覆盖）</h3>
       <ul class="task-list">
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1 升级目标核实 + 拴合面 diff 登记（2026-09-01）</strong>：实测上游最新稳定为 <code>dsh-v0.1.1-rc.2</code>（npm latest/next 与 GitHub Latest 一致，4 包对齐；旧载「rc.12」系臆测项，npm/GitHub 均无）；拉取 tag 检出 <code>_harness-011rc2</code> worktree，3 类拴合面逐行 diff → 结论无破坏性变更，桌面零适配（登记 upstream-migrations C 区 + upstream-contracts 7.4 全部 [x]）</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d1b 最新 alpha 预评估（2026-09-01，只读）</strong>：实测最新发布 <code>0.1.2-alpha.3</code>（未转正，latest/next 仍为 0.1.1-rc.2）。0.1.1→0.1.2 为破坏性重构（S2 <code>AbstractApiClient</code> 删除→载波整条重写、S3b runtime 净-7000 行重组+拆 <code>dsh-client-store</code>、S1 新增 <code>__DSH_BOOT_READY__</code> 门控、ui-* 契约变更）。预评估结论：不选，维持计划 0.1.1-rc.2；该结论已被 M4-d3 用户决策推翻（见下）；评估登记 upstream-migrations C-1 区，worktree <code>_harness-012a3</code> 保留</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d2 代码级升级执行（0.1.1-rc.2 计划）</strong>：<s>待 M4 重启</s> <b>被 M4-d3 覆盖</b>——2026-09-01 实际直接升 <code>0.1.2-alpha.3</code>（见下），不再单独执行 0.1.1-rc.2 升级</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d4 <code>0.1.2-alpha.4</code> 升级专项（2026-09-02 执行完成 · 零适配增量升级）</strong>：官方发布 <code>dsh-v0.1.2-alpha.4</code>（父/子 Agent <code>send_message</code> 双向消息、模型目录搜索筛选、UI 圆角/描边/投影打磨、超长会话渲染优化）。四包 npm 全可得，直接升版：</span>
+          <ul class="task-list sub">
+            <li class="task-item done"><span class="status-icon">[x]</span><span>拴合面 diff（浅克隆 tag 快照比对 <code>_harness-012a3</code>，commit <code>4e84901</code>）：<b>无破坏性变更</b>——官方两处「开发者注意兼容性」提示（<code>Session.events</code> → <code>seq/eventAt()/snapshotEvents()</code> 按需读取、<code>SessionSeq</code>/<code>SessionLogOffset</code> 强类型）均为 host 内部重构（随 npm 包封装，wire 契约仅类型层品牌化、运行时仍 number；<code>session.list/create/control</code> 端点签名未动）；ui-slots/ui-renderer 新增 <code>keyedHooks</code> 为增量可选隔间；ui-* 包清单零增删（<code>CLIENT_EXCLUDE_IDS</code> 不变）；S1 装载协议/S2 载波/S3 装配全零差异。登记 upstream-migrations <b>C-2 区</b></span></li>
+            <li class="task-item done"><span class="status-icon">[x]</span><span>升级执行：package.json 四包 → <code>0.1.2-alpha.4</code> + npm install；typecheck / lint / build 全零错误（无任何代码改动）</span></li>
+            <li class="task-item done"><span class="status-icon">[x]</span><span>文档登记：upstream-migrations C-2 + upstream-contracts 头部复核标注 + 12-references 版本时点</span></li>
+            <li class="task-item todo"><span class="status-icon">[ ]</span><span>实机冒烟：随 M3-b4 dogfood 合并观察（重点看 session 域重构后对话流/历史分页/审计无回归）</span></li>
+          </ul>
+        </li>
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-d3 <code>0.1.2-alpha.3</code> 升级专项（2026-09-01 执行完成 · 用户决策实际升级，推翻 M4-d1b「不选」）</strong>：桌面按官方 worker-preview 自持传输形态迁移（方案见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>）。依赖 4 官方包升 <code>0.1.2-alpha.3</code>（npm 4 包对齐可装）；<code>@lnyanhongyan/dsh-opencode-usage</code> 因 peer 锁 rc.7 与 0.1.2 不兼容被移除（登记衍生挂起）。4 项专项：</span>
           <ul class="task-list sub">
             <li class="task-item done"><span class="status-icon">[x]</span><span>① 重写 IPC 载波：<code>ipc-connection.js</code> 弃继承 AbstractApiClient（基类已删），改 HTML boot 脚本注入 <code>__DSH_TRANSPORT__ = {fetch, openStream, ownsHost:true}</code>；preload 新增多路流通道（stream-open/frame/close）；bridge 新增流管理（<code>dsh:stream-open</code> → <code>typertGateway.wireStream.open</code>）；<code>carrier-relay.ts</code> 删除（下行改 renderer 经 <code>$events</code> 逻辑流拉取）</span></li>
@@ -313,7 +321,13 @@
         <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>放大窗口布局不跟随（已修复）</strong>：试错①<code>position:fixed</code>+<code>inset</code> 强制定位 <code>#root</code>（错误，破坏官方 <code>height:100%</code> 自适应）→ ②<code>#dsh-root</code> 套壳 B-0（过度，用户纠正「官方根容器没问题」）→ ③<b>回退正确</b>：官方 <code>#root</code> 保留原生自适应，只加 <code>box-sizing+border-box+padding</code> 垫层 + 内层圆角，实机缩放正常</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>铁律</strong>：绝不改官方代码；官方未自有化处走适配器不侵入；官方 <code>#root</code> 是好的，别用 CSS 覆盖其定位/缩放（只加不破坏）</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>升级拴合面速查表已补全</strong>：<code>upstream-contracts.md</code> 第 7 节「自有插件 × 官方契约依赖矩阵 + 升级逐条核查 SOP」，暂不细分 UI/Host 层</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P2 外壳小件</strong>（热身）：<code>dsh-desktop-brand</code> 注册官方 <code>sidebar.brand.mark/name</code> 洞（logo 自有化）+ 会话 header 重排评估</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P2 外壳小件</strong>（热身）：</span>
+          <ul class="task-list sub">
+            <li class="task-item done"><span class="status-icon">[x]</span><span><strong><code>@lansi-ai/dsh-desktop-session-export</code>：Session 日志导出自有化（2026-09-02 完成 · 用户驱动）</strong>：官方 client 半文案写死「浏览器正在下载 Session ZIP 文件」桌面语义错误（locale 重复注册即 throw 无覆盖口）→ 自研 client 半（<code>conversation.session.header.utilities</code> 槽位胶囊 + 弹层 + controller，文案改「正在将 Session ZIP 保存到系统"下载"文件夹」）；<b>host 半保留</b>（<code>session-log-download</code> 行继续提供 /export 命令 + <code>/api/session.export</code> ZIP 流式路由）；boot-graph 排除官方 client bundle + 注册桌面件；primitives 守卫 require + 回退弹层。typecheck/lint/build 零错误，dist 反查通过；<b>dev 实机验证通过（2026-09-02 用户确认）</b></span></li>
+            <li class="task-item todo"><span class="status-icon">[ ]</span><span><code>@lansi-ai/dsh-desktop-brand</code>：注册官方 <code>sidebar.brand.mark/name</code> 洞（logo 自有化，不动 sidebar 壳）</span></li>
+            <li class="task-item todo"><span class="status-icon">[ ]</span><span>会话 header 重排评估（「1 + 对话/轨迹 Tab + Session log」→ TRAE 式会话名 + 按钮组）</span></li>
+          </ul>
+        </li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M6-P3 侧栏自研</strong>（首件 · 壳已落地，dev 实机验证待做）</span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span><strong>摸底结论（两轮深化）</strong>：① ui-sidebar 是壳插件（fold + 新会话 + 5 子槽位声明），会话树由 ui-workspace 注册在 workspaces 洞——<b>先换壳不换内容成立</b>；② ui-workspace 运行时不 require ui-sidebar（dsh.client.inject 仅为装载顺序提示），<b>排除不连坐</b>；③ startSession 由壳经 <code>ctx.workspaces.startSession</code> 实现，布局 owner props <code>{collapsed,width}</code> 天然匹配，<b>布局插件无需改动</b></span></li>
         <li class="task-item sub done"><span class="status-icon">[x]</span><span><code>dsh-desktop-sidebar</code> 壳已创建：fold 状态机（settling 延迟切 rail）+ 新会话 + 折叠钮（<code>layout.toggleSidebar</code>）+ 5 子槽位声明渲染；不依赖 ui-primitives（内联 SVG），v1 中文硬编码（P6 接 locale）</span></li>
@@ -399,6 +413,7 @@
       <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">⏸️ M3-a4 命令面板 + M3-a5 多窗口验证已暂停（2026-08-27 用户决策）：Ctrl+K 入口已隐藏（禁用壳，仅保留快速提问），恢复路径见看板对应节。</p>
       <p style="margin:8px 0 0 0;"><strong>M4 分发（⏸️ 延后）：</strong>重启时机 = 自绘 UI 可日常使用后；届时先做 M4-a2 R10 协议安全白名单（<code>dsh://</code> 来源校验 + zod 强校验）再走分发门禁。</p>
       <p style="margin:8px 0 0 0;"><strong>🛠️ M4-d3 0.1.2 升级专项已完成（2026-09-01）：</strong>依赖升 <code>0.1.2-alpha.3</code>，载波按 worker-preview 自持传输形态整链重写（<code>__DSH_TRANSPORT__</code> + typertGateway + 三 controller + <code>__DSH_BOOT_READY__</code> + M6 插件契约重对），实机验证全链路可用。方案见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>；<code>@lnyanhongyan/dsh-opencode-usage</code> 因 0.1.2 不兼容暂移除（待其升版重装）。M4-d2（0.1.1-rc.2 升级）已被 M4-d3 覆盖，不再单独执行。</p>
+      <p style="margin:8px 0 0 0;"><strong>🛠️ M4-d4 0.1.2-alpha.4 升级已完成（2026-09-02 · 零适配）：</strong>拴合面 diff 结论无破坏性变更（session 域 host 内部重构随包封装；ui-slots/ui-renderer 增量 <code>keyedHooks</code>；ui-* 包清单零增删），package.json 四包直升 <code>0.1.2-alpha.4</code>，typecheck/lint/build 零错误、无代码改动。登记 upstream-migrations C-2 区；实机冒烟随 M3-b4 dogfood 合并观察。</p>
       <p style="margin:4px 0 0 0; font-size:0.9rem; color:var(--text-muted);">即将创建/修改的文件（M4-a2）：</p>
       <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/types/protocol.ts</code>（dsh:// URL 契约 zod Schema：action 白名单/session id 格式/query 长度上限）</p>
       <p style="margin:2px 0 0 0; font-size:0.9rem; color:#34d399;">• <code>src/desktop-host/dsh-protocol.ts</code>（入口校验：非法 URL 拒绝 + 审计记录）</p>
