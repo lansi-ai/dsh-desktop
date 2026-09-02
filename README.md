@@ -55,6 +55,7 @@
 | [`docs/10-development.md`](docs/10-development.md) | 开发环境、构建链路、调试、测试、与上游同步 |
 | [`docs/11-risks.md`](docs/11-risks.md) | 风险登记与控制措施 |
 | [`docs/12-references.md`](docs/12-references.md) | 全部依据：本地源码路径 + 官方/社区 URL 引用 + 现有插件 API 面盘点 |
+| [`docs/plugin-inventory.md`](docs/plugin-inventory.md) | **插件清单与自有化进度**：Host/Client 两侧完整插件树、桌面自有插件（`@lansi-ai/dsh-*`）、互斥排除清单、全量自绘（M6）逐阶段进度 |
 | [`docs/13-ui-design.md`](docs/13-ui-design.md) | **（二期可选）** Desktop-First 自绘 UI 愿景——暂缓，主线不依赖 |
 | [`docs/adr/`](docs/adr/) | 架构决策记录：[ADR-001 选 Electron](docs/adr/adr-001-electron-stack.md) · [ADR-002 宿主内嵌](docs/adr/adr-002-inprocess-host.md) · [ADR-003 IPC 载波](docs/adr/adr-003-ipc-fetch-carrier.md) · [ADR-004 装配模型](docs/adr/adr-004-profile-bundle-model.md) · [ADR-005 版本钉死](docs/adr/adr-005-version-pinning.md) · [ADR-006 自绘主面](docs/adr/adr-006-custom-ui.md)（暂缓·可选） · [ADR-007 旧插件兼容](docs/adr/adr-007-plugin-compat.md) |
 
