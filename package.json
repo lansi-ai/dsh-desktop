@@ -30,10 +30,14 @@
     "typescript-eslint": "^8.68.0"
   },
   "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/cordis-plugin-group": "1.0.2",
     "@deepseek-ai/dsh": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-anonymous-user-id": "0.1.2-alpha.4",
+    "@deepseek-ai/dsh-atomic-write": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-attachment": "0.1.2-alpha.4",
+    "@deepseek-ai/dsh-credentials": "0.1.2-alpha.4",
+    "@deepseek-ai/dsh-launch-environment": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-app-boot": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-authorization": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-bash-local": "0.1.2-alpha.4",
@@ -58,6 +62,8 @@
     "@deepseek-ai/dsh-web-app": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-web-frontend": "0.1.2-alpha.4",
     "@deepseek-ai/dsh-workflow": "0.1.2-alpha.4",
+    "chokidar": "^4.0.3",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   }
 }

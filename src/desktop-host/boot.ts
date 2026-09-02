@@ -124,7 +124,10 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'jobs', name: '@deepseek-ai/dsh-jobs-local' },
       { id: 'llm-retry', name: '@deepseek-ai/dsh-llm-retry' },
       { id: 'settings', name: '@deepseek-ai/dsh-settings-file' },
-      { id: 'credentials', name: '@deepseek-ai/dsh-credentials-local' },
+      // credentials 已从 roster 移除（M4 数据目录选择配套）：官方 dsh-credentials-local
+      // 被 @lansi-ai/dsh-desktop-credentials 自有化实现替代（desktop-credentials.ts），
+      // 在下方 prepare 钩子注入（存储位置跟随首启选定的 harness home / DSH_HOME）。
+      // 基类构造即 ctx.provide('credentials')，官方消费者 inject ['credentials'] 零改动。
       { id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai' },
       // session-persistence-jsonl: !!js dshHomePath('sessions') → 使用运行时数据根下的 sessions 目录
       // 开发模式：userData 在 main.ts 中重定向至 .runtime/user-data；打包模式：RUNTIME_ROOT（系统 userData）
@@ -463,6 +466,17 @@ export async function bootDesktopHost(options: BootOptions = {}): Promise<unknow
         log.ok('[dsh-boot] directoryPicker (Electron native dialog Service) 已注入')
       } catch (error) {
         log.warn('[dsh-boot] directoryPicker 注入失败:', error)
+      }
+
+      // M4·数据目录选择：自有化 credentials provider（desktop-credentials.ts），
+      // 替代 roster 中官方 dsh-credentials-local 条目（已移除）。存储位置 =
+      // `<DSH_HOME|~/.dsh>/.credentials.yaml`（main.ts 启动早期已设 DSH_HOME）。
+      // 失败必须响亮：credentials 缺失 → llm/agent 全链不可用，不能静默降级。
+      try {
+        const { installDesktopCredentials } = await import('./desktop-credentials.js')
+        await installDesktopCredentials(hostCtx)
+      } catch (error) {
+        log.error('[dsh-boot] credentials 服务注入失败（llm/agent 将不可用）:', error)
       }
 
       // M2·地基 desktop-host-core：注入 ctx.desktop 聚合服务（core 子集）。

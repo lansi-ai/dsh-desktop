@@ -93,6 +93,8 @@
 | `desktop-appearance.ts`（骨架外观） | 官方 `html/body/#root` **骨架结构** | 🟡 中 | 官方 body/#root 骨架是否变；`--dsd-*` 变量契约是否仍适用（应跟进 D-18） |
 | `dsh-protocol.ts`（dsh://） | 无官方 UI 依赖 | 🟢 低 | — |
 | `compat-webserver.ts`（webServer 等价面） | 官方第三方插件 HTTP 原义 | 🟢 中 | 第三方插件路由签名是否变（若官方 webServer 契约变动） |
+| `desktop-credentials.ts`（自有化 credentials provider · M4） | 官方 `@deepseek-ai/dsh-credentials` seam：`CredentialProvider` 基类（构造即 provide `credentials` 服务）+ 8 个抽象方法签名 + `credentials/reference-updated`/`record-updated` 事件；`dsh-atomic-write`（withFileLock/writeFileAtomic）、`dsh-launch-environment`（launchEnvironmentOf 分层）；`.credentials.yaml` **version-1 文档格式**（与官方 CLI 互换读写）；路径解析走自有 `desktop-home-paths.ts`（不再依赖官方 dsh-home-paths） | 🟡 中 | ① 基类抽象方法签名是否变；② 文档格式是否升版（version 2）；③ 分层语义（process > file > project-env > user-env）是否变；④ roster 已删官方条目——若恢复官方条目会重复 provide 冲突 |
+| `desktop-home-paths.ts`（自有化 harness home 路径解析 · M4） | 官方 `@deepseek-ai/dsh-home-paths` 的**解析语义**（非运行时）：优先级 configured > `$DSH_HOME` > `~/.dsh`、空串视为未设、tilde 展开、`canonicalizeWatchPath` realpath 规范化 | 🟡 中 | 官方若变更环境变量名（DSH_HOME）、默认目录名（.dsh）或优先级语义 → 官方 16 包与自研栈对同一环境解析出不同 home，数据面脱钩——升级时逐字节 diff 该包 lib/index.js |
 
 ### 7.3 骨架 / 宿主注入面（非插件，但咬官方 HTML）
 

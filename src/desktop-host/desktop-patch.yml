@@ -70,9 +70,9 @@
     - id: settings
       name: '@deepseek-ai/dsh-settings-file'
 
-    - id: credentials
-      name: '@deepseek-ai/dsh-credentials-local'
-
+    # credentials 条目已移除（M4 数据目录选择配套）：官方 dsh-credentials-local 被
+    # @lansi-ai/dsh-desktop-credentials 自有化实现替代（boot.ts prepare 钩子注入，
+    # src/desktop-host/desktop-credentials.ts），存储位置跟随首启选定的 harness home。
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
 
