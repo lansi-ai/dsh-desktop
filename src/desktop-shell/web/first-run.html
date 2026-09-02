@@ -43,7 +43,7 @@
   <p class="hint" id="hint"></p>
   <label class="migrate" id="migrateRow">
     <input type="checkbox" id="migrate" checked>
-    <span>迁移默认目录中的现有数据（凭据、会话记录等）</span>
+    <span id="migrateLabel">迁移现有数据（凭据、会话记录等）到新位置</span>
   </label>
   <div class="spacer"></div>
   <div class="footer">
@@ -95,12 +95,14 @@
   window.addEventListener('DOMContentLoaded', async () => {
     const state = await api.getState()
     document.body.className = state.isDark ? 'dark' : 'light'
-    pathEl.value = state.defaultHome
-    // 旧数据提示：默认目录已有数据且用户改选其他位置时展示迁移选项。
-    if (state.legacyExists) {
-      setHint('检测到默认目录已存在数据（共 ' + (state.defaultHome) + '）')
+    pathEl.value = state.preselect
+    // 迁移选项：源目录（当前在用目录）已有数据时展示，改选其他位置时出现。
+    if (state.sourceExists) {
+      document.getElementById('migrateLabel').textContent =
+        '迁移现有数据（凭据、会话记录等）到新位置（来源：' + state.migrateSource + '）'
+      setHint('当前数据目录：' + state.migrateSource)
       pathEl.addEventListener('input', () => {
-        migrateRow.style.display = (pathEl.value.trim() !== state.defaultHome) ? 'flex' : 'none'
+        migrateRow.style.display = (pathEl.value.trim() !== state.migrateSource) ? 'flex' : 'none'
       })
     }
     refresh()

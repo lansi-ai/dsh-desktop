@@ -23,18 +23,21 @@ export interface FirstRunChoice {
   readonly migrate: boolean
 }
 
-/** 首启窗口入参。 */
+/** 首启窗口入参（首启与重配置共用：重配置时 preselect/migrateSource = 当前在用目录）。 */
 export interface FirstRunOptions {
-  /** 默认数据目录（预选值 = 官方 harness home 缺省解析结果）。 */
-  readonly defaultHome: string
-  /** 默认目录是否已存在（有旧数据时展示迁移选项）。 */
-  readonly legacyExists: boolean
+  /** 路径框预选值（首启 = 默认目录 ~/.dsh；重配置 = 当前在用目录）。 */
+  readonly preselect: string
+  /** 迁移源目录（勾选迁移时从这里拷贝到新位置）。 */
+  readonly migrateSource: string
+  /** 迁移源目录是否已存在（有数据时展示迁移选项）。 */
+  readonly sourceExists: boolean
 }
 
 /** 首启状态页负载（first-run:get-state 响应）。 */
 interface FirstRunState {
-  readonly defaultHome: string
-  readonly legacyExists: boolean
+  readonly preselect: string
+  readonly migrateSource: string
+  readonly sourceExists: boolean
   readonly isDark: boolean
 }
 
@@ -89,7 +92,7 @@ export async function showFirstRunWindow(options: FirstRunOptions): Promise<Firs
   ipcMain.handle(IPC_BROWSE, async () => {
     const ret = await dialog.showOpenDialog(win, {
       title: '选择用户数据存储位置',
-      defaultPath: state.defaultHome,
+      defaultPath: state.preselect,
       properties: ['openDirectory', 'createDirectory'],
     })
     return ret.canceled || ret.filePaths.length === 0 ? null : ret.filePaths[0]
@@ -98,9 +101,9 @@ export async function showFirstRunWindow(options: FirstRunOptions): Promise<Firs
     if (typeof home !== 'string' || home.trim().length === 0) return { ok: false, error: '目录不能为空' }
     try {
       await fs.mkdir(home, { recursive: true })
-      if (migrate === true && options.legacyExists && home !== options.defaultHome) {
-        log.info(`[first-run] 迁移旧数据: ${options.defaultHome} → ${home}`)
-        await fs.cp(options.defaultHome, home, { recursive: true })
+      if (migrate === true && options.sourceExists && home !== options.migrateSource) {
+        log.info(`[first-run] 迁移现有数据: ${options.migrateSource} → ${home}`)
+        await fs.cp(options.migrateSource, home, { recursive: true })
       }
     } catch (error) {
       log.error('[first-run] 目录准备/迁移失败:', error)

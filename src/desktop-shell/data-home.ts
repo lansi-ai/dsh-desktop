@@ -73,51 +73,56 @@ export interface DataHomeResult {
 /**
  * 解析并应用数据目录（main.ts bootstrap 调用，闪屏创建之前）。
  *
- * 决策链：已持久化选择 → 直接沿用；--hidden 静默 → 默认目录并持久化；
- * 否则弹自绘首启窗口（first-run.ts）让用户选定（含旧数据迁移选项）。
- * 用户关闭窗口 = 不选择 → 本次以默认目录启动但不持久化（下次正常启动再询问）。
+ * 决策链：已持久化选择且非重配置 → 直接沿用；--hidden 静默 → 在用目录（无
+ * 选择时默认目录）并持久化；否则弹自绘首启窗口（first-run.ts）——首启预选
+ * 默认目录，重配置（--select-data-dir）预选当前在用目录，迁移源 = 当前在用
+ * 目录（换目录时旧数据可跟随，不局限于默认 ~/.dsh）。用户关闭窗口 = 不选择
+ * → 维持原状（本次沿用当前目录，不覆盖已持久化选择）。
  */
-export async function ensureDataHome(options: { silent: boolean }): Promise<DataHomeResult> {
+export async function ensureDataHome(options: { silent: boolean; selectDataDir?: boolean }): Promise<DataHomeResult> {
   // 自有实现解析默认 home（语义对齐官方 dsh-home-paths：$DSH_HOME > ~/.dsh）。
   const defaultHome = resolveDshHome()
 
   const stored = await readStoredHome()
-  if (stored !== null) {
+  if (stored !== null && options.selectDataDir !== true) {
     await applyHome(stored)
     log.info(`[data-home] 沿用已选数据目录: ${stored}`)
     return { home: stored, firstRun: false }
   }
 
-  // 静默启动（开机自启）：不弹 UI，直接默认目录并持久化，避免自启首启挂起。
+  // 静默启动（开机自启）：不弹 UI——沿用现有选择，无选择则采用默认目录并持久化。
   if (options.silent) {
-    await applyHome(defaultHome)
-    await storeHome(defaultHome)
-    log.info(`[data-home] 静默启动采用默认数据目录: ${defaultHome}`)
-    return { home: defaultHome, firstRun: false }
+    const home = stored ?? defaultHome
+    await applyHome(home)
+    if (stored === null) await storeHome(home)
+    log.info(`[data-home] 静默启动采用数据目录: ${home}`)
+    return { home, firstRun: false }
   }
 
-  // 首启：自绘窗口让用户选定（默认预选默认目录；默认目录已有数据时提供迁移）。
-  let legacyExists: boolean
+  // 首启/重配置：预选与迁移源 = 当前在用目录（无选择时为默认目录 ~/.dsh）。
+  const currentHome = stored ?? defaultHome
+  let sourceExists: boolean
   try {
-    legacyExists = (await fs.stat(defaultHome)).isDirectory()
+    sourceExists = (await fs.stat(currentHome)).isDirectory()
   } catch {
-    legacyExists = false
+    sourceExists = false
   }
   const { showFirstRunWindow } = await import('./first-run.js')
-  const choice = await showFirstRunWindow({ defaultHome, legacyExists })
+  const choice = await showFirstRunWindow({ preselect: currentHome, migrateSource: currentHome, sourceExists })
 
   if (choice === null) {
-    // 用户关闭窗口：本次以默认目录启动但不持久化（下次正常启动仍询问）。
-    await applyHome(defaultHome)
-    log.warn('[data-home] 首启窗口被关闭，本次以默认数据目录启动（未持久化选择）')
-    return { home: defaultHome, firstRun: false }
+    // 用户关闭窗口：维持原状（不覆盖已持久化选择；无选择时本次以默认目录启动但不持久化）。
+    const fallback = stored ?? defaultHome
+    await applyHome(fallback)
+    log.warn(`[data-home] 首启窗口被关闭，本次以 ${fallback} 启动（未持久化新选择）`)
+    return { home: fallback, firstRun: false }
   }
 
   await fs.mkdir(choice.home, { recursive: true })
-  // 迁移旧数据：仅当默认目录存在且与选定目录不同（fs.cp 不删源，失败即中止选择）。
-  if (choice.migrate && legacyExists && choice.home !== defaultHome) {
-    log.info(`[data-home] 迁移旧数据: ${defaultHome} → ${choice.home}`)
-    await fs.cp(defaultHome, choice.home, { recursive: true })
+  // 迁移旧数据：仅当源目录存在且与选定目录不同（fs.cp 不删源，失败即中止选择）。
+  if (choice.migrate && sourceExists && choice.home !== currentHome) {
+    log.info(`[data-home] 迁移现有数据: ${currentHome} → ${choice.home}`)
+    await fs.cp(currentHome, choice.home, { recursive: true })
   }
   await applyHome(choice.home)
   await storeHome(choice.home)

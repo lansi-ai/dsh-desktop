@@ -18,6 +18,11 @@ export interface CliOptions {
   servePort: number
   /** 是否静默启动（--hidden，开机自启登录后驻留托盘，不弹主窗口）。 */
   hidden: boolean
+  /**
+   * 是否重新选择数据目录（--select-data-dir，M4-a4）。
+   * 强制弹出首启数据目录窗口（已有选择时预选当前目录，迁移源 = 当前在用目录）。
+   */
+  selectDataDir: boolean
 }
 
 /** --serve 默认端口：Loopback 范围高位，避免与常用服务冲突。 */
@@ -39,11 +44,14 @@ export function parseArgv(argv: string[] = process.argv): CliOptions {
   let serve = false
   let servePort = DEFAULT_SERVE_PORT
   let hidden = false
+  let selectDataDir = false
   let i = 0
   while (i < rest.length) {
     const arg = rest[i]
     if (arg === '--hidden') {
       hidden = true
+    } else if (arg === '--select-data-dir') {
+      selectDataDir = true
     } else if (arg === '--serve') {
       serve = true
       const next = rest[i + 1]
@@ -64,5 +72,5 @@ export function parseArgv(argv: string[] = process.argv): CliOptions {
     }
     i += 1
   }
-  return { serve, servePort, hidden }
+  return { serve, servePort, hidden, selectDataDir }
 }

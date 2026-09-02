@@ -254,7 +254,7 @@ async function bootstrap(): Promise<void> {
     // 设置即全覆盖。首启弹自绘窗口让用户选定（含旧数据迁移），静默启动用默认目录。
     log.phase('数据目录')
     const { ensureDataHome } = await import('./data-home.js')
-    await ensureDataHome({ silent: launchOptions.hidden })
+    await ensureDataHome({ silent: launchOptions.hidden, selectDataDir: launchOptions.selectDataDir })
 
     // 0.6 即时响应闪屏：Host 装配在低配机器可达数秒，必须先给「已响应」反馈
     // （纯静态窗口，whenReady 后立即显示；--hidden 静默驻留托盘时不弹）。主窗口
