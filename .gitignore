@@ -10,6 +10,8 @@ out/
 # 打包产物与缓存（M4-a1 electron-builder）
 release/
 .electron-builder-cache/
+# 本地预下载的 electron-builder 工具集（icons 转换工具，绕开沙箱/网络受限环境）
+.tools/
 
 # 环境与密钥
 .env
