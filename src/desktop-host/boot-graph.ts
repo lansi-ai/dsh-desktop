@@ -56,6 +56,11 @@ const CLIENT_EXCLUDE_IDS = new Set([
   '@deepseek-ai/dsh-client-hmr',
   '@deepseek-ai/dsh-cordis-client-runner',
   '@deepseek-ai/dsh-client-ui-cordis',
+  // M6 外壳小件：Session 日志导出自有化——@lansi-ai/dsh-desktop-session-export 接管
+  // conversation.session.header.utilities 槽位（导出胶囊 + 结果弹层，文案修正桌面语义）。
+  // 仅排除 client 半；host 行 session-log-download（boot.ts §1）保留——/export 命令与
+  // /api/session.export ZIP 流式路由仍由官方 host 半提供（两条装配线互不影响）。
+  '@deepseek-ai/dsh-session-log-export',
 ])
 
 // ── 内部状态 ─────────────────────────────────────────────────────────
@@ -359,6 +364,9 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 对话区视觉层（子元素侧）：不接管 conversation 槽位（与官方 ui-conversation 单槽位互斥），
     // 仅注入样式给对话根节点（data-phase）圆角/裁剪——圆角归对话自身，非布局插件职责。
     { id: '@lansi-ai/dsh-desktop-conversation-visuals', path: resolveLocalWebBundle('desktop-conversation-visuals-client.js'), inject: [], immediately: true },
+    // M6 外壳小件：Session 日志导出自有化（替换官方 client 半，文案修正桌面语义；
+    // host 半 session-log-download 行保留提供 /export 命令 + /api/session.export 路由）
+    { id: '@lansi-ai/dsh-desktop-session-export', path: resolveLocalWebBundle('desktop-session-export-client.js'), inject: [], immediately: true },
     ...(extraBundles ?? []),
   ]
 

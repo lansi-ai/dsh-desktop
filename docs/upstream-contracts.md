@@ -82,6 +82,7 @@
 | `@lansi-ai/dsh-desktop-panel`（desktop-panel-client.js） | `sidebar.footer.action` 槽位 | 🟡 中 | 槽位名是否变 |
 | `@lansi-ai/dsh-desktop-cmdpalette`（禁用壳） | 官方运行时导航、`ctx.sessions`/`workspaces` | 🟢 低 | 禁用壳下无功能风险；仅作入口隐藏，恢复时才核查 |
 | `@lansi-ai/dsh-desktop-audit-viewer`（desktop-audit-viewer-client.js） | 审计 Tab 槽位、`ctx.desktop` | 🟡 中 | 审计槽位是否变；ctx.desktop 聚合服务是否仍供桌面能力 |
+| `@lansi-ai/dsh-desktop-session-export`（desktop-session-export-client.js，2026-09-02 M6 外壳小件） | 官方槽位 `conversation.session.header.utilities`（ui-conversation 声明）；官方 host 半 `session-log-download` 行（boot.ts §1，/export 命令 + `/api/session.export` ZIP 路由）；`@deepseek-ai/dsh-client-ui-primitives`（Modal/Button，守卫 require）；`command/executed` 事件 | 🟡 中 | 槽位名是否变；host 半路由/命令契约是否变；primitives Modal/Button 签名是否变 |
 
 ### 7.2 Host 半（主进程模块，M2 项目内形态）
 
