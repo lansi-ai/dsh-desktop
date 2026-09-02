@@ -5,8 +5,8 @@
  *   - fold 折叠状态机（宽列 ↔ 56px rail，折叠动画播完再切 rail 内容）；
  *   - 新会话按钮（`ctx.workspaces.startSession`，复用-or-新建 workspace 会话语义）；
  *   - 折叠切换按钮（`ctx.layout.toggleSidebar`，走桌面布局插件 LayoutController）；
- *   - 声明官方同款 5 个子槽位（brand.mark / brand.name / workspaces / settings /
- *     footer.action）——官方 `ui-workspace`（会话树）与 `ui-settings`（设置入口）
+ *   - 声明官方同款子槽位（brand.mark / brand.name / workspaces / settings）——
+ *     官方 `ui-workspace`（会话树）与 `ui-settings`（设置入口）
  *     **无改动继续工作**，注册进同名子槽位。
  *
  * 与官方差异（v1 有意为之）：
@@ -137,9 +137,8 @@ window.__ModuleLoader__.load({
             },
           }),
         ),
-        // 底部：动作区（desktop-panel 已注册）+ 设置入口（官方 ui-settings 注册）
+        // 底部：设置入口（官方 ui-settings 注册）
         h('div', { className: 'dsh-desktop-sidebar-foot' },
-          h('div', null, renderSlot('sidebar.footer.action', { wide })),
           h('div', null, renderSlot('sidebar.settings', { wide })),
         ),
       )
@@ -155,7 +154,7 @@ window.__ModuleLoader__.load({
       style.textContent = CSS_TEXT
       document.head.appendChild(style)
 
-      // 注册 sidebar 槽位 + 声明官方同款 5 个子槽位（官方 workspaces/settings
+      // 注册 sidebar 槽位 + 声明官方同款子槽位（官方 workspaces/settings
       // 注册者无改动继续工作）；inject 函数返回壳组件的注入 props（对齐官方）。
       const disposeRegistration = ctx.slots.register({
         name: 'sidebar',
@@ -164,7 +163,6 @@ window.__ModuleLoader__.load({
           'sidebar.brand.name': { kind: 'single', scope: 'root' },
           'sidebar.workspaces': { kind: 'single', scope: 'root' },
           'sidebar.settings': { kind: 'single', scope: 'root' },
-          'sidebar.footer.action': { kind: 'list', scope: 'root' },
         },
         inject: () => ({
           startSession: (workspaceId) => {

@@ -5,7 +5,6 @@
  *   - 托盘行为开关（trayEnabled）
  *   - 通知偏好开关（notificationsEnabled）
  *   - 快捷键提示（显示已注册的全局快捷键）
- *   - 面板布局设置（panelPosition）
  *
  * 设置读写经官方 settings.describe / settings.mutate RPC → host settings-file 持久化。
  *
@@ -31,10 +30,6 @@ window.__ModuleLoader__.load({
       { key: 'trayEnabled', label: '\u6258\u76d8\u9a7b\u7559', description: '\u5173\u95ed\u7a97\u53e3\u65f6\u9690\u85cf\u5230\u6258\u76d8\u800c\u975e\u9000\u51fa', defaultValue: 'true' },
       { key: 'notificationsEnabled', label: '\u7cfb\u7edf\u901a\u77e5', description: '\u5ba1\u6279/\u9519\u8bef/\u8fdb\u5c55\u7b49\u4e8b\u4ef6\u5f39\u51fa\u7cfb\u7edf\u901a\u77e5', defaultValue: 'true' },
       { key: 'shortcutsEnabled', label: '\u5168\u5c40\u5feb\u6377\u952e', description: 'Alt+Shift+Q \u5524\u8d77\u7a97\u53e3\uff0cAlt+Shift+Space \u5feb\u901f\u95ee\u7b54', defaultValue: 'true' },
-      { key: 'panelPosition', label: '\u9762\u677f\u4f4d\u7f6e', description: '\u684c\u9762\u9762\u677f\u7684\u9ed8\u8ba4\u663e\u793a\u4f4d\u7f6e', defaultValue: 'sidebar', type: 'select', options: [
-        { value: 'sidebar', label: '\u4fa7\u8fb9\u680f' },
-        { value: 'floating', label: '\u60ac\u6d6e\u7a97' },
-      ]},
     ]
 
     // ── 插件声明：注册 settings.section slot ──────────────────────

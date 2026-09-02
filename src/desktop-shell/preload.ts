@@ -193,10 +193,6 @@ export interface DesktopBridge {
   desktopClipboard: DesktopClipboard
   /** 获取平台信息。 */
   getPlatformInfo(): Promise<PlatformInfo>
-  /** 打开桌面面板（IPC 驱动）。 */
-  openDesktopPanel(): Promise<void>
-  /** 关闭桌面面板（IPC 驱动）。 */
-  closeDesktopPanel(): Promise<void>
 }
 
 // ── 桥实现 ──────────────────────────────────────────────────────────
@@ -500,22 +496,6 @@ function createDesktopBridge(): DesktopBridge {
         version: info.version ?? 'unknown',
         channel: 'stable',
       }
-    },
-
-    // ── 桌面面板控制 ──────────────────────────────────────────────
-    async openDesktopPanel(): Promise<void> {
-      await ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
-        rpcId: generateUuid(),
-        method: 'desktop.panel.open',
-        params: undefined,
-      })
-    },
-    async closeDesktopPanel(): Promise<void> {
-      await ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
-        rpcId: generateUuid(),
-        method: 'desktop.panel.close',
-        params: undefined,
-      })
     },
   }
 }

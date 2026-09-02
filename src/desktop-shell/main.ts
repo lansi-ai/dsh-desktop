@@ -482,9 +482,6 @@ async function bootstrap(): Promise<void> {
       registerMethod('desktop.shortcut.unregister', async (params: unknown) => handleShortcutUnregister(shortcutOptions, params))
       registerMethod('desktop.clipboard.readText', async () => handleClipboardReadText(clipboardOptions))
       registerMethod('desktop.clipboard.writeText', async (params: unknown) => handleClipboardWriteText(clipboardOptions, params))
-      // M2-e 面板控制：open/close 经下行 desktop:event 触发 renderer 侧面板组件
-      registerMethod('desktop.panel.open', async () => { desktopCore.sendDesktopEvent({ action: 'open-panel' }); return { opened: true } })
-      registerMethod('desktop.panel.close', async () => { desktopCore.sendDesktopEvent({ action: 'close-panel' }); return { closed: true } })
 
       desktopShortcutsHandle = installDesktopShortcuts(shortcutOptions)
       desktopClipboardHandle = installDesktopClipboard(clipboardOptions)

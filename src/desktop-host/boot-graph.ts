@@ -350,7 +350,6 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 0.1.2：ctx.slots 由 @deepseek-ai/dsh-client-ui-renderer 提供（ui-slots 已并入），
     // external 边改为指向 renderer/client，保证其 bundle 先于消费方入图。
     { id: '@lansi-ai/dsh-desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
-    { id: '@lansi-ai/dsh-desktop-panel', path: resolveLocalWebBundle('desktop-panel-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
     // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口（纯 DOM 浮层 + 官方运行时导航——坑 13/14/15）
     // entry.inject 是信息性包名依赖边（非服务注入）；服务等待只看插件返回对象的 exports.inject，
     // 故此处恒 []，ctx.sessions/workspaces 由插件 apply 后经 ctx.get 软查找。
