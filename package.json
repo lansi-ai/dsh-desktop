@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1-alpha.1",
   "description": "DeepSeek Harness 桌面客户端（Electron 主进程内嵌 Cordis Host，零端口 IPC 载波，官方 Web UI 复用主面）",
   "main": "dist/desktop-shell/main.js",
   "private": true,
