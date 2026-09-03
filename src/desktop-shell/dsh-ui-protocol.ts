@@ -6,6 +6,7 @@ import { dirname, extname, join, normalize, sep } from 'node:path'
 import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundles } from '../desktop-host/manifest.js'
 import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
 import { dispatchConnectionFetch } from '../desktop-host/connection-fetch-bridge.js'
+import { getActiveThemeId } from '../desktop-host/desktop-theme.js'
 import { log, logVerbose } from '../desktop-host/log.js'
 
 /**
@@ -262,6 +263,25 @@ export function registerDshUiProtocol(): void {
       if (bundle !== undefined) {
         logVerbose('dsh-ui-protocol', `200 (bundle route) ${request.url}`)
         return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
+      }
+
+      // 主题图标资源路由：/theme/<id|current>/icons/<file> → resources/themes/<id>/icons/<file>。
+      // current 段由主进程主题服务动态解析为激活主题（URL 恒定，切换主题后内容随之变化，
+      // renderer 以 ?t= 时间戳破缓存）。id/file 白名单字符 + normalize 越界校验。
+      const themeMatch = /^\/theme\/([a-z0-9_-]+)\/icons\/([a-z0-9_-]+\.(?:svg|json))$/.exec(url.pathname)
+      if (themeMatch !== null) {
+        const [, scope, file] = themeMatch
+        const themeId = scope === 'current' ? getActiveThemeId() : scope
+        const themesRoot = normalize(join(__dirname, '..', 'resources', 'themes'))
+        const filePath = normalize(join(themesRoot, themeId, 'icons', file))
+        if (!filePath.startsWith(themesRoot + sep)) {
+          log.warn(`[dsh-ui-protocol] 403 ${request.url} (主题资源越界)`)
+          return new Response('forbidden', { status: 403 })
+        }
+        const data = await readFile(filePath)
+        const contentType = file.endsWith('.json') ? 'application/json; charset=utf-8' : 'image/svg+xml'
+        logVerbose('dsh-ui-protocol', `200 (theme route) ${request.url} → ${themeId}/icons/${file}`)
+        return new Response(new Uint8Array(data), { headers: { 'content-type': contentType } })
       }
 
       // connection fetch 精确路由桥（0.1.2 · dogfood #6）：官方 client 半部分能力

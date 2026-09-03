@@ -188,6 +188,63 @@ export const autostartStatusSchema = z.object({
 export type AutostartSetEnabled = z.infer<typeof autostartSetEnabledSchema>
 export type AutostartStatus = z.infer<typeof autostartStatusSchema>
 
+// ── 主题 Schema（图标主题 / 颜色主题 · 两个独立设置项）───────────────
+
+/**
+ * 主题包清单（resources/themes/<id>/theme.json）。
+ *
+ * 主题包 = 外观资产包，服务两类**相互独立**的设置项：
+ *   - 图标主题（iconThemeId）：包内 app/tray × light/dark 图标四件套，V1 可用；
+ *   - 颜色主题（colorThemeId）：界面配色体系（骨架变量/托盘色等），后续版本
+ *     经包内 colors 定义扩展，与图标主题分开选择、独立存储。
+ *
+ * `color` 为包的强调色（css 颜色值），设置页清单预览圆点用，非颜色主题本身。
+ */
+export const themeManifestSchema = z.object({
+  /** 主题 ID（即主题目录名，如 'default'）。 */
+  id: z.string().min(1),
+  /** 显示名（设置页展示）。 */
+  name: z.string().min(1),
+  /** 主题强调色（css 颜色值，如 '#22d3ee'；可选，缺省中性色）。 */
+  color: z.string().optional(),
+})
+
+/** 图标主题切换请求（renderer → host）。 */
+export const iconThemeSetSchema = z.object({
+  /** 目标图标主题 ID（必须存在于主题清单）。 */
+  id: z.string().min(1),
+})
+
+/** 主题摘要（设置页列表项：清单 + 当前激活标记）。 */
+export const themeSummarySchema = themeManifestSchema.extend({
+  /** 是否为当前激活主题。 */
+  current: z.boolean(),
+})
+
+/** 图标主题清单响应。 */
+export const iconThemeListResultSchema = z.object({
+  /** 可用图标主题列表（按目录扫描序）。 */
+  themes: z.array(themeSummarySchema),
+  /** 当前激活图标主题 ID（清单缺失时回退 'default'）。 */
+  current: z.string().min(1),
+})
+
+/** 图标主题切换响应（写 settings 后的回执）。 */
+export const iconThemeSetResultSchema = z.object({
+  /** 是否切换成功。 */
+  ok: z.boolean(),
+  /** 切换后的激活图标主题 ID（成功时回显）。 */
+  current: z.string().optional(),
+  /** 失败/拦截原因（主题不存在等）。 */
+  message: z.string().optional(),
+})
+
+export type ThemeManifest = z.infer<typeof themeManifestSchema>
+export type IconThemeSet = z.infer<typeof iconThemeSetSchema>
+export type ThemeSummary = z.infer<typeof themeSummarySchema>
+export type IconThemeListResult = z.infer<typeof iconThemeListResultSchema>
+export type IconThemeSetResult = z.infer<typeof iconThemeSetResultSchema>
+
 /**
  * `ctx.desktop` 聚合服务接口（core 子集，M2 地基）。
  *

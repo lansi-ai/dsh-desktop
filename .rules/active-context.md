@@ -49,6 +49,13 @@ alwaysApply: true
     - [x] 攻坚第 2 批·实机（**验收通过**，2026-08-26）：官方 UI 成功渲染进入 + 工作区选择 + 日常对话全流程打通。期间连环修复：(a) `host.apiproxy` 错误入口 → 改官方 `toFetchHandler`（host 无 `.handleRpc`，用 `/api/<method>` 虚拟路由 + 解包 server-response）；`new Request` 相对 URL 抛错 → 用 `http://local` 虚拟 base；(b) `uuid` schema 过严拦截 → 放宽 `rpcIdSchema` 为非空字符串；(c) 图谱缺 client UI 插件空白 → **自动扫描方案**（boot-graph 复刻官方 ClientModuleRegistry，从 node_modules 自动发现 42 个 `dsh.client` 包含 33 个 ui-*，剔出 client-connection）；(d) `host.pickDirectory` 崩溃 → koffi 在 Electron 不兼容，改用 **Electron 原生 dialog.showOpenDialog** 的 `ElectronDirectoryPicker extends DirectoryPicker`（Service 注入，kind:native）；(e) `ui-onboarding` 未注册拦截 → host 补丁加 `ui-settings-general`（注册 settings namespace）。typecheck/lint/build + 双脚本全绿
   - [ ] 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层，未实现）
   - [ ] `docs/active-context.html` 看板同步落盘 + 里程碑提交
+- [x] **桌面主题功能 V1（图标更改）**（2026-09-03 完成，typecheck/lint/build 全绿）
+  - [x] **图标主题 / 颜色主题拆分为两个独立设置项**（同日重构）：settings `desktop` namespace 两个独立 key（`iconThemeId` / `colorThemeId` 预留），bridge 方法 `desktop.iconTheme.list/set`（颜色主题后续独立注册 `desktop.colorTheme.*`），设置页「主题」section 内两个独立子区块；旧 key `themeId` 自动迁移读取
+  - [x] 主题模型：`resources/themes/<id>/` 主题包（theme.json 清单 + app/tray × light/dark 图标四件套；`color` 为包强调色预览字段）；内置 default/aurora/sunset 三套（`scripts/make-theme-assets.cjs` 以官方 favicon 染色生成）
+  - [x] 宿主服务 `src/desktop-host/desktop-theme.ts`（图标主题侧）：清单扫描（zod 校验、损坏跳过）+ 激活主题真源 = host settings + `settings/document-updated` 直订阅联动（theme-sync 同款）；建窗前 await ready 保证首帧图标正确
+  - [x] 图标接入：main.ts `loadAppIcon`/windowManager `getAppIconPath`、desktop-tray `loadTrayIcon` 均经 `getActiveIconPath(kind, dark)` 解析（回退链：主题色版 → 另一色版 → 内置 web 默认）
+  - [x] preload `desktopBridge.iconTheme` 白名单 API；设置页 UI `web/desktop-theme-client.js`（`@lansi-ai/dsh-desktop-theme`，「图标主题」卡片选择器含图标预览 +「颜色主题」独立占位）
+  - [x] **壳层 UI 图标主题化扩展**（同日）：主题包 `icons/` 目录（titlebar-logo.svg + ui-overrides.json）；`dsh-ui://` 协议新增 `/theme/<id|current>/icons/<file>` 资源路由（白名单+越界校验，current 动态映射激活主题）；标题栏品牌 logo 接入主题（default 保持官方鲸鱼，切换经 `theme.icon-change` 下行事件即时刷新）；新增 `@lansi-ai/dsh-desktop-ui-icons` 覆盖层插件（官方 UI 内部内联 SVG 经 ui-overrides.json 映射 + MutationObserver 替换，空表零开销——官方 dist 升级需重新登记 path 特征）
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
 - **已做出的关键技术决策**：

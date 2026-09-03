@@ -25,6 +25,9 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const { useState, useEffect } = React
 
+    /** 主题图标内联渲染服务（apply 时注入；未就绪时回退官方 logo）。 */
+    let themeIconSvc = null
+
     /** SVG 图标常量（viewBox 24，Windows/Fluent 风格，离线内联图标集）。 */
     const ICON_MINIMIZE = 'M 5 12.5 H 19'
     const ICON_MAXIMIZE = 'M 5.25 5.25 H 18.75 V 18.75 H 5.25 Z'
@@ -82,6 +85,48 @@ window.__ModuleLoader__.load({
       }
       officialBrand = null
       return officialBrand
+    }
+
+    /**
+     * 主题品牌 logo（方式 A · 内联渲染）。
+     *
+     * 激活图标主题非 default 时，品牌 logo 用主题包 icons/titlebar-logo.svg（经
+     * dsh-ui://app/theme/current/ 动态路由映射）；经 themeIcon.renderSvg 内联渲染，
+     * 单色稿随主题文字色变、彩色稿保留原色。default 保持官方鲸鱼 logo 原貌。
+     * theme.icon-change 下行事件触发重取（?t= 破缓存）。
+     */
+    function useThemeLogo() {
+      const [logoHtml, setLogoHtml] = useState(null)
+      useEffect(() => {
+        let disposed = false
+        const bridge = window.desktopBridge
+        const refresh = () => {
+          bridge?.iconTheme?.list?.().then((result) => {
+            if (disposed) return
+            const active = result?.current && result.current !== 'default'
+            if (!active || themeIconSvc === null) {
+              setLogoHtml(null)
+              return
+            }
+            themeIconSvc.renderSvg(`dsh-ui://app/theme/current/icons/titlebar-logo.svg?t=${Date.now()}`, 24)
+              .then((value) => {
+                if (!disposed) setLogoHtml(value)
+              })
+              .catch(() => {
+                if (!disposed) setLogoHtml(null)
+              })
+          }).catch(() => { /* bridge 未就绪，保持官方 logo */ })
+        }
+        refresh()
+        const off = bridge?.onDesktopEvent?.((event) => {
+          if (event?.action === 'theme.icon-change') setTimeout(refresh, 50)
+        })
+        return () => {
+          disposed = true
+          if (typeof off === 'function') off()
+        }
+      }, [])
+      return { logoHtml }
     }
 
     /** 注入标题栏样式（幂等：先清理旧 style 再写）。 */
@@ -245,17 +290,25 @@ window.__ModuleLoader__.load({
       const maximizeIcon = isMaximized ? ICON_RESTORE : ICON_MAXIMIZE
       const collapseIcon = collapsed ? ICON_CHEVRON_RIGHT : ICON_CHEVRON_LEFT
 
-      // 品牌区：直取官方 DeepSeek 品牌组件（FishLogo + BrandWordmark），
-      // 不可用时回退内置占位。不再用 renderSlot('sidebar.brand.*') —— 该子槽位
-      // 不属于 titlebar 槽的 children 声明，跨槽位调用会触发 SlotOwnershipError 崩溃。
+      // 品牌区：主题 logo（图标主题激活时）> 官方 DeepSeek 品牌组件 > 内置占位。
+      // 不再用 renderSlot('sidebar.brand.*') —— 该子槽位不属于 titlebar 槽的
+      // children 声明，跨槽位调用会触发 SlotOwnershipError 崩溃。
       const brand = getOfficialBrand()
+      const { logoHtml } = useThemeLogo()
 
       return h('div', { className: 'dsh-desktop-titlebar' },
         // 左侧品牌区
         h('div', { className: 'dsh-desktop-titlebar-left' },
-          // Logo（官方 FishLogo / 占位兜底）。品牌区仅作展示，不触发新建会话。
+          // Logo（主题 logo 内联 / 官方 FishLogo / 占位兜底）。品牌区仅作展示。
           h('div', { className: 'dsh-desktop-titlebar-brand', title: 'DSH Desktop' },
-            brand ? h(brand.mark, { size: 24 }) : h(BrandLogo, { size: 24 }),
+            logoHtml
+              ? h('span', {
+                  'aria-hidden': 'true',
+                  style: { display: 'inline-flex', width: 24, height: 24 },
+                  // 单色稿随主题文字色、彩色稿保留原色
+                  dangerouslySetInnerHTML: { __html: logoHtml },
+                })
+              : brand ? h(brand.mark, { size: 24 }) : h(BrandLogo, { size: 24 }),
             h('span', { className: 'dsh-desktop-titlebar-brand-name' },
               brand ? h(brand.name, { includeMark: false }) : 'DeepSeek'),
             // DSH 基线版本号（由主机注入的 __DSH_BASE_VERSION__ 全局供给）
@@ -280,10 +333,12 @@ window.__ModuleLoader__.load({
       )
     }
 
-    exports.inject = ['slots', 'layout']
+    exports.inject = ['slots', 'layout', 'themeIcon']
 
     exports.apply = (ctx) => {
       injectStyles()
+      // 主题图标内联渲染服务（未注入时回退官方 logo）
+      themeIconSvc = ctx.get('themeIcon') ?? null
       const dispose = ctx.slots.register({
         name: 'titlebar',
         id: 'desktop-titlebar',

@@ -157,6 +157,32 @@ interface DesktopAutostart {
   /** 读取开机自启当前状态（实时读取 OS 登录项）。 */
   getStatus(): Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }>
 }
+
+/** 应用自动更新操作接口（关于页检查更新）。 */
+interface DesktopUpdater {
+  /** 手动检查更新（后台进行，状态经 onStatus 事件推送）。 */
+  check(): Promise<{ ok: boolean }>
+  /** 获取当前更新状态。 */
+  getStatus(): Promise<{
+    phase: string
+    currentVersion: string
+    newVersion?: string
+    percent?: number
+    error?: string
+  }>
+  /** 重启并安装已下载更新。 */
+  install(): Promise<{ ok: boolean }>
+  /** 订阅更新状态变更（action='app-update:status' 的下行桌面事件）。返回注销函数。 */
+  onStatus(cb: (state: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string }) => void): () => void
+}
+
+/** 桌面图标主题操作接口（图标主题与颜色主题为两个独立设置项；颜色主题后续版本）。 */
+interface DesktopIconTheme {
+  /** 列出可用图标主题（含当前激活标记）。 */
+  list(): Promise<{ themes: Array<{ id: string; name: string; color?: string; current: boolean }>; current: string }>
+  /** 切换图标主题（主进程持久化后经 settings 联动自动应用图标）。 */
+  set(id: string): Promise<{ ok: boolean; current?: string; message?: string }>
+}
 export interface DesktopBridge {
   /** 上行 RPC 调用（替换 WebApiClient 的 doFetch）。 */
   rpc(method: string, body: unknown): Promise<unknown>
@@ -187,6 +213,10 @@ export interface DesktopBridge {
   audit: DesktopAudit
   /** 开机自启操作（M3-b3 新增）。 */
   autostart: DesktopAutostart
+  /** 应用自动更新操作（关于页检查更新）。 */
+  updater: DesktopUpdater
+  /** 桌面图标主题操作（图标主题与颜色主题独立设置，颜色主题后续版本）。 */
+  iconTheme: DesktopIconTheme
   /** 全局快捷键操作。 */
   desktopShortcut: DesktopShortcut
   /** 剪贴板操作。 */
@@ -443,6 +473,66 @@ function createDesktopBridge(): DesktopBridge {
           method: 'desktop.autostart.getStatus',
           params: undefined,
         }) as Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }>
+      },
+    },
+
+    // ── 应用自动更新操作（关于页检查更新） ──────────────────────
+    updater: {
+      check(): Promise<{ ok: boolean }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.updater.check',
+          params: undefined,
+        }) as Promise<{ ok: boolean }>
+      },
+      getStatus() {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.updater.status',
+          params: undefined,
+        }) as Promise<{
+          phase: string
+          currentVersion: string
+          newVersion?: string
+          percent?: number
+          error?: string
+        }>
+      },
+      install(): Promise<{ ok: boolean }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.updater.install',
+          params: undefined,
+        }) as Promise<{ ok: boolean }>
+      },
+      onStatus(cb) {
+        // 复用下行桌面事件通道：主进程 auto-updater 经 sendDesktopEvent 推送
+        // action='app-update:status'，这里过滤后回调。
+        const handler = (_event: Electron.IpcRendererEvent, desktopEvent: { action: string; payload?: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string } }): void => {
+          if (desktopEvent.action === 'app-update:status' && desktopEvent.payload) cb(desktopEvent.payload)
+        }
+        ipcRenderer.on(IPC_CHANNELS.DESKTOP_EVENT, handler)
+        return () => {
+          ipcRenderer.removeListener(IPC_CHANNELS.DESKTOP_EVENT, handler)
+        }
+      },
+    },
+
+    // ── 桌面图标主题操作（图标主题 / 颜色主题独立设置 · 图标侧） ──
+    iconTheme: {
+      list(): Promise<{ themes: Array<{ id: string; name: string; color?: string; current: boolean }>; current: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.iconTheme.list',
+          params: undefined,
+        }) as Promise<{ themes: Array<{ id: string; name: string; color?: string; current: boolean }>; current: string }>
+      },
+      set(id: string): Promise<{ ok: boolean; current?: string; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.iconTheme.set',
+          params: { id },
+        }) as Promise<{ ok: boolean; current?: string; message?: string }>
       },
     },
 

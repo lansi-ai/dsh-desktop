@@ -61,6 +61,12 @@ const CLIENT_EXCLUDE_IDS = new Set([
   // 仅排除 client 半；host 行 session-log-download（boot.ts §1）保留——/export 命令与
   // /api/session.export ZIP 流式路由仍由官方 host 半提供（两条装配线互不影响）。
   '@deepseek-ai/dsh-session-log-export',
+  // 设置外壳自研：@lansi-ai/dsh-desktop-settings-shell 接管 sidebar.settings 槽位
+  // （面板框架 + 导航投影 + General 分区；契约 1:1 复刻 + 导航图标下放为主题槽位）。
+  // 官方 ui-settings-general 是互斥副本——双激活会在 sidebar.settings/settings.trigger
+  // 等槽位抛 "already has a registration"。General 六行/插件与 Agent 预设分区/引导步骤
+  // 等官方注册者经 slot 账本零改动继续工作。V1 未复刻连接指示器/文档 action/onboarding。
+  '@deepseek-ai/dsh-client-ui-settings-general',
 ])
 
 // ── 内部状态 ─────────────────────────────────────────────────────────
@@ -347,7 +353,7 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 桌面自绘标题栏（v2：titlebar 收进布局，不再 body 级 fixed）：
     // 注册布局 root 槽位的 titlebar 行（拖拽区 + 窗控 + 下边线）；等待 slots + layout，
     // 借 layout 服务保证布局（root 槽位声明 titlebar）先 apply，规避子槽位未声明
-    { id: '@lansi-ai/dsh-desktop-titlebar', path: resolveLocalWebBundle('desktop-titlebar-client.js'), inject: ['slots', 'layout'], immediately: true },
+    { id: '@lansi-ai/dsh-desktop-titlebar', path: resolveLocalWebBundle('desktop-titlebar-client.js'), inject: ['slots', 'layout'], external: ['@lansi-ai/dsh-desktop-icons'], immediately: true },
     // M6-P3 侧栏壳自研：接管 sidebar 槽位（fold + 新会话 + 5 子槽位声明），
     // 官方 workspaces/settings 注册者经子槽位无改动继续工作
     { id: '@lansi-ai/dsh-desktop-sidebar', path: resolveLocalWebBundle('desktop-sidebar-client.js'), inject: ['slots'], immediately: true },
@@ -355,6 +361,22 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // 0.1.2：ctx.slots 由 @deepseek-ai/dsh-client-ui-renderer 提供（ui-slots 已并入），
     // external 边改为指向 renderer/client，保证其 bundle 先于消费方入图。
     { id: '@lansi-ai/dsh-desktop-settings', path: resolveLocalWebBundle('desktop-settings-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
+    // M7 关于页独立插件：仅依赖 desktopBridge.updater（版本号 + 检查更新），
+    // 与桌面设置解耦（各自可独立增删）。
+    { id: '@lansi-ai/dsh-desktop-about', path: resolveLocalWebBundle('desktop-about-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
+    // 桌面主题设置（V1 图标更改）：设置页「主题」section，经 desktopBridge.theme 读写；
+    // 依赖 themeIcon 做卡片预览的内联渲染（方案 A）。
+    { id: '@lansi-ai/dsh-desktop-theme', path: resolveLocalWebBundle('desktop-theme-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client', '@lansi-ai/dsh-desktop-icons'], immediately: true },
+    // 主题 SVG 内联加载器（方案 A：提供 ctx.themeIcon.renderSvg，单色线条随明暗自适应）：
+    // 独立 bundle 先激活，供标题栏/设置外壳/主题设置三个消费点经 inject 引用（跨插件只传字符串）。
+    { id: '@lansi-ai/dsh-desktop-icons', path: resolveLocalWebBundle('desktop-icon-client.js'), inject: [], immediately: true },
+    // 设置外壳自研（替换官方 ui-settings-general，见 CLIENT_EXCLUDE_IDS）：面板框架 +
+    // 导航投影（图标下放为主题槽位）+ General 分区 + 触发行/标题/关闭。服务等待
+    // exports.inject = ['slots', 'locale', 'themeIcon']（slot 账本 + 语言 + 图标渲染）。
+    { id: '@lansi-ai/dsh-desktop-settings-shell', path: resolveLocalWebBundle('desktop-settings-shell-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client', '@lansi-ai/dsh-desktop-icons'], immediately: true },
+    // 官方 UI 内部图标主题化覆盖层：ui-overrides.json 映射 + MutationObserver 替换
+    // （空映射表时不激活，零开销；desktop.theme.client 与图标主题解耦、可独立增删）
+    { id: '@lansi-ai/dsh-desktop-ui-icons', path: resolveLocalWebBundle('desktop-ui-icons-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
     // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口（纯 DOM 浮层 + 官方运行时导航——坑 13/14/15）
     // entry.inject 是信息性包名依赖边（非服务注入）；服务等待只看插件返回对象的 exports.inject，
     // 故此处恒 []，ctx.sessions/workspaces 由插件 apply 后经 ctx.get 软查找。

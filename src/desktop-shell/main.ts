@@ -17,7 +17,10 @@ import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
 import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
 import { closeStartupSplash, createStartupSplash, splashPhase, splashProgress, startSplashDemo } from './splash.js'
-import { refreshTrayIcon, markQuitting } from '../desktop-host/desktop-tray.js'
+import { refreshTrayIcon, markQuitting, refreshTrayMenu, setTrayUpdaterControl } from '../desktop-host/desktop-tray.js'
+import { getActiveIconPath } from '../desktop-host/desktop-theme.js'
+import type { DesktopThemeHandle } from '../desktop-host/desktop-theme.js'
+import type { AutoUpdaterHandle } from '../desktop-host/auto-updater.js'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection' with { 'resolution-mode': 'import' }
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway' with { 'resolution-mode': 'import' }
 
@@ -113,11 +116,17 @@ let desktopAuditViewerHandle: (() => void) | null = null
 /** 开机自启句柄（退出前清理）。 */
 let desktopAutostartHandle: (() => void) | null = null
 
+/** 应用自动更新句柄（仅打包版生效，退出前清理）。 */
+let autoUpdaterHandle: AutoUpdaterHandle | null = null
+
 /** 骨架外观句柄（宿主面：:root 外观变量注入，主窗口 + 会话窗口共用）。 */
 let desktopAppearanceHandle: import('../desktop-host/desktop-appearance.js').DesktopAppearanceHandle | null = null
 
 /** 主题联动句柄（退出前清理，M3-b4 主题体验）。 */
 let themeSyncHandle: import('../desktop-host/theme-sync.js').ThemeSyncHandle | null = null
+
+/** 桌面主题服务句柄（V1 图标更改：清单扫描 + settings 联动，退出前清理）。 */
+let desktopThemeHandle: DesktopThemeHandle | null = null
 
 /** 窗口管理器句柄（M3·多窗口）。 */
 let windowManager: WindowManager | null = null
@@ -136,11 +145,11 @@ let pendingDshUrl: string | null = null
  */
 let bootstrapCompleted = false
 
-/** 应用/窗口图标（官方 harness logo，黑白双版随 nativeTheme 切换；缺失回退另一版）。 */
+/** 应用/窗口图标（主题包激活图标，随 nativeTheme 黑白双版；主题缺失回退内置默认）。 */
 function loadAppIcon(): Electron.NativeImage {
   const dark = nativeTheme.shouldUseDarkColors
-  const primary = nativeImage.createFromPath(join(__dirname, 'web', dark ? 'app-icon-dark.png' : 'app-icon-light.png'))
-  const fallback = nativeImage.createFromPath(join(__dirname, 'web', dark ? 'app-icon-light.png' : 'app-icon-dark.png'))
+  const primary = nativeImage.createFromPath(getActiveIconPath('app', dark))
+  const fallback = nativeImage.createFromPath(getActiveIconPath('app', !dark))
   return primary.isEmpty() ? fallback : primary
 }
 
@@ -417,6 +426,17 @@ async function bootstrap(): Promise<void> {
     })
     await themeSyncHandle.ready
 
+    // 4.7 桌面主题服务：扫描 resources/themes 清单 + 读激活主题（settings `desktop`
+    // namespace `themeId`）+ 订阅 settings/document-updated 联动。建窗前 await ready，
+    // 保证首帧窗口/任务栏图标即为当前主题；变更回调刷新窗口/托盘图标。
+    const { installDesktopTheme } = await import('../desktop-host/desktop-theme.js')
+    desktopThemeHandle = installDesktopTheme({
+      callApi,
+      hostCtx: hostCtx as { on(event: 'settings/document-updated', listener: (ns: string, revision: number) => void): () => boolean },
+      onChanged: () => refreshAppIcons(),
+    })
+    await desktopThemeHandle.ready
+
     // 5. 注册 IPC 载波服务到 Cordis 上下文（0.1.2：走 connection createSharedFetchHandler）
     registerIpcCarrierServices(hostCtx, {
       handleRpc: async (request: RpcRequest) => {
@@ -458,7 +478,7 @@ async function bootstrap(): Promise<void> {
     const windowStateFilePath = join(app.getPath('userData'), 'window-state.json')
     windowManager = createWindowManager({
       getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
-      getAppIconPath: () => join(__dirname, 'web', nativeTheme.shouldUseDarkColors ? 'app-icon-dark.png' : 'app-icon-light.png'),
+      getAppIconPath: () => getActiveIconPath('app', nativeTheme.shouldUseDarkColors),
       getStateFilePath: () => windowStateFilePath,
       // 会话窗口创建后附加骨架外观注入（:root 外观变量，多窗口一致）
       onSessionWindowCreated: (sessionWin) => desktopAppearanceHandle?.attach(sessionWin),
@@ -524,9 +544,13 @@ async function bootstrap(): Promise<void> {
         getAuditLogPath: () => auditLogFilePath,
       })
 
-      // M3·b3 开机自启：OS 登录项管理（--hidden 静默到托盘；dev 模式拦截注册）
+      // M3-b3 开机自启：OS 登录项管理（--hidden 静默到托盘；dev 模式拦截注册）
       const { installDesktopAutostart } = await import('../desktop-host/desktop-autostart.js')
       desktopAutostartHandle = installDesktopAutostart({ desktop: desktopCore })
+
+      // 主题 bridge 方法（desktop.theme.list/set；写 settings 经事件联动自动应用图标）
+      const { registerDesktopThemeMethods } = await import('../desktop-host/desktop-theme.js')
+      registerDesktopThemeMethods(desktopCore)
 
       log.ok('[dsh-desktop] 桌面能力已装配（tray/notify/shortcuts/clipboard/cmdpalette/audit-viewer/autostart）')
 
@@ -550,6 +574,30 @@ async function bootstrap(): Promise<void> {
     } else {
       log.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
     }
+
+    // 9. 应用自动更新（electron-updater · 仅打包版生效；dev 下返回禁用句柄）。
+    // 启动即装配（内部带 20s 延迟静默检查），状态变更刷新托盘菜单并下行桌面事件。
+    const { createAutoUpdater } = await import('../desktop-host/auto-updater.js')
+    autoUpdaterHandle = createAutoUpdater({
+      desktop: desktopCore ?? null,
+      getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
+      onStateChange: () => refreshTrayMenu(),
+    })
+    // 托盘菜单注入「检查更新/立即重启以更新」区块。
+    setTrayUpdaterControl(autoUpdaterHandle)
+    // 注册桥方法：desktop.updater.* （renderer 设置页「关于」区的检查更新入口）。
+    const { registerMethod: registerUpdaterMethod } = await import('../desktop-host/bridge.js')
+    registerUpdaterMethod('desktop.updater.check', async () => {
+      autoUpdaterHandle?.check()
+      return { ok: true }
+    })
+    registerUpdaterMethod('desktop.updater.status', async () => {
+      return autoUpdaterHandle?.getState() ?? { ok: false }
+    })
+    registerUpdaterMethod('desktop.updater.install', async () => {
+      autoUpdaterHandle?.restartToInstall()
+      return { ok: true }
+    })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -582,6 +630,9 @@ app.on('before-quit', async () => {
   }
   windowManager?.dispose()
   themeSyncHandle?.stop()
+  desktopThemeHandle?.stop()
+  autoUpdaterHandle?.dispose()
+  autoUpdaterHandle = null
   desktopAuditViewerHandle?.()
   desktopAutostartHandle?.()
   desktopAppearanceHandle?.dispose()
