@@ -375,8 +375,9 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // exports.inject = ['slots', 'locale', 'themeIcon']（slot 账本 + 语言 + 图标渲染）。
     { id: '@lansi-ai/dsh-desktop-settings-shell', path: resolveLocalWebBundle('desktop-settings-shell-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client', '@lansi-ai/dsh-desktop-icons'], immediately: true },
     // 官方 UI 内部图标主题化覆盖层：ui-overrides.json 映射 + MutationObserver 替换
-    // （空映射表时不激活，零开销；desktop.theme.client 与图标主题解耦、可独立增删）
-    { id: '@lansi-ai/dsh-desktop-ui-icons', path: resolveLocalWebBundle('desktop-ui-icons-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
+    // （空映射表时不激活，零开销；desktop.theme.client 与图标主题解耦、可独立增删）。
+    // external 边保证 icons 先行——覆盖层 exports.inject=['themeIcon'] 复用其内联上色
+    { id: '@lansi-ai/dsh-desktop-ui-icons', path: resolveLocalWebBundle('desktop-ui-icons-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client', '@lansi-ai/dsh-desktop-icons'], immediately: true },
     // M3-a4 命令面板：Ctrl+K 面板 + 快速提问快捷入口（纯 DOM 浮层 + 官方运行时导航——坑 13/14/15）
     // entry.inject 是信息性包名依赖边（非服务注入）；服务等待只看插件返回对象的 exports.inject，
     // 故此处恒 []，ctx.sessions/workspaces 由插件 apply 后经 ctx.get 软查找。

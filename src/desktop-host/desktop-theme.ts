@@ -35,7 +35,7 @@
 
 import { cp, readdir, readFile, mkdir, copyFile, writeFile } from 'node:fs/promises'
 import { existsSync, statSync } from 'node:fs'
-import { dirname, join, normalize, sep } from 'node:path'
+import { dirname, join, basename, normalize, sep } from 'node:path'
 import { app, dialog } from 'electron'
 
 import { log } from './log.js'
@@ -76,7 +76,7 @@ export type ThemeIconKind = keyof typeof ICON_FILES
  * 「这个图标位归谁用」。两类归属（`scope`，见 `GLOBAL_SLOT_IDS`）：
  *   - `global`=应用/托盘图标 + 标题栏品牌 logo —— 存 `userData/icons/` 全局单份，
  *     **不随图标包切换**（它们是应用身份标识，不属于任何一个图标包）；
- *   - `pack`=界面图标（设置导航、窗控、折叠钮）—— 存激活包 `icons/` 子目录，
+ *   - `pack`=界面图标（设置导航、窗控、折叠钮、工作区侧栏）—— 存激活包 `icons/` 子目录，
  *     随图标包切换，经 `dsh-ui://app/theme/current/icons/<文件名>` 引用。
  * `format: 'svg'` 走内联上色（单色线条稿随明暗自适应，见
  * @lansi-ai/dsh-desktop-icons）；`format: 'png'` 原色呈现。
@@ -220,6 +220,45 @@ const RAW_ICON_SLOTS: readonly Omit<IconSlot, 'scope'>[] = [
     size: 16,
     fallback: '回退官方同位图标',
   })),
+  // 官方 ui-workspace 内联图标（工作区侧栏）：编译进官方 bundle 的 React 内联 SVG，
+  // 无独立资源可换，唯一途径 = ui-icons 覆盖层。match 为官方 svg 首个 path 的 d
+  // 前缀特征（实机探测自 dsh-web-frontend dist @0.1.2-rc.1；上游升级可能改变特征，
+  // 失效时重新探测并更新此处）。上传时主进程自动把规则并进包内 ui-overrides.json。
+  ...([
+    {
+      id: 'ui-workspace-search',
+      label: '工作区「搜索」图标',
+      file: 'icons/ui-workspace-search.svg',
+      match: ['M11.894845 6.647401C11.894845 3.725463'],
+    },
+    {
+      id: 'ui-workspace-view',
+      label: '工作区「视图选项」（分组/排序）图标',
+      file: 'icons/ui-workspace-view.svg',
+      match: ['M10.3232 9.18164C11.2868 9.18164'],
+    },
+    {
+      id: 'ui-workspace-add',
+      label: '工作区「新建」图标',
+      file: 'icons/ui-workspace-add.svg',
+      match: ['M3.55246 0L3.55246 2.44252L6 2.44252'],
+    },
+    {
+      id: 'ui-workspace-folder',
+      label: '工作区文件夹图标（收起/展开两态共用）',
+      file: 'icons/ui-workspace-folder.svg',
+      // 收起 IconFolderClose16 + 展开 IconFolderOpen16 两条特征（后者同 d 的
+      // IconFolderOpenOutline16 一并被覆盖，视觉同一）
+      match: ['M5.05582 0.518756L4.50669 0.86654', 'M5.19629 1.57104C5.81144 1.5711'],
+    },
+  ].map((slot) => ({
+    ...slot,
+    group: '工作区侧栏',
+    plugin: '官方 ui-workspace（@lansi-ai/dsh-desktop-ui-icons 覆盖层）',
+    format: 'svg' as const,
+    size: 16,
+    fallback: '回退官方内联图标；替换经 ui-overrides.json（path 特征随官方升级可能失效）',
+  }))),
 ]
 
 /**
@@ -546,6 +585,43 @@ export function installDesktopTheme(options: DesktopThemeOptions): DesktopThemeH
   }
 }
 
+/** 官方 UI 覆盖规则（icons/ui-overrides.json 条目，@lansi-ai/dsh-desktop-ui-icons 消费）。 */
+interface UiOverrideRule {
+  /** 官方 svg 首个 path 的 d 前缀特征。 */
+  match: string
+  /** 替换图标文件名（相对包内 icons/ 目录）。 */
+  icon: string
+  /** 建议渲染尺寸（官方 svg 无 width 属性时兜底）。 */
+  size?: number
+}
+
+/**
+ * 把槽位的官方 path 特征映射并进包内 icons/ui-overrides.json（upsert：同 match
+ * 前缀旧规则先剔除再追加；文件缺失/损坏按空表起始）。icon 写相对 icons/ 的
+ * 文件名（覆盖层经 dsh-ui://app/theme/current/icons/<icon> 引用）。
+ */
+async function upsertUiOverrideRules(packDir: string, slot: IconSlot): Promise<void> {
+  const file = join(packDir, 'icons', 'ui-overrides.json')
+  let rules: UiOverrideRule[] = []
+  try {
+    const parsed: unknown = JSON.parse(await readFile(file, 'utf-8'))
+    if (Array.isArray(parsed)) {
+      rules = parsed.filter((entry): entry is UiOverrideRule =>
+        typeof entry === 'object' && entry !== null &&
+        typeof (entry as UiOverrideRule).match === 'string' &&
+        typeof (entry as UiOverrideRule).icon === 'string')
+    }
+  } catch {
+    // 缺失/损坏 → 空表起始
+  }
+  const incoming = slot.match ?? []
+  const icon = basename(slot.file)
+  rules = rules.filter((rule) => !incoming.includes(rule.match))
+  for (const match of incoming) rules.push({ match, icon, size: slot.size })
+  await mkdir(dirname(file), { recursive: true })
+  await writeFile(file, `${JSON.stringify(rules, null, 2)}\n`, 'utf-8')
+}
+
 /**
  * 注册图标主题 bridge 方法（步骤 8 desktopCore 就绪后调用；与 autostart 模式一致：
  * 真源主进程侧，写 settings 经事件联动自动生效）。颜色主题（colorThemeId）为
@@ -669,6 +745,11 @@ export function registerDesktopThemeMethods(desktop: DesktopCore): void {
     const target = join(targetDir, slot.file)
     await mkdir(dirname(target), { recursive: true })
     await copyFile(source, target)
+    // 官方 UI 覆盖槽位（带 match 特征）：把映射规则并进包内 ui-overrides.json，
+    // 覆盖层（@lansi-ai/dsh-desktop-ui-icons）随后按新规则做 DOM 替换
+    if (slot.match !== undefined && slot.match.length > 0) {
+      await upsertUiOverrideRules(targetDir, slot)
+    }
     // 重扫：克隆出的新包需进主题表，否则协议层 resolveThemeDir 查不到 → 404
     await scanThemes()
     // 同 ID/同归属换内容不会触发 applyActiveThemeId → 宿主与 UI 两处刷新显式补发

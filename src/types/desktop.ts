@@ -243,7 +243,7 @@ export const iconSlotSchema = z.object({
    * 归属范围：
    *   - `global`=应用/托盘图标与标题栏品牌 logo，存包外 `userData/icons/` 全局单份，
    *     **不随图标包切换**（它们是应用身份标识，不属于任何图标包）；
-   *   - `pack`=界面图标（设置导航、窗控等），随激活包切换。
+   *   - `pack`=界面图标（设置导航、窗控、工作区侧栏等），随激活包切换。
    */
   scope: z.enum(['global', 'pack']),
   /** 相对归属目录的规范文件名（global：`app-icon-light.png`；pack：`icons/xxx.svg`）。 */
@@ -254,6 +254,14 @@ export const iconSlotSchema = z.object({
   size: z.number().int().positive(),
   /** 缺失时的回退行为说明。 */
   fallback: z.string().min(1),
+  /**
+   * 官方 UI 覆盖映射（可选，仅官方 bundle 内联 SVG 槽位使用）：官方 svg 首个
+   * path 的 d 前缀特征，多条=同一图标覆盖多个官方变体（如文件夹收起/展开两态）。
+   * 上传该槽位时主进程自动把 { match, icon, size } 规则并进包内
+   * icons/ui-overrides.json，运行期由 @lansi-ai/dsh-desktop-ui-icons 覆盖层做
+   * DOM 替换（官方 dist 零改动；官方升级改变 path 特征时需重新登记）。
+   */
+  match: z.array(z.string().min(1)).optional(),
 })
 
 /** 图标槽位状态（注册表 + 相对其归属目录的提供情况）。 */
