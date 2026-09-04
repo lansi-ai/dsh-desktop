@@ -28,7 +28,7 @@
  */
 
 import { cp, readdir, readFile, mkdir, copyFile, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { dirname, join, normalize, sep } from 'node:path'
 import { app, dialog } from 'electron'
 
@@ -302,12 +302,19 @@ async function scanThemes(): Promise<void> {
 /**
  * 槽位提供情况（相对指定主题包目录判定；目录未知时全判缺失）。
  * 设置页据此把「系统/插件需要什么」与「包里有什么」对齐，缺失项给出行内上传入口。
+ *
+ * 注：**空文件等同未提供**——0 字节占位协议层照样 200，但 renderer 解析不出
+ * `<svg>` 会静默回退官方图标；只判 existsSync 会把这种缺口藏进「已提供」。
  */
 function listSlotStatus(themeDir: string | undefined): IconSlotStatus[] {
-  return ICON_SLOTS.map((slot) => ({
-    ...slot,
-    provided: themeDir !== undefined && existsSync(join(themeDir, slot.file)),
-  }))
+  return ICON_SLOTS.map((slot) => {
+    let provided = false
+    if (themeDir !== undefined) {
+      const file = join(themeDir, slot.file)
+      provided = existsSync(file) && statSync(file).size > 0
+    }
+    return { ...slot, provided }
+  })
 }
 
 /** settings.describe 返回值的最小面（仅取所需字段，theme-sync 同款）。 */

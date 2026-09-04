@@ -156,3 +156,15 @@
   2. **新增 `desktop.iconTheme.create({id,name})`**：用户目录建空包（theme.json + icons/）**建完即激活**，「建自己的包 → 逐项传图标」成一条连续路径；ID 走协议路由同款白名单 `[a-z0-9_-]{1,32}`，重名拒绝
   3. **需求清单默认折叠**：改 `<details>`，summary 带缺失计数（`缺 N 项` / `全部已提供`）作展开信号；`uploadDir` 语义改为「激活包写入目录」（内置包显示其克隆目标）
 
+### #10 · 设置页导航「外观」显示官方原生图标，且比其它自定义图标大一档
+
+- 环境：dev（激活包 = `.runtime/user-data/themes/default`，即上传时被克隆出来的默认包）
+
+- 第一现场：无任何报错。导航「外观」一行的图标形状与其它行不同（官方齿轮 vs 自定义 Material 调色板），且明显大一圈
+
+- 状态：**fixed**（2026-09-04 · 待实机点验）→ 坑 29
+
+- 根因（两件独立）：① 内置 `resources/themes/default/icons/settings-nav-appearance.svg` 是 **0 字节空占位**（由 `settings-nav-theme.svg` 重命名而来，本来就是空的）→ 协议层 200、renderer 解析不出 `<svg>` → 静默回退官方图标；而需求清单 `provided` 只判 `existsSync`，把空文件标成「已提供」，缺口被藏住；② 尺寸差是**画布留白规范不同**：官方 primitives 16 网格字形近乎满幅（≈87%、描边 1px），自定义为 Material Symbols 24 网格（`viewBox="0 -960 960 960"`，字形约 79%、描边缩到 ≈0.8px），两者被强制成同一 16px 盒子 → 看着小一档
+
+- 修复：① `provided` 改「存在且 `size > 0`」+ 删内置空占位（并清 `dist` 里的陈旧空文件——`copy-web` 只覆盖不删除）；② `desktop-icon-client.js` 的 `renderSvg` 加**光学归一**：离屏 `getBBox()` 测字形真实包围盒 → viewBox 重设为「最长边 + 每侧 1/16 内边距」的正方形并居中（1/16 对齐官方留白比例），测不到包围盒则不裁切，结果进缓存只测一次
+
