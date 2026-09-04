@@ -241,6 +241,37 @@
   - **排除官方插件 = 排除它的全部职责**：接管 root 槽位排除 ui-layout 前，要盘点它承载的所有 effect（root 注册 + ThemePresenter + …），被排除的职责须在自研件中等价补齐；「事件有人发」不等于「有人消费」。
   - **壳层配色不要硬编码单值**：自绘 CSS 一律用 `light-dark()` 双值或官方 token；并避免元素级 `color-scheme` 声明劫持主题跟随（会改随 OS 偏好）。
 
+## 坑 27 · 自绘设置 section 硬编码深色 + grid 子项 min-content 撑破（外观页浅色不可读 + 卡片横向溢出面板）
+
+- **现象**（2026-09-04，用户截图）：设置页「外观」在浅色配色主题下标题/说明/卡片边框几乎不可见（发白）；图标包卡片不落在 640px 容器内，图标排成一长条冲出面板右边界，包内图标越多（上传的 custom 包）溢出越严重。无任何控制台报错——纯渲染问题。
+- **根因**（三处独立）：
+  ① 样式全部**内联硬编码深色值**（`color:#f8fafc`、`rgba(255,255,255,0.08)`、`rgba(0,0,0,0.25)`），未取官方 token，明暗主题完全不跟随。
+  ② **grid 子项默认 `min-width:auto` = min-content**：外层 `repeat(auto-fill,minmax(180px,1fr))` 的卡片未设 `min-width:0`，而卡片内层是 `repeat(4,1fr)` 预览网格、每格带 `white-space:nowrap` 的文件名标签（`maxWidth:72px`）→ 卡片 min-content ≈338px 反顶轨道宽度，3 条轨道合计 ≈1034px 撑破 ≈564px 的内容区（`auto-fill` 只保证「轨道不小于 min」，不封顶）。
+  ③ section 自带 `padding:16px 24px` + `maxWidth:640px`，与自研设置外壳 `.dss-options` 已有的 `padding:0 24px 24px` 叠加 → 双重缩进、与其它 section 不一致。
+- **解法**（`desktop-theme-client.js` V2 重构）：
+  ① 样式改为注入式 `<style data-plugin="@lansi-ai/dsh-desktop-theme">` + 官方 token 取色（`--dsw-alias-label-primary/secondary/tertiary`、`--dsw-alias-border-l2/l3/l4`、`--dsw-alias-bg-layer-1`、`--dsw-alias-fill-tsp-secondary`、`--dsw-alias-brand-primary`、`--dsw-alias-bg-multi-select`、`--dsw-alias-state-success/error-primary`），明暗自动。
+  ② 三层防溢出：卡片 `min-width:0`、内层预览网格 `repeat(4,minmax(0,1fr))`、预览格固定 24×24 **不带文本标签**（文件名移到 `title` 悬浮）；版式同时精简为「代表图标 4 枚 + 包名 + 图标数 + 选中态」。
+  ③ 删除 section 自带 padding/maxWidth，宽度约束交回外壳（根节点 `width:100%;min-width:0`）。
+- **复盘**：
+  - **自绘 UI 禁内联硬编码色值**：一律注入带 `data-plugin` 的样式表 + 官方 `--dsw-*` token（或 `light-dark()` 双值），否则浅色主题必不可读；这与坑 26 的「壳层配色不硬编码单值」同源，但 section 内容层同样适用。
+  - **内容宽度不可控的 grid/flex 卡片必须显式 `min-width:0`**：`minmax(180px,1fr)` 不封顶，子项 min-content 会反向撑破轨道；`nowrap` 文本标签是撑破的头号来源——缩略图类网格应固定单元格尺寸 + 文本进 `title`。
+  - **section 不重复承担外壳的间距职责**：设置外壳 `.dss-options` 已提供内边距与滚动容器，section 根节点只做自身布局。
+
+## 坑 28 · 主题图标清单无单一真源：设置页退化成文件罗列，且 app/tray 槽位根本无法经上传补齐
+
+- **现象**（2026-09-04，用户澄清需求）：「图标引用清单」只列激活包里**已有**的文件名，用户看不出系统/插件**需要**哪些图标、该叫什么、放哪；顶部「上传图标」恒把文件写进 `custom/icons/`，而 app/tray 四件套的约定位置是**包根**——上传永远补不齐应用/托盘图标。
+- **根因**（两层）：
+  ① 槽位知识分散在三处消费方源码（host `ICON_FILES` 包根约定、settings-shell 的 `settings-nav-<id>.svg`/`settings-trigger.svg`、titlebar 的 `titlebar-logo.svg`），设置页手上只有「包目录扫描结果」，语义天然错位——文件系统能回答「有什么」，回答不了「该有什么」。
+  ② 上传 API 无参数（`upload()` 恒 `icons/<sanitize(原文件名)>`），既不知道目标槽位也不知道目标目录，格式/尺寸/回退更无从校验。
+- **解法**：host 新增 `ICON_SLOTS` 注册表（**单一真源**：`id/label/group/file/format/size/fallback`，13 位 = 包根 app/tray × 明暗 4 + `icons/` UI 位 9）；`desktop.iconTheme.list` 下发 `slots`（`provided` 相对激活包 `existsSync` 判定）+ `uploadDir`；`desktop.iconTheme.upload({slotId})` 改槽位驱动：对话框按槽位格式单选 → 以规范名 `join(custom 包, slot.file)` 落盘（`mkdir(dirname(target))` 自动建子目录）→ **重扫主题表**（首传的 custom 包必须进表，否则协议层 `resolveThemeDir` 查不到 → 404）→ custom 正激活时 `onThemeChanged()`（宿主窗口/托盘）+ 下行 `theme.icon-change`（各窗口 UI）双刷新。设置页只渲染 host 下发的清单，不再自行派生文件名。
+- **复盘**：
+  - **「清单类」UI 的数据源必须是需求注册表，不是文件系统扫描**：有回退链的槽位（缺了也能跑）尤其危险——静默回退会把缺口永久藏住，用户以为生效了。
+  - **新增图标消费点必须同处登记 `ICON_SLOTS`**（宿主侧契约，注释已写明），否则设置页看不见该需求；同坑 26「排除即承接全部职责」一个味道：加消费点就要加台账。
+  - **上传类 API 要携带语义目标**：无参 `upload()` 只能猜目录与命名；参数化到槽位后，命名/目录/格式校验/生效刷新收敛到 host 一处，renderer 零规则。
+  - **上传目标应是用户正在操作的对象，不是硬编码兜底包**：恒落 `custom` 让「基于现有包换一两个图标」变成重搭整套资产。内置包 asar 只读的约束用「**同名克隆到用户目录**」化解——扫描时用户包覆盖内置，激活 ID 不变、内容就地可替换，用户视角仍是「传进了这个包」（回执 `cloned` 说明发生了什么）。
+  - **新建即激活**：`create` 后直接 `activate(id)`，「建自己的包 → 往里传图标」是一条连续路径，不必回头再点一次卡片。
+  - **清单类信息默认折叠 + 计数当展开信号**（`缺 N 项` / `全部已提供`）：次要细节不该挤占主路径，但要让用户一眼判断是否需要展开。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -261,6 +292,8 @@
 16. **官方传输的 wire 契约要逐层对齐**：走官方 connection/typert 时，端点须用「斜杠 `domain/method`」、payload 须是「恰好一个 plain-object `args` 字段 `{args}`」、`args` 内字段名须匹配端点签名参数（`_request`/`request` 等）；持续 404 / `arguments-invalid` 优先查这三层 wire 形态，**不要先归因「启动时序」加盲目重试**（坑 24）。
 17. **宿主禁用 ≠ 渲染端不会跑（两条正交装配线）**：host 补丁禁用的 Web 基础设施（如 client-hmr / cordis-runner），其 client 半点仍会被渲染图谱自动扫描激活，对端缺席 → 持续 404 噪音；必须同时把它加进 `CLIENT_EXCLUDE_IDS`。排除一个被他人当服务依赖的插件要连消费方一起排除（判断=对方是否 `ctx.get` 该服务，`inject` 只是顺序提示）（坑 25）。
 18. **双面包插件两条装配线都要点名 + 排除即承接全部职责**：官方 ui-* 的 host 半须在 boot.ts 显式 insert（对照官方 cordis.patch.yml 逐行核对，同口径一次补齐）；排除官方插件（如 ui-layout）前盘点其全部 effect，被排除职责（如 ThemePresenter）须在自研件中等价补齐——「事件有人发 ≠ 有人消费」。壳层配色用 `light-dark()` 双值/官方 token，不硬编码单值（坑 26）。
+19. **自绘界面两层纪律（配色 + 尺寸）**：颜色一律官方 `--dsw-*` token 或 `light-dark()`，禁止内联硬编码单值（浅色主题必不可读）；内容宽度不可控的 grid/flex 子项必须显式 `min-width:0` + 内层轨道 `minmax(0,1fr)`，`minmax(Npx,1fr)` 不封顶、子项 min-content 会反向撑破容器（`nowrap` 文本标签是头号元凶）（坑 27）。
+20. **「清单/概览」类 UI 的数据源必须是需求注册表，不是文件系统或目录扫描**：扫描只回答「有什么」，答不出「该有什么」；带静默回退链的槽位（缺了也能跑）缺口会被永久藏住。清单、上传、校验三处共用同一份注册表（真源一处，renderer 只渲染），新增消费点即新增登记项（坑 28）。
 
 ## 结论
 

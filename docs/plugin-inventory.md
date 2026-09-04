@@ -332,6 +332,7 @@
 | `@lansi-ai/dsh-desktop-sidebar` | `desktop-sidebar-client.js` | 侧栏壳（M6-P3）：fold 状态机 + 新会话（workspaces.startSession）+ 5 子槽位声明（brand.mark/name、workspaces、settings、footer.action），官方 workspaces/settings 注册者无改动继续工作 | ✅（2026-09-01 实机验证通过） |
 | `@lansi-ai/dsh-desktop-session-export` | `desktop-session-export-client.js` | Session 日志导出 UI（M6-P2 首件）：header 导出胶囊 + 结果弹层 + 下载 controller，文案修正桌面语义；host 半官方保留 | ✅（2026-09-02 实机验证通过） |
 | `@lansi-ai/dsh-desktop-settings` | `desktop-settings-client.js` | 设置页「桌面」section（tray/通知/快捷键/自启 Toggle） | ✅ |
+| `@lansi-ai/dsh-desktop-theme` | `desktop-theme-client.js` | 设置页「外观」section：图标包卡片网格 + **新建图标包** + **图标需求清单**（默认折叠，按消费方插件分组的槽位：用途/规范名/格式·尺寸/缺失回退/已提供状态 + 行内上传·替换，目标=当前激活包）；槽位真源 = host `ICON_SLOTS`，清单/落盘/克隆全在 host（坑 27/28） | ✅（2026-09-04 重构，待实机点验） |
 | `@lansi-ai/dsh-desktop-audit-viewer` | `desktop-audit-viewer-client.js` | 会话审计查看器 Tab | ✅ |
 | `@lansi-ai/dsh-desktop-conversation-visuals` | `desktop-conversation-visuals-client.js` | 对话区视觉层（data-phase 圆角/裁剪样式，不接管 conversation 槽位） | ✅ |
 | `@lansi-ai/dsh-desktop-cmdpalette` | `desktop-cmdpalette-client.js` | 命令面板（2026-08-27 禁用壳，仅留 quick-ask 聚焦） | ⛔ 已禁用 |

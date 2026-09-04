@@ -215,10 +215,42 @@ export const iconThemeSetSchema = z.object({
   id: z.string().min(1),
 })
 
-/** 主题摘要（设置页列表项：清单 + 当前激活标记）。 */
+/** 主题摘要（设置页列表项：清单 + 当前激活标记 + 图标文件索引）。 */
 export const themeSummarySchema = themeManifestSchema.extend({
   /** 是否为当前激活主题。 */
   current: z.boolean(),
+  /** 包内图标文件索引（相对主题目录路径，如 'icons/settings-nav-appearance.svg'）。 */
+  icons: z.array(z.string()),
+})
+
+/**
+ * 图标槽位（系统/自研插件消费的主题图标需求，注册表真源在 desktop-theme.ts）。
+ *
+ * 设置页「外观」据此展示**需求清单**（要哪些图标、规范文件名、期望落盘位置、
+ * 缺失时回退到什么），而非罗列包内已有文件；上传按槽位驱动，目标文件名由
+ * 注册表决定（app/tray 四件套在包根，UI 槽位在 icons/ 子目录）。
+ */
+export const iconSlotSchema = z.object({
+  /** 槽位 ID（上传请求定位用，如 'titlebar-logo'）。 */
+  id: z.string().min(1),
+  /** 用途名（设置页展示，如「标题栏品牌 logo」）。 */
+  label: z.string().min(1),
+  /** 消费方分组（如「应用与托盘」「标题栏」「设置面板」）。 */
+  group: z.string().min(1),
+  /** 相对主题包目录的规范文件名（含子目录，如 'icons/titlebar-logo.svg'）。 */
+  file: z.string().min(1),
+  /** 期望格式：svg=单色线条稿（随明暗自适应）；png=彩色位图。 */
+  format: z.enum(['svg', 'png']),
+  /** 建议尺寸（svg 为渲染像素；png 为导出的正方形边长）。 */
+  size: z.number().int().positive(),
+  /** 缺失时的回退行为说明。 */
+  fallback: z.string().min(1),
+})
+
+/** 图标槽位状态（注册表 + 相对当前激活包的提供情况）。 */
+export const iconSlotStatusSchema = iconSlotSchema.extend({
+  /** 当前激活图标包是否已提供该槽位文件。 */
+  provided: z.boolean(),
 })
 
 /** 图标主题清单响应。 */
@@ -227,6 +259,10 @@ export const iconThemeListResultSchema = z.object({
   themes: z.array(themeSummarySchema),
   /** 当前激活图标主题 ID（清单缺失时回退 'default'）。 */
   current: z.string().min(1),
+  /** 槽位需求清单（provided 相对激活包判定）。 */
+  slots: z.array(iconSlotStatusSchema),
+  /** 当前激活包的写入目录绝对路径（上传落盘位置；内置包为其本地克隆目标）。 */
+  uploadDir: z.string().min(1),
 })
 
 /** 图标主题切换响应（写 settings 后的回执）。 */
@@ -239,11 +275,59 @@ export const iconThemeSetResultSchema = z.object({
   message: z.string().optional(),
 })
 
+/** 图标上传请求（renderer → host；槽位驱动，目标=当前激活包，文件经系统对话框单选）。 */
+export const iconThemeUploadSchema = z.object({
+  /** 目标图标槽位 ID（须在注册表内，决定规范文件名/子目录/格式）。 */
+  slotId: z.string().min(1),
+})
+
+/** 图标上传响应（以槽位规范名拷入当前激活图标包后的回执）。 */
+export const iconThemeUploadResultSchema = z.object({
+  /** 是否上传成功。 */
+  ok: z.boolean(),
+  /** 落盘的相对路径（槽位规范名，如 'icons/titlebar-logo.svg'）。 */
+  imported: z.array(z.string()).optional(),
+  /** 实际写入的图标包 ID（= 上传时的激活包）。 */
+  themeId: z.string().optional(),
+  /** 激活包为内置包（打包后只读）时置真：已先整体克隆到本地用户主题目录再写入。 */
+  cloned: z.boolean().optional(),
+  /** 失败/取消原因。 */
+  message: z.string().optional(),
+})
+
+/** 图标包 ID 白名单（同 dsh-ui:// 主题路由的 `[a-z0-9_-]` 字符集约束）。 */
+export const themeIdSchema = z.string().regex(/^[a-z0-9_-]{1,32}$/)
+
+/** 新建图标包请求（renderer → host）。 */
+export const iconThemeCreateSchema = z.object({
+  /** 新包 ID（目录名；`[a-z0-9_-]{1,32}`，不得与已有包重名）。 */
+  id: themeIdSchema,
+  /** 显示名（设置页卡片标题）。 */
+  name: z.string().min(1).max(24),
+})
+
+/** 新建图标包响应（建包即激活，后续上传直接落该包）。 */
+export const iconThemeCreateResultSchema = z.object({
+  /** 是否创建成功。 */
+  ok: z.boolean(),
+  /** 新包 ID。 */
+  id: z.string().optional(),
+  /** 创建后的激活包 ID。 */
+  current: z.string().optional(),
+  /** 失败原因（重名/非法 ID 等）。 */
+  message: z.string().optional(),
+})
+
 export type ThemeManifest = z.infer<typeof themeManifestSchema>
 export type IconThemeSet = z.infer<typeof iconThemeSetSchema>
 export type ThemeSummary = z.infer<typeof themeSummarySchema>
+export type IconSlot = z.infer<typeof iconSlotSchema>
+export type IconSlotStatus = z.infer<typeof iconSlotStatusSchema>
 export type IconThemeListResult = z.infer<typeof iconThemeListResultSchema>
 export type IconThemeSetResult = z.infer<typeof iconThemeSetResultSchema>
+export type IconThemeUploadResult = z.infer<typeof iconThemeUploadResultSchema>
+export type IconThemeCreate = z.infer<typeof iconThemeCreateSchema>
+export type IconThemeCreateResult = z.infer<typeof iconThemeCreateResultSchema>
 
 /**
  * `ctx.desktop` 聚合服务接口（core 子集，M2 地基）。

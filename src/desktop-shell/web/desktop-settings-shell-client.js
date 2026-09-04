@@ -91,6 +91,47 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 设置触发按钮图标：优先主题包槽位 `settings-trigger.svg`（宽栏 16 / 窄栏 18），
+     * 加载失败（未提供/404）回退官方 primitives 齿轮。主题刷新事件驱动重取。
+     */
+    function TriggerIcon({ size }) {
+      const [bust, setBust] = React.useState(iconBustToken)
+      const [html, setHtml] = React.useState(null)
+      const [failed, setFailed] = React.useState(false)
+      React.useEffect(() => {
+        const onChange = () => setBust(iconBustToken)
+        window.addEventListener(ICON_REFRESH_EVENT, onChange)
+        return () => window.removeEventListener(ICON_REFRESH_EVENT, onChange)
+      }, [])
+      React.useEffect(() => {
+        let disposed = false
+        setFailed(false)
+        setHtml(null)
+        if (themeIconSvc === null) {
+          setFailed(true)
+          return
+        }
+        themeIconSvc.renderSvg(`dsh-ui://app/theme/current/icons/settings-trigger.svg?t=${bust}`, size)
+          .then((value) => {
+            if (!disposed) setHtml(value)
+          })
+          .catch(() => {
+            if (!disposed) setFailed(true)
+          })
+        return () => {
+          disposed = true
+        }
+      }, [size, bust])
+      if (failed) return h(primitives.IconSettingsOutline16, { size })
+      if (html === null) return null
+      return h('span', {
+        'aria-hidden': 'true',
+        style: { display: 'inline-flex', flexShrink: 0 },
+        dangerouslySetInnerHTML: { __html: html },
+      })
+    }
+
+    /**
      * 导航图标：优先主题包槽位 settings-nav-<id>.svg（内联渲染，单色线条随明暗自适应），
      * 加载失败（未提供/404）回退官方 primitives 图标。主题刷新事件触发重取。
      */
@@ -167,7 +208,7 @@ window.__ModuleLoader__.load({
     /** 触发行内容：宽列 = 图标 + 文案；窄栏 = 仅图标。 */
     function TriggerContent({ wide, t }) {
       return h(React.Fragment, null,
-        wide ? h(primitives.IconSettingsOutline16, { size: 16 }) : h(primitives.IconSettingsOutline14, { size: 18 }),
+        h(TriggerIcon, { size: wide ? 16 : 18 }),
         wide && h('span', { style: { whiteSpace: 'nowrap', overflow: 'hidden' } }, t('trigger')),
       )
     }

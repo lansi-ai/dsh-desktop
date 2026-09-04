@@ -178,10 +178,20 @@ interface DesktopUpdater {
 
 /** 桌面图标主题操作接口（图标主题与颜色主题为两个独立设置项；颜色主题后续版本）。 */
 interface DesktopIconTheme {
-  /** 列出可用图标主题（含当前激活标记）。 */
-  list(): Promise<{ themes: Array<{ id: string; name: string; color?: string; current: boolean }>; current: string }>
+  /** 列出可用图标主题（激活标记 + 包内图标索引）+ 槽位需求清单 + 上传落盘目录。 */
+  list(): Promise<{
+    themes: Array<{ id: string; name: string; color?: string; current: boolean; icons: string[] }>
+    current: string
+    slots: Array<{ id: string; label: string; group: string; file: string; format: 'svg' | 'png'; size: number; fallback: string; provided: boolean }>
+    /** 当前激活包的写入目录（上传落盘位置；内置包为其本地克隆目标）。 */
+    uploadDir: string
+  }>
   /** 切换图标主题（主进程持久化后经 settings 联动自动应用图标）。 */
   set(id: string): Promise<{ ok: boolean; current?: string; message?: string }>
+  /** 新建图标包（用户主题目录建空包，建完即激活 → 后续上传直接落该包）。 */
+  create(id: string, name: string): Promise<{ ok: boolean; id?: string; current?: string; message?: string }>
+  /** 按槽位上传图标到**当前激活包**（对话框单选对应格式 → 主进程按规范名落盘）。 */
+  upload(slotId: string): Promise<{ ok: boolean; imported?: string[]; themeId?: string; cloned?: boolean; message?: string }>
 }
 export interface DesktopBridge {
   /** 上行 RPC 调用（替换 WebApiClient 的 doFetch）。 */
@@ -520,12 +530,22 @@ function createDesktopBridge(): DesktopBridge {
 
     // ── 桌面图标主题操作（图标主题 / 颜色主题独立设置 · 图标侧） ──
     iconTheme: {
-      list(): Promise<{ themes: Array<{ id: string; name: string; color?: string; current: boolean }>; current: string }> {
+      list(): Promise<{
+        themes: Array<{ id: string; name: string; color?: string; current: boolean; icons: string[] }>
+        current: string
+        slots: Array<{ id: string; label: string; group: string; file: string; format: 'svg' | 'png'; size: number; fallback: string; provided: boolean }>
+        uploadDir: string
+      }> {
         return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
           rpcId: generateUuid(),
           method: 'desktop.iconTheme.list',
           params: undefined,
-        }) as Promise<{ themes: Array<{ id: string; name: string; color?: string; current: boolean }>; current: string }>
+        }) as Promise<{
+          themes: Array<{ id: string; name: string; color?: string; current: boolean; icons: string[] }>
+          current: string
+          slots: Array<{ id: string; label: string; group: string; file: string; format: 'svg' | 'png'; size: number; fallback: string; provided: boolean }>
+          uploadDir: string
+        }>
       },
       set(id: string): Promise<{ ok: boolean; current?: string; message?: string }> {
         return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
@@ -533,6 +553,20 @@ function createDesktopBridge(): DesktopBridge {
           method: 'desktop.iconTheme.set',
           params: { id },
         }) as Promise<{ ok: boolean; current?: string; message?: string }>
+      },
+      create(id: string, name: string): Promise<{ ok: boolean; id?: string; current?: string; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.iconTheme.create',
+          params: { id, name },
+        }) as Promise<{ ok: boolean; id?: string; current?: string; message?: string }>
+      },
+      upload(slotId: string): Promise<{ ok: boolean; imported?: string[]; themeId?: string; cloned?: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.iconTheme.upload',
+          params: { slotId },
+        }) as Promise<{ ok: boolean; imported?: string[]; themeId?: string; cloned?: boolean; message?: string }>
       },
     },
 

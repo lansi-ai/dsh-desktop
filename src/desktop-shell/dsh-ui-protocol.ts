@@ -6,7 +6,7 @@ import { dirname, extname, join, normalize, sep } from 'node:path'
 import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundles } from '../desktop-host/manifest.js'
 import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
 import { dispatchConnectionFetch } from '../desktop-host/connection-fetch-bridge.js'
-import { getActiveThemeId } from '../desktop-host/desktop-theme.js'
+import { getActiveThemeId, resolveThemeDir } from '../desktop-host/desktop-theme.js'
 import { log, logVerbose } from '../desktop-host/log.js'
 
 /**
@@ -265,22 +265,29 @@ export function registerDshUiProtocol(): void {
         return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
       }
 
-      // 主题图标资源路由：/theme/<id|current>/icons/<file> → resources/themes/<id>/icons/<file>。
+      // 主题资源路由：/theme/<id|current>/<file> 与 /theme/<id|current>/icons/<file>
+      // → 主题包目录内对应文件（包根 app/tray PNG 预览 + icons/ svg/json/png）。
       // current 段由主进程主题服务动态解析为激活主题（URL 恒定，切换主题后内容随之变化，
-      // renderer 以 ?t= 时间戳破缓存）。id/file 白名单字符 + normalize 越界校验。
-      const themeMatch = /^\/theme\/([a-z0-9_-]+)\/icons\/([a-z0-9_-]+\.(?:svg|json))$/.exec(url.pathname)
+      // renderer 以 ?t= 时间戳破缓存）。主题目录经 resolveThemeDir 查模块级主题表
+      // （覆盖内置包 + userData/themes 用户包）。id/file 白名单字符 + normalize 越界校验。
+      const themeMatch = /^\/theme\/([a-z0-9_-]+)\/((?:icons\/)?[a-z0-9_-]+\.(?:svg|png|json))$/.exec(url.pathname)
       if (themeMatch !== null) {
-        const [, scope, file] = themeMatch
+        const [, scope, relFile] = themeMatch
         const themeId = scope === 'current' ? getActiveThemeId() : scope
-        const themesRoot = normalize(join(__dirname, '..', 'resources', 'themes'))
-        const filePath = normalize(join(themesRoot, themeId, 'icons', file))
-        if (!filePath.startsWith(themesRoot + sep)) {
+        const themeDir = resolveThemeDir(themeId)
+        if (themeDir === null) {
+          return new Response('not found', { status: 404 })
+        }
+        const filePath = normalize(join(themeDir, relFile))
+        if (!filePath.startsWith(normalize(themeDir) + sep)) {
           log.warn(`[dsh-ui-protocol] 403 ${request.url} (主题资源越界)`)
           return new Response('forbidden', { status: 403 })
         }
         const data = await readFile(filePath)
-        const contentType = file.endsWith('.json') ? 'application/json; charset=utf-8' : 'image/svg+xml'
-        logVerbose('dsh-ui-protocol', `200 (theme route) ${request.url} → ${themeId}/icons/${file}`)
+        const contentType = relFile.endsWith('.json')
+          ? 'application/json; charset=utf-8'
+          : relFile.endsWith('.png') ? 'image/png' : 'image/svg+xml'
+        logVerbose('dsh-ui-protocol', `200 (theme route) ${request.url} → ${themeId}/${relFile}`)
         return new Response(new Uint8Array(data), { headers: { 'content-type': contentType } })
       }
 

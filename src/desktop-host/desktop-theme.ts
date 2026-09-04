@@ -7,31 +7,46 @@
  * 后续版本单独实现，与图标主题互不约束——两者可任意组合。
  *
  * 职责：
- *   - 主题包清单扫描：dist/resources/themes/ 下逐目录读 theme.json（zod 校验，损坏跳过）
+ *   - 主题包清单扫描：内置包（dist/resources/themes/）+ 用户包（userData/themes/，
+ *     同名覆盖内置，允许就地定制内置包）；逐目录读 theme.json（zod 校验，损坏跳过）
  *   - 激活图标主题：真源 = host settings 的 `desktop` namespace `iconThemeId`
  *     （旧 key `themeId` 自动迁移读取）；settings/document-updated 直订阅联动
  *     （theme-sync 同款模式），变更时回调 onChanged → main.ts 刷新窗口/托盘图标
+ *   - 图标槽位注册表（`ICON_SLOTS` · 单一真源）：声明系统与各自研插件消费的
+ *     主题图标（app/tray 四件套在包根、titlebar-logo / settings-trigger /
+ *     settings-nav-* 在 icons/），含规范文件名、格式、建议尺寸与缺失回退说明；
+ *     设置页「外观」据此展示需求清单并提供槽位行内上传
  *   - 图标路径解析：getActiveIconPath(kind, dark) 同步返回激活主题图标路径，
  *     文件缺失逐级回退（主题另一色版 → 内置 web 默认图标）
- *   - bridge 方法：desktop.iconTheme.list（清单+当前）/ desktop.iconTheme.set
- *     （zod 校验 + ctx.desktop.writeConfig 持久化 + 审计，事件联动自动生效）
+ *   - bridge 方法：list（清单+当前+槽位状态+激活包写入目录）/ set（zod 校验 +
+ *     ctx.desktop.writeConfig 持久化 + 审计，事件联动自动生效）/ create（用户目录
+ *     建空包并激活）/ upload（槽位驱动，以规范名写入**当前激活包**；激活包为内置包
+ *     时先整体克隆到用户目录同名包再写——打包版 asar 只读，克隆后激活 ID 不变）
  *
  * 安装时序：bootstrap 步骤 4.7（建窗前 await ready，首帧图标即正确主题）；
  * bridge 方法注册在步骤 8（依赖 desktopCore 写配置）。
  */
 
-import { readdir, readFile } from 'node:fs/promises'
+import { cp, readdir, readFile, mkdir, copyFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, normalize, sep } from 'node:path'
+import { app, dialog } from 'electron'
 
 import { log } from './log.js'
 import { registerMethod, unregisterMethod } from './bridge.js'
 import {
   iconThemeSetSchema,
+  iconThemeUploadSchema,
+  iconThemeCreateSchema,
   themeManifestSchema,
   type DesktopCore,
   type ThemeManifest,
+  type IconSlot,
+  type IconSlotStatus,
+  type IconThemeListResult,
   type IconThemeSetResult,
+  type IconThemeUploadResult,
+  type IconThemeCreateResult,
 } from '../types/desktop.js'
 
 /** 缺省图标主题 ID（settings 未设置/值非法时回退）。 */
@@ -45,6 +60,92 @@ const ICON_FILES = {
 
 /** 图标种类（app=窗口/任务栏/Dock，tray=系统托盘）。 */
 export type ThemeIconKind = keyof typeof ICON_FILES
+
+/**
+ * 图标槽位注册表（**单一真源**：桌面侧系统/自研插件消费的主题图标需求）。
+ *
+ * 设置页「外观」的图标清单、上传落盘路径、缺失回退说明全部由此派生；
+ * 新增消费点（新插件按 `icons/<名>.svg` 取图）时必须在此登记，否则设置页
+ * 看不见该需求。约定：
+ *   - `file` 为相对主题包目录路径 —— app/tray 四件套在**包根**（PNG，
+ *     `ICON_FILES` 硬约定），其余 UI 槽位在 **`icons/` 子目录**（SVG，
+ *     经 `dsh-ui://app/theme/current/icons/<文件名>` 引用）；
+ *   - `format: 'svg'` 走内联上色（单色线条稿随明暗自适应，见
+ *     @lansi-ai/dsh-desktop-icons）；`format: 'png'` 原色呈现。
+ */
+export const ICON_SLOTS: readonly IconSlot[] = [
+  {
+    id: 'app-icon-light',
+    label: '应用图标（窗口 / 任务栏 / Dock · 浅色）',
+    group: '应用与托盘',
+    file: ICON_FILES.app.light,
+    format: 'png',
+    size: 512,
+    fallback: '回退本包深色版，再回退内置默认 logo',
+  },
+  {
+    id: 'app-icon-dark',
+    label: '应用图标（窗口 / 任务栏 / Dock · 深色）',
+    group: '应用与托盘',
+    file: ICON_FILES.app.dark,
+    format: 'png',
+    size: 512,
+    fallback: '回退本包浅色版，再回退内置默认 logo',
+  },
+  {
+    id: 'tray-icon-light',
+    label: '系统托盘图标（浅色底）',
+    group: '应用与托盘',
+    file: ICON_FILES.tray.light,
+    format: 'png',
+    size: 64,
+    fallback: '回退本包深色版，再回退内置默认 logo',
+  },
+  {
+    id: 'tray-icon-dark',
+    label: '系统托盘图标（深色底）',
+    group: '应用与托盘',
+    file: ICON_FILES.tray.dark,
+    format: 'png',
+    size: 64,
+    fallback: '回退本包浅色版，再回退内置默认 logo',
+  },
+  {
+    id: 'titlebar-logo',
+    label: '标题栏品牌 logo',
+    group: '标题栏（dsh-desktop-titlebar）',
+    file: 'icons/titlebar-logo.svg',
+    format: 'svg',
+    size: 24,
+    fallback: '回退官方品牌图标',
+  },
+  {
+    id: 'settings-trigger',
+    label: '侧栏「设置」入口图标',
+    group: '设置面板（dsh-desktop-settings-shell）',
+    file: 'icons/settings-trigger.svg',
+    format: 'svg',
+    size: 16,
+    fallback: '回退官方齿轮图标',
+  },
+  ...([
+    ['general', '通用设置'],
+    ['desktop', '桌面'],
+    ['models', '模型'],
+    ['appearance', '外观'],
+    ['plugins', '插件'],
+    ['about', '关于'],
+    ['agent-presets', 'Agent 预设'],
+  ] as const).map(([sectionId, label]) => ({
+    id: `settings-nav-${sectionId}`,
+    label: `设置导航「${label}」图标`,
+    group: '设置面板（dsh-desktop-settings-shell）',
+    file: `icons/settings-nav-${sectionId}.svg`,
+    format: 'svg' as const,
+    size: 16,
+    fallback: '回退官方同位图标',
+  })),
+]
 
 /** 已扫描主题条目：清单 + 主题目录绝对路径。 */
 interface ThemeEntry {
@@ -66,6 +167,34 @@ function resolveThemesRoot(): string {
   return join(__dirname, '..', 'resources', 'themes')
 }
 
+/** 用户主题根目录（userData/themes；上传图标/自定义包落盘处，可写）。 */
+function resolveUserThemesRoot(): string {
+  return join(app.getPath('userData'), 'themes')
+}
+
+/** 用户主题目录下指定 ID 的包路径（可写；新建包与内置包克隆的唯一落盘处）。 */
+function resolveUserThemeDir(id: string): string {
+  return join(resolveUserThemesRoot(), id)
+}
+
+/**
+ * 判定主题目录是否位于可写的用户主题根目录下。
+ * 内置包在 dist/resources/themes（打包后随 asar 只读）→ 对其「上传」须先整体
+ * 克隆到用户目录同名包（扫描时用户包覆盖内置，激活 ID 不变而内容可就地替换）。
+ */
+function isUserThemeDir(dir: string): boolean {
+  const root = normalize(resolveUserThemesRoot())
+  const target = normalize(dir)
+  return target === root || target.startsWith(root + sep)
+}
+
+/** 指定包的写入目录（用户包=其本身；内置包=用户目录同名克隆目标）。 */
+function resolveWritableThemeDir(themeId: string): string {
+  const entry = themes.get(themeId)
+  if (entry !== undefined && isUserThemeDir(entry.dir)) return entry.dir
+  return resolveUserThemeDir(themeId)
+}
+
 /** 内置默认图标路径（回退终点：官方 harness logo 黑白双版）。 */
 function resolveDefaultIconPath(kind: ThemeIconKind, dark: boolean): string {
   return join(__dirname, '..', 'desktop-shell', 'web', dark ? ICON_FILES[kind].dark : ICON_FILES[kind].light)
@@ -77,6 +206,32 @@ function resolveDefaultIconPath(kind: ThemeIconKind, dark: boolean): string {
  */
 export function getActiveThemeId(): string {
   return activeThemeId
+}
+
+/**
+ * 解析主题 ID → 主题目录绝对路径（dsh-ui:// 协议主题路由用；内置包与
+ * 用户包统一经模块级主题表查找，未收录返回 null → 协议层 404）。
+ */
+export function resolveThemeDir(themeId: string): string | null {
+  return themes.get(themeId)?.dir ?? null
+}
+
+/**
+ * 扫描单个主题包的图标文件索引（相对主题目录路径，供设置页卡片预览 +
+ * 插件侧图标名称索引）。覆盖：包根 app/tray PNG 四件套 + icons/ 目录全部资源。
+ */
+async function listThemeIcons(dir: string): Promise<string[]> {
+  const icons: string[] = []
+  for (const file of Object.values(ICON_FILES).flatMap((kind) => Object.values(kind))) {
+    if (existsSync(join(dir, file))) icons.push(file)
+  }
+  const iconsDir = join(dir, 'icons')
+  if (existsSync(iconsDir)) {
+    for (const dirent of await readdir(iconsDir, { withFileTypes: true })) {
+      if (dirent.isFile()) icons.push(`icons/${dirent.name}`)
+    }
+  }
+  return icons.sort()
 }
 
 /**
@@ -105,33 +260,54 @@ export function getActiveIconPath(kind: ThemeIconKind, dark: boolean): string {
 }
 
 /**
- * 扫描主题资源目录（zod 校验清单；目录名与 manifest.id 不一致以目录名为准）。
- * 结果写入模块级主题表（覆盖式刷新，支持运行期新增主题包后被 list 读到）。
+ * 扫描单个根目录下的主题包清单（zod 校验；目录名与 manifest.id 不一致以目录名为准）。
+ * 结果写入 provided 表（扫描失败只跳过该包，不影响其余）。
+ */
+async function scanThemesRoot(root: string, provided: Map<string, ThemeEntry>): Promise<void> {
+  let dirents
+  try {
+    dirents = await readdir(root, { withFileTypes: true })
+  } catch {
+    return
+  }
+  for (const dirent of dirents) {
+    if (!dirent.isDirectory()) continue
+    try {
+      const dir = join(root, dirent.name)
+      const raw = JSON.parse(await readFile(join(dir, 'theme.json'), 'utf-8')) as unknown
+      const manifest = themeManifestSchema.parse(raw)
+      provided.set(dirent.name, { manifest: { ...manifest, id: dirent.name }, dir })
+    } catch (error) {
+      // 单个主题包损坏不影响其余主题（清单缺失/字段非法/JSON 坏）
+      log.warn(`[dsh-theme] 主题包 ${dirent.name} 清单无效，已跳过:`, error)
+    }
+  }
+}
+
+/**
+ * 扫描主题资源目录：内置包（dist/resources/themes）+ 用户包（userData/themes）。
+ * 用户包后扫描、同名覆盖内置（允许内置包的用户本地定制）。结果覆盖式刷新，
+ * 支持运行期新增主题包/上传图标后被 list 读到。
  */
 async function scanThemes(): Promise<void> {
-  const root = resolveThemesRoot()
   const scanned = new Map<string, ThemeEntry>()
-  try {
-    const dirents = await readdir(root, { withFileTypes: true })
-    for (const dirent of dirents) {
-      if (!dirent.isDirectory()) continue
-      try {
-        const dir = join(root, dirent.name)
-        const raw = JSON.parse(await readFile(join(dir, 'theme.json'), 'utf-8')) as unknown
-        const manifest = themeManifestSchema.parse(raw)
-        scanned.set(dirent.name, { manifest: { ...manifest, id: dirent.name }, dir })
-      } catch (error) {
-        // 单个主题包损坏不影响其余主题（清单缺失/字段非法/JSON 坏）
-        log.warn(`[dsh-theme] 主题包 ${dirent.name} 清单无效，已跳过:`, error)
-      }
-    }
-  } catch (error) {
-    log.warn('[dsh-theme] 主题目录扫描失败（保留现有清单）:', error)
-  }
+  await scanThemesRoot(resolveThemesRoot(), scanned)
+  await scanThemesRoot(resolveUserThemesRoot(), scanned)
   if (scanned.size > 0) {
     themes.clear()
     for (const [id, entry] of scanned) themes.set(id, entry)
   }
+}
+
+/**
+ * 槽位提供情况（相对指定主题包目录判定；目录未知时全判缺失）。
+ * 设置页据此把「系统/插件需要什么」与「包里有什么」对齐，缺失项给出行内上传入口。
+ */
+function listSlotStatus(themeDir: string | undefined): IconSlotStatus[] {
+  return ICON_SLOTS.map((slot) => ({
+    ...slot,
+    provided: themeDir !== undefined && existsSync(join(themeDir, slot.file)),
+  }))
 }
 
 /** settings.describe 返回值的最小面（仅取所需字段，theme-sync 同款）。 */
@@ -230,6 +406,8 @@ export function installDesktopTheme(options: DesktopThemeOptions): DesktopThemeH
       onThemeChanged = null
       unregisterMethod('desktop.iconTheme.list')
       unregisterMethod('desktop.iconTheme.set')
+      unregisterMethod('desktop.iconTheme.create')
+      unregisterMethod('desktop.iconTheme.upload')
     },
   }
 }
@@ -242,35 +420,127 @@ export function installDesktopTheme(options: DesktopThemeOptions): DesktopThemeH
  * @param desktop `ctx.desktop` 聚合服务（writeConfig 持久化 + 审计）。
  */
 export function registerDesktopThemeMethods(desktop: DesktopCore): void {
-  /** 图标主题清单查询（扫描结果 + 当前激活标记）。 */
-  const handleList = (): { themes: Array<ThemeManifest & { current: boolean }>; current: string } => {
-    const list = [...themes.entries()].map(([id, entry]) => ({
+  /** 下行通知各窗口桌面 UI（标题栏 logo / 设置导航 / 图标覆盖层）破缓存刷新。 */
+  const notifyIconChange = (themeId: string): void => {
+    desktop.sendDesktopEvent({ action: 'theme.icon-change', payload: { iconThemeId: themeId } })
+    desktop.emitAction('theme.icon-change', { iconThemeId: themeId })
+  }
+
+  /**
+   * 激活指定图标包：同步应用（协议层 current 映射与窗口/托盘图标立即切换，消除
+   * 「事件先到、状态后切」竞态）→ settings 持久化（真源）→ 下行刷新。
+   * 事件回流时 readActiveThemeId 返回同值，sync no-op，不构成反馈循环。
+   */
+  const activate = (themeId: string): void => {
+    applyActiveThemeId(themeId)
+    desktop.writeConfig('iconThemeId', themeId)
+    notifyIconChange(themeId)
+  }
+
+  /** 图标主题清单查询（扫描结果 + 激活标记 + 包内图标索引 + 槽位需求状态 + 上传落盘目录）。 */
+  const handleList = async (): Promise<IconThemeListResult> => {
+    // 上传后图标文件系统已变化，重扫保证索引即时（清单量级小，开销可忽略）
+    await scanThemes()
+    const list = await Promise.all([...themes.entries()].map(async ([id, entry]) => ({
       ...entry.manifest,
       id,
       current: id === activeThemeId,
-    }))
-    return { themes: list, current: activeThemeId }
+      icons: await listThemeIcons(entry.dir),
+    })))
+    return {
+      themes: list,
+      current: activeThemeId,
+      slots: listSlotStatus(themes.get(activeThemeId)?.dir),
+      uploadDir: resolveWritableThemeDir(activeThemeId),
+    }
   }
 
-  /** 图标主题切换（zod 校验 → 同步应用 → 持久化 → 通知 renderer 刷新 UI 图标）。 */
+  /** 图标主题切换（zod 校验 → 激活 → 审计与下行刷新）。 */
   const handleSet = (params: unknown): IconThemeSetResult => {
     const parsed = iconThemeSetSchema.parse(params)
     if (!themes.has(parsed.id)) {
       return { ok: false, message: `图标主题不存在: ${parsed.id}` }
     }
-    // 同步应用先行：协议层 current 映射与窗口/托盘图标立即切到新主题，
-    // renderer 收到下行事件时拉到的已是新资源（无「事件先到、状态后切」竞态）。
-    applyActiveThemeId(parsed.id)
-    // settings 持久化（真源）+ 事件回流：readActiveThemeId 返回同值，sync no-op。
-    desktop.writeConfig('iconThemeId', parsed.id)
-    // 下行通知各窗口的桌面 UI 组件（标题栏 logo / 图标覆盖层）即时刷新。
-    desktop.sendDesktopEvent({ action: 'theme.icon-change', payload: { iconThemeId: parsed.id } })
-    desktop.emitAction('theme.icon-change', { iconThemeId: parsed.id })
+    activate(parsed.id)
     log.info(`[dsh-theme] 图标主题切换请求: ${parsed.id}`)
     return { ok: true, current: parsed.id }
   }
 
+  /**
+   * 新建图标包：在用户主题目录建空包（theme.json + icons/），**建完即激活**——
+   * 之后的「上传图标」按槽位直接落进这个包（上传目标恒为当前激活包）。
+   * ID 走协议路由白名单字符集（`[a-z0-9_-]{1,32}`），与已有包重名直接拒绝。
+   */
+  const handleCreate = async (params: unknown): Promise<IconThemeCreateResult> => {
+    const parsed = iconThemeCreateSchema.parse(params)
+    await scanThemes()
+    if (themes.has(parsed.id)) {
+      return { ok: false, message: `图标包已存在: ${parsed.id}` }
+    }
+    const packDir = resolveUserThemeDir(parsed.id)
+    await mkdir(join(packDir, 'icons'), { recursive: true })
+    await writeFile(join(packDir, 'theme.json'), JSON.stringify({ id: parsed.id, name: parsed.name }, null, 2), 'utf-8')
+    await scanThemes()
+    if (!themes.has(parsed.id)) {
+      return { ok: false, message: '图标包已写入但未被清单收录（theme.json 可能无效）' }
+    }
+    activate(parsed.id)
+    log.info(`[dsh-theme] 新建图标包并激活: ${parsed.id}（${parsed.name}）→ ${packDir}`)
+    return { ok: true, id: parsed.id, current: parsed.id }
+  }
+
+  /**
+   * 图标上传（槽位驱动，目标 = **当前激活包**）：对话框按槽位格式单选 → 以槽位
+   * 规范名写入激活包对应位置（app/tray 在包根，UI 槽位在 `icons/`），用户无需
+   * 手工对齐文件名与目录。
+   * 激活包是内置包（打包后随 asar 只读）时，先整体克隆到用户目录同名包——扫描时
+   * 用户包覆盖内置，激活 ID 不变而内容就地可替换，用户视角仍是「传进了这个包」。
+   */
+  const handleUpload = async (params: unknown): Promise<IconThemeUploadResult> => {
+    const parsed = iconThemeUploadSchema.parse(params)
+    const slot = ICON_SLOTS.find((entry) => entry.id === parsed.slotId)
+    if (slot === undefined) {
+      return { ok: false, message: `图标槽位不存在: ${parsed.slotId}` }
+    }
+    const active = themes.get(activeThemeId)
+    if (active === undefined) {
+      return { ok: false, message: `当前激活图标包不存在: ${activeThemeId}` }
+    }
+    const picked = await dialog.showOpenDialog({
+      title: `选择「${slot.label}」图标（.${slot.format} · 建议 ${slot.size}px 正方形）`,
+      properties: ['openFile'],
+      filters: [{ name: slot.format.toUpperCase(), extensions: [slot.format] }],
+    })
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { ok: false, message: '已取消选择' }
+    }
+    const source = picked.filePaths[0]
+    if (!source.toLowerCase().endsWith(`.${slot.format}`)) {
+      return { ok: false, message: `「${slot.label}」需要 .${slot.format} 文件` }
+    }
+    let packDir = active.dir
+    let cloned = false
+    if (!isUserThemeDir(packDir)) {
+      // 内置包只读 → 整体克隆到用户目录同名包（含 theme.json，显示名与强调色不变）
+      await cp(packDir, resolveUserThemeDir(activeThemeId), { recursive: true })
+      packDir = resolveUserThemeDir(activeThemeId)
+      cloned = true
+    }
+    const target = join(packDir, slot.file)
+    await mkdir(dirname(target), { recursive: true })
+    await copyFile(source, target)
+    // 重扫：克隆出的新包需进主题表，否则协议层 resolveThemeDir 查不到 → 404
+    await scanThemes()
+    // 同 ID 换内容不会触发 applyActiveThemeId → 宿主与 UI 两处刷新显式补发
+    onThemeChanged?.()
+    notifyIconChange(activeThemeId)
+    log.info(`[dsh-theme] 图标上传: ${slot.id} → ${activeThemeId}/${slot.file}${cloned ? '（内置包已克隆到本地后写入）' : ''}`)
+    return { ok: true, imported: [slot.file], themeId: activeThemeId, cloned }
+  }
+
   registerMethod('desktop.iconTheme.list', async () => handleList())
   registerMethod('desktop.iconTheme.set', async (params: unknown) => handleSet(params))
-  log.ok('[dsh-theme] 图标主题 bridge 方法已注册（desktop.iconTheme.list/set）')
+  registerMethod('desktop.iconTheme.create', async (params: unknown) => handleCreate(params))
+  registerMethod('desktop.iconTheme.upload', async (params: unknown) => handleUpload(params))
+  log.ok('[dsh-theme] 图标主题 bridge 方法已注册（desktop.iconTheme.list/set/create/upload）')
 }

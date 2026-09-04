@@ -119,11 +119,40 @@
 - 状态：**fixed**（2026-09-02 · 真因两层 + 一处加固）
 
 - 根因（最终定位，初判「首启窗口 window-all-closed 竞态」系误判）：
+
   1. **快捷键失败致命化**：预置 `Alt+Shift+Q` 被系统其他应用占用（`globalShortcut.register` 返回 false）→ `installDesktopShortcuts` 抛 AppError → bootstrap catch → `app.quit()`。全局热键是增强能力，不该致命
   2. **退出被托盘拦截中止**：`before-quit` 拆完 IPC 桥 → Electron 关主窗口 → 托盘「关窗驻留」拦截 close（`quitting` 标志未置位）→ `preventDefault + hide` → 退出中止 → 应用残留成「活着但 IPC 桥已卸」的僵尸态，renderer 全部报 No handler registered
 
 - 修复（三层）：
+
   1. `desktop-shortcuts.ts`：预置快捷键注册失败降级为告警继续（逐个 try/catch，成功者照常注册 + 审计 `shortcut.register-failed`），不再打断 bootstrap
   2. `main.ts` `before-quit` 第一动作 `markQuitting()`：解除托盘 close 拦截，保证任何 app.quit() 路径（启动失败/托盘退出/系统关机）清理后必能真正退出
   3. `main.ts` `bootstrapCompleted` 守卫：bootstrap 完成前忽略 `window-all-closed`（首启数据目录窗口销毁 → 闪屏/主窗口创建是正常时序；加固，防同类窗口数量竞态）
+
+### #8 · 设置页「外观」浅色主题不可读 + 图标包卡片横向溢出面板
+
+- 环境：dev（`npm run dev` · 浅色配色主题）
+
+- 第一现场：无任何控制台/RPC 报错，纯渲染问题（用户截图：section 标题「外观/图标包」发白近不可见；图标包卡片排成一长条冲出面板右边界，上传图标最多的 custom 包溢出最严重）
+
+- 状态：**fixed**（2026-09-04 · 待实机点验）→ 坑 27
+
+- 根因（三处独立）：① 样式全内联硬编码深色值（`#f8fafc`/`rgba(255,255,255,.08)`），不随明暗；② grid 卡片缺 `min-width:0` → 卡内 4 列预览（带 `nowrap` 文件名标签）的 min-content ≈338px 反顶 `minmax(180px,1fr)` 轨道，3 列 ≈1034px 撑破 ≈564px 内容区；③ section 自带 `padding:16px 24px` 与外壳 `.dss-options` padding 叠加
+
+- 修复（`desktop-theme-client.js` V2 重构，用户选定「精简卡片网格」版式）：样式表 token 化（`--dsw-*`，明暗自适应）+ 三层防溢出（卡片 `min-width:0` / 内层 `minmax(0,1fr)` / 缩略图去文本标签进 `title`）；每卡只留「代表图标 4 枚 + 包名 + 图标数 + 选中态」；图标文件名索引从每卡收敛为激活包下方一处折叠「图标引用清单」；删除「颜色主题」死占位块（配色切换在通用设置）；卡片改真 `<button>`（`aria-pressed` + `focus-visible`），上传/切换补 进行中/成功/失败 三态取色
+
+### #9 · 「图标引用清单」语义错位：只列已有文件，看不出需要哪些/叫什么/放哪；上传永远补不齐 app/tray
+
+- 环境：dev + 打包版（设置页 → 外观）
+
+- 第一现场：无任何报错。清单列的是激活包目录里**已有**的文件名（含用户自己传的那些），而 `settings-trigger.svg` 这类**系统需要但包里缺**的位不出现在清单里（静默回退官方齿轮，用户无从得知）；顶部「上传图标」选完文件恒落 `userData/themes/custom/icons/<原名>`，而应用/托盘图标约定在**包根**（`app-icon-light.png` 等）——传了也不生效
+
+- 状态：**fixed**（2026-09-04 · 待实机点验）→ 坑 28
+
+- 修复（真源一处 + 槽位驱动）：host `desktop-theme.ts` 新增 `ICON_SLOTS` 注册表（13 位：包根 app/tray × 明暗 4 + `icons/` UI 位 9，含 `label/group/file/format/size/fallback`）；`desktop.iconTheme.list` 下发 `slots`（`provided` 相对激活包判定）+ `uploadDir`（可写包绝对路径，设置页原文展示落盘位置）；`desktop.iconTheme.upload({slotId})` 按槽位格式单选文件 → 以规范名写入 custom 包（自动建子目录）→ 重扫主题表（首传包需进表否则协议层 404）→ custom 激活时宿主图标 + 各窗口 UI 双刷新；设置页改「图标需求清单」（用途 / 规范名 / 格式·建议尺寸 / 缺失回退 / 已提供状态 + 行内「上传/替换」），删除顶部通用上传按钮，preload `DesktopIconTheme` 与 zod 契约同步
+
+- 同日按用户反馈追加三点（原方案「固定落 custom 包」被否）：
+  1. **上传目标 = 当前激活包**（不再是固定 custom）：内置包在打包版随 asar 只读 → 先整体 `cp` 克隆到 `userData/themes/<id>`（扫描时用户包覆盖内置，**激活 ID 不变**）再写槽位文件，回执 `cloned` 供 UI 说明；`USER_THEME_ID` 常量下线
+  2. **新增 `desktop.iconTheme.create({id,name})`**：用户目录建空包（theme.json + icons/）**建完即激活**，「建自己的包 → 逐项传图标」成一条连续路径；ID 走协议路由同款白名单 `[a-z0-9_-]{1,32}`，重名拒绝
+  3. **需求清单默认折叠**：改 `<details>`，summary 带缺失计数（`缺 N 项` / `全部已提供`）作展开信号；`uploadDir` 语义改为「激活包写入目录」（内置包显示其克隆目标）
 
