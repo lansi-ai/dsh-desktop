@@ -62,6 +62,9 @@ window.__ModuleLoader__.load({
           h(ShortcutHints, null),
         )
       }))
+
+      // 「关于」section 已拆分为独立插件 @lansi-ai/dsh-desktop-about
+      // （web/desktop-about-client.js，仅依赖 desktopBridge.updater，与桌面设置解耦）。
     }
 
     // ── UI 组件 ──────────────────────────────────────────────────
