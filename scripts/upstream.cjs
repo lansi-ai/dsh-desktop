@@ -429,6 +429,11 @@ function bumpPackageJson(version) {
   return changed;
 }
 
+// 台账日期一律取北京时间（避免 toISOString 的 UTC 截断导致跨日少一天）
+function todayStr() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
+}
+
 function nextMigrationSection() {
   const text = fs.readFileSync(MIGRATIONS_DOC, 'utf8');
   const re = /### C-(\d+)/g;
@@ -440,7 +445,7 @@ function nextMigrationSection() {
 
 function appendMigrationDoc(a) {
   const n = nextMigrationSection();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const couplingRows = Object.keys(COUPLING_SURFACES).map((name) => {
     const hit = a.coupling.find((c) => c.name === name);
     const detail = hit ? `有差异（${hit.changed.join(', ')}）` : '零差异';
@@ -471,7 +476,10 @@ ${officialRow}
 
 **验证记录（${today}）**：${a.verdict === 'safe' ? '`npm install` 成功；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功。' : '未执行升级验证。'}
 `;
-  fs.appendFileSync(MIGRATIONS_DOC, section);
+  // 追加前规范空行：原文件若不以空行结尾，标题会被 Markdown 吞进上一节的列表
+  const raw = fs.readFileSync(MIGRATIONS_DOC, 'utf8');
+  const sep = raw.endsWith('\n\n') ? '' : raw.endsWith('\n') ? '\n' : '\n\n';
+  fs.appendFileSync(MIGRATIONS_DOC, `${sep}${section.trimStart()}\n`);
   return n;
 }
 
@@ -514,6 +522,13 @@ async function cmdUpgrade(version, opts) {
 
   const n = appendMigrationDoc(a);
   console.log(`[OK] 迁移登记 docs/upstream-migrations.md 已追加 C-${n}`);
+
+  // 脚本只落迁移登记表，规则链台账需按 workflow.md 场景 D 人工同步（易漏项，显式提醒）
+  console.log(`\n[TODO] 台账待人工同步（脚本不改这些文件）:`);
+  console.log(`  - docs/upstream-migrations.md 表头「基线版本」`);
+  console.log(`  - docs/upstream-contracts.md 标题 + 复核标注行`);
+  console.log(`  - docs/12-references.md 版本时点`);
+  console.log(`  - .trae/rules/active-context.md（M4-d 标题 + 新升级条目 + D-4）+ docs/active-context.html 对应四处`);
 
   const commitCmd = `git add package.json package-lock.json docs/upstream-migrations.md && git commit -m "build(upstream): 基线升至 ${version}（自动工具判定 safe）"`;
   console.log(`\n[OK] 升级完成。建议提交:`);

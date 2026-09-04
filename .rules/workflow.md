@@ -62,6 +62,8 @@ alwaysApply: true
   - 触发：新增 CI 门禁、改变 Commit/Review 规范、修改 SOP 节点。
 - 🔄 **场景 D：上游基线变更（更新 `docs/` 与 ADR）**
   - 触发：`dsh-v0.1.0-rc.x` 升级；动作 = 先 `build(upstream)` 迁移登记 diff，再刷新 01/11/ADR 事实表。
+  - **自动化工具**：`scripts/upstream.cjs`（`npm run upstream:check` / `upstream:auto`）查新版本 → 评估破坏性 → 判定 safe 才自动升级；blocked/review 停下走人工 SOP。定时任务每日 02:00（北京时间）自动执行。
+  - **⚠️ 台账同步硬约束**：脚本只自动写 `docs/upstream-migrations.md` 的 C 区节，其余台账（该表表头基线行、`docs/upstream-contracts.md` 标题+复核行、`docs/12-references.md` 版本时点、`.trae/rules/active-context.md` 与 `docs/active-context.html`）须人工同步才算闭环；日期取北京时区。
 
 ## 05. 任务完成后的状态闭环 (Post-execution Synchronization)
 任务完成并通过质量自检后，AI **必须自动执行状态同步**：
