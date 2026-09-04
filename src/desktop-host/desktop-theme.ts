@@ -1,27 +1,33 @@
 /**
  * dsh-desktop 桌面图标主题服务（图标主题 / 颜色主题拆分 · 图标侧）。
  *
- * 主题包（resources/themes/<id>/）承载外观资产；本服务只管**图标主题**
- * 这一独立设置项（包内 app/tray × light/dark 图标四件套）。颜色主题
- * （界面配色体系）是另一个独立设置项（settings `desktop.colorThemeId`），
- * 后续版本单独实现，与图标主题互不约束——两者可任意组合。
+ * 图标分两类归属，互不牵连：
+ *   - **全局图标**（`scope='global'`）：应用图标（窗口/任务栏/Dock）、托盘图标、
+ *     标题栏品牌 logo —— 存包外 `userData/icons/` 只有一份，**切换图标包不影响**
+ *     （它们是「这个应用长什么样」的身份标识，不属于任何图标包）；
+ *   - **图标包**（`scope='pack'`）：界面图标（设置导航、窗控、折叠钮）—— 存
+ *     `resources/themes/<id>/icons/`（内置包）或 `userData/themes/<id>/icons/`
+ *     （用户包），随激活包切换。
+ * 颜色主题（界面配色体系）是第三个独立设置项（settings `desktop.colorThemeId`），
+ * 后续版本单独实现，与上述两者互不约束——可任意组合。
  *
  * 职责：
  *   - 主题包清单扫描：内置包（dist/resources/themes/）+ 用户包（userData/themes/，
  *     同名覆盖内置，允许就地定制内置包）；逐目录读 theme.json（zod 校验，损坏跳过）
  *   - 激活图标主题：真源 = host settings 的 `desktop` namespace `iconThemeId`
  *     （旧 key `themeId` 自动迁移读取）；settings/document-updated 直订阅联动
- *     （theme-sync 同款模式），变更时回调 onChanged → main.ts 刷新窗口/托盘图标
+ *     （theme-sync 同款模式），变更时回调 onChanged 供 main.ts 重读图标
  *   - 图标槽位注册表（`ICON_SLOTS` · 单一真源）：声明系统与各自研插件消费的
- *     主题图标（app/tray 四件套在包根、titlebar-logo / settings-trigger /
- *     settings-nav-* 在 icons/），含规范文件名、格式、建议尺寸与缺失回退说明；
+ *     图标位（含 scope/group/plugin/规范文件名/格式/建议尺寸/缺失回退说明）；
  *     设置页「外观」据此展示需求清单并提供槽位行内上传
- *   - 图标路径解析：getActiveIconPath(kind, dark) 同步返回激活主题图标路径，
- *     文件缺失逐级回退（主题另一色版 → 内置 web 默认图标）
- *   - bridge 方法：list（清单+当前+槽位状态+激活包写入目录）/ set（zod 校验 +
- *     ctx.desktop.writeConfig 持久化 + 审计，事件联动自动生效）/ create（用户目录
- *     建空包并激活）/ upload（槽位驱动，以规范名写入**当前激活包**；激活包为内置包
- *     时先整体克隆到用户目录同名包再写——打包版 asar 只读，克隆后激活 ID 不变）
+ *   - 全局图标迁移：ready 阶段把旧版存在包根的 app/tray PNG 一次性搬到
+ *     userData/icons（全局已有不覆盖；品牌 logo 不迁，避免改变既有外观）
+ *   - 图标路径解析：getActiveIconPath(kind, dark) 同步返回**全局目录**图标路径，
+ *     文件缺失逐级回退（全局另一色版 → 内置 web 默认图标）
+ *   - bridge 方法：list（清单+当前+槽位状态+激活包写入目录+全局图标目录）/ set
+ *     （zod 校验 + ctx.desktop.writeConfig 持久化 + 审计，事件联动自动生效）/
+ *     create（用户目录建空包并激活）/ upload（槽位驱动按 scope 分流：global 写
+ *     userData/icons，pack 写当前激活包——内置包 asar 只读时先克隆到本地同名包）
  *
  * 安装时序：bootstrap 步骤 4.7（建窗前 await ready，首帧图标即正确主题）；
  * bridge 方法注册在步骤 8（依赖 desktopCore 写配置）。
@@ -52,7 +58,7 @@ import {
 /** 缺省图标主题 ID（settings 未设置/值非法时回退）。 */
 export const DEFAULT_THEME_ID = 'default'
 
-/** 主题包目录内图标文件名约定。 */
+/** 图标文件名约定（全局图标目录 userData/icons 下的 app/tray 四件套）。 */
 const ICON_FILES = {
   app: { light: 'app-icon-light.png', dark: 'app-icon-dark.png' },
   tray: { light: 'tray-icon-light.png', dark: 'tray-icon-dark.png' },
@@ -62,67 +68,135 @@ const ICON_FILES = {
 export type ThemeIconKind = keyof typeof ICON_FILES
 
 /**
- * 图标槽位注册表（**单一真源**：桌面侧系统/自研插件消费的主题图标需求）。
+ * 图标槽位注册表（**单一真源**：桌面侧系统/自研插件消费的图标需求）。
  *
  * 设置页「外观」的图标清单、上传落盘路径、缺失回退说明全部由此派生；
  * 新增消费点（新插件按 `icons/<名>.svg` 取图）时必须在此登记，否则设置页
- * 看不见该需求。约定：
- *   - `file` 为相对主题包目录路径 —— app/tray 四件套在**包根**（PNG，
- *     `ICON_FILES` 硬约定），其余 UI 槽位在 **`icons/` 子目录**（SVG，
- *     经 `dsh-ui://app/theme/current/icons/<文件名>` 引用）；
- *   - `format: 'svg'` 走内联上色（单色线条稿随明暗自适应，见
- *     @lansi-ai/dsh-desktop-icons）；`format: 'png'` 原色呈现。
+ * 看不见该需求。`group`（用途域）+ `plugin`（取用方插件/模块）共同回答
+ * 「这个图标位归谁用」。两类归属（`scope`，见 `GLOBAL_SLOT_IDS`）：
+ *   - `global`=应用/托盘图标 + 标题栏品牌 logo —— 存 `userData/icons/` 全局单份，
+ *     **不随图标包切换**（它们是应用身份标识，不属于任何一个图标包）；
+ *   - `pack`=界面图标（设置导航、窗控、折叠钮）—— 存激活包 `icons/` 子目录，
+ *     随图标包切换，经 `dsh-ui://app/theme/current/icons/<文件名>` 引用。
+ * `format: 'svg'` 走内联上色（单色线条稿随明暗自适应，见
+ * @lansi-ai/dsh-desktop-icons）；`format: 'png'` 原色呈现。
  */
-export const ICON_SLOTS: readonly IconSlot[] = [
+const RAW_ICON_SLOTS: readonly Omit<IconSlot, 'scope'>[] = [
   {
     id: 'app-icon-light',
-    label: '应用图标（窗口 / 任务栏 / Dock · 浅色）',
-    group: '应用与托盘',
+    label: '应用图标（浅色底）',
+    group: '应用图标',
+    plugin: 'desktop-host（main.ts / desktop-tray.ts）',
     file: ICON_FILES.app.light,
     format: 'png',
     size: 512,
-    fallback: '回退本包深色版，再回退内置默认 logo',
+    fallback: '回退全局深色版，再回退内置默认 logo',
   },
   {
     id: 'app-icon-dark',
-    label: '应用图标（窗口 / 任务栏 / Dock · 深色）',
-    group: '应用与托盘',
+    label: '应用图标（深色底）',
+    group: '应用图标',
+    plugin: 'desktop-host（main.ts / desktop-tray.ts）',
     file: ICON_FILES.app.dark,
     format: 'png',
     size: 512,
-    fallback: '回退本包浅色版，再回退内置默认 logo',
+    fallback: '回退全局浅色版，再回退内置默认 logo',
   },
   {
     id: 'tray-icon-light',
-    label: '系统托盘图标（浅色底）',
-    group: '应用与托盘',
+    label: '托盘图标（浅色底）',
+    group: '托盘图标',
+    plugin: 'desktop-host（desktop-tray.ts）',
     file: ICON_FILES.tray.light,
     format: 'png',
     size: 64,
-    fallback: '回退本包深色版，再回退内置默认 logo',
+    fallback: '回退全局深色版，再回退内置默认 logo',
   },
   {
     id: 'tray-icon-dark',
-    label: '系统托盘图标（深色底）',
-    group: '应用与托盘',
+    label: '托盘图标（深色底）',
+    group: '托盘图标',
+    plugin: 'desktop-host（desktop-tray.ts）',
     file: ICON_FILES.tray.dark,
     format: 'png',
     size: 64,
-    fallback: '回退本包浅色版，再回退内置默认 logo',
+    fallback: '回退全局浅色版，再回退内置默认 logo',
   },
   {
     id: 'titlebar-logo',
     label: '标题栏品牌 logo',
-    group: '标题栏（dsh-desktop-titlebar）',
-    file: 'icons/titlebar-logo.svg',
+    group: '品牌 logo',
+    plugin: '@lansi-ai/dsh-desktop-titlebar',
+    file: 'titlebar-logo.svg',
     format: 'svg',
     size: 24,
     fallback: '回退官方品牌图标',
   },
   {
+    id: 'titlebar-minimize',
+    label: '窗控「最小化」图标',
+    group: '标题栏',
+    plugin: '@lansi-ai/dsh-desktop-titlebar',
+    file: 'icons/titlebar-minimize.svg',
+    format: 'svg',
+    size: 16,
+    fallback: '回退内置 Fluent 图形；单色描边稿随明暗，建议留白少',
+  },
+  {
+    id: 'titlebar-maximize',
+    label: '窗控「最大化」图标',
+    group: '标题栏',
+    plugin: '@lansi-ai/dsh-desktop-titlebar',
+    file: 'icons/titlebar-maximize.svg',
+    format: 'svg',
+    size: 16,
+    fallback: '与 titlebar-restore **成对提供才生效**；缺一整套回退内置',
+  },
+  {
+    id: 'titlebar-restore',
+    label: '窗控「还原」图标（最大化态下显示）',
+    group: '标题栏',
+    plugin: '@lansi-ai/dsh-desktop-titlebar',
+    file: 'icons/titlebar-restore.svg',
+    format: 'svg',
+    size: 16,
+    fallback: '与 titlebar-maximize **成对提供才生效**；缺一整套回退内置',
+  },
+  {
+    id: 'titlebar-close',
+    label: '窗控「关闭」图标',
+    group: '标题栏',
+    plugin: '@lansi-ai/dsh-desktop-titlebar',
+    file: 'icons/titlebar-close.svg',
+    format: 'svg',
+    size: 16,
+    fallback: '回退内置 ✕；hover 是红底白图（走 currentColor），**务必用单色稿**',
+  },
+  {
+    id: 'titlebar-collapse-left',
+    label: '侧栏折叠图标（展开态，箭头朝左）',
+    group: '标题栏',
+    plugin: '@lansi-ai/dsh-desktop-titlebar',
+    file: 'icons/titlebar-collapse-left.svg',
+    format: 'svg',
+    size: 13,
+    fallback: '与 titlebar-collapse-right **成对提供才生效**；缺一整套回退内置',
+  },
+  {
+    id: 'titlebar-collapse-right',
+    label: '侧栏折叠图标（收起态，箭头朝右）',
+    group: '标题栏',
+    plugin: '@lansi-ai/dsh-desktop-titlebar',
+    file: 'icons/titlebar-collapse-right.svg',
+    format: 'svg',
+    size: 13,
+    fallback: '与 titlebar-collapse-left **成对提供才生效**；缺一整套回退内置',
+  },
+  {
     id: 'settings-trigger',
     label: '侧栏「设置」入口图标',
-    group: '设置面板（dsh-desktop-settings-shell）',
+    group: '设置面板',
+    plugin: '@lansi-ai/dsh-desktop-settings-shell',
     file: 'icons/settings-trigger.svg',
     format: 'svg',
     size: 16,
@@ -139,13 +213,33 @@ export const ICON_SLOTS: readonly IconSlot[] = [
   ] as const).map(([sectionId, label]) => ({
     id: `settings-nav-${sectionId}`,
     label: `设置导航「${label}」图标`,
-    group: '设置面板（dsh-desktop-settings-shell）',
+    group: '设置面板',
+    plugin: '@lansi-ai/dsh-desktop-settings-shell',
     file: `icons/settings-nav-${sectionId}.svg`,
     format: 'svg' as const,
     size: 16,
     fallback: '回退官方同位图标',
   })),
 ]
+
+/**
+ * 全局归属的槽位 ID：应用/托盘图标与标题栏品牌 logo。
+ * 它们是「这个应用长什么样」的身份标识，不属于任何一个图标包，故存包外的
+ * `userData/icons/` 只有一份，切换图标包不影响（换包只换界面图标）。
+ */
+const GLOBAL_SLOT_IDS: readonly string[] = [
+  'app-icon-light',
+  'app-icon-dark',
+  'tray-icon-light',
+  'tray-icon-dark',
+  'titlebar-logo',
+]
+
+/** 带归属范围的图标槽位（对外下发的最终形态）。 */
+export const ICON_SLOTS: readonly IconSlot[] = RAW_ICON_SLOTS.map((slot) => ({
+  ...slot,
+  scope: GLOBAL_SLOT_IDS.includes(slot.id) ? 'global' as const : 'pack' as const,
+}))
 
 /** 已扫描主题条目：清单 + 主题目录绝对路径。 */
 interface ThemeEntry {
@@ -195,6 +289,23 @@ function resolveWritableThemeDir(themeId: string): string {
   return resolveUserThemeDir(themeId)
 }
 
+/**
+ * 全局图标目录（userData/icons）：`scope='global'` 槽位（应用/托盘图标、标题栏
+ * 品牌 logo）的唯一落盘处 —— 与图标包解耦，只有一份，切换图标包不影响。
+ */
+function resolveGlobalIconsDir(): string {
+  return join(app.getPath('userData'), 'icons')
+}
+
+/**
+ * 全局图标绝对路径（dsh-ui:// 协议 `/icons/<file>` 路由用；调用方自行判存在）。
+ * 文件名走协议白名单字符集，越界名直接返回 null。
+ */
+export function resolveGlobalIconPath(fileName: string): string | null {
+  if (!/^[a-z0-9_-]+\.(?:svg|png)$/.test(fileName)) return null
+  return join(resolveGlobalIconsDir(), fileName)
+}
+
 /** 内置默认图标路径（回退终点：官方 harness logo 黑白双版）。 */
 function resolveDefaultIconPath(kind: ThemeIconKind, dark: boolean): string {
   return join(__dirname, '..', 'desktop-shell', 'web', dark ? ICON_FILES[kind].dark : ICON_FILES[kind].light)
@@ -217,14 +328,12 @@ export function resolveThemeDir(themeId: string): string | null {
 }
 
 /**
- * 扫描单个主题包的图标文件索引（相对主题目录路径，供设置页卡片预览 +
- * 插件侧图标名称索引）。覆盖：包根 app/tray PNG 四件套 + icons/ 目录全部资源。
+ * 扫描单个主题包的图标文件索引（相对包目录路径，供设置页卡片预览 + 插件侧
+ * 图标名称索引）。**只覆盖 `icons/` 子目录**：应用/托盘 PNG 已改为全局归属
+ * （userData/icons），不再是图标包的内容，包根即便残留也不计入。
  */
 async function listThemeIcons(dir: string): Promise<string[]> {
   const icons: string[] = []
-  for (const file of Object.values(ICON_FILES).flatMap((kind) => Object.values(kind))) {
-    if (existsSync(join(dir, file))) icons.push(file)
-  }
   const iconsDir = join(dir, 'icons')
   if (existsSync(iconsDir)) {
     for (const dirent of await readdir(iconsDir, { withFileTypes: true })) {
@@ -235,28 +344,41 @@ async function listThemeIcons(dir: string): Promise<string[]> {
 }
 
 /**
- * 解析指定主题下图标路径（含回退：色版缺失 → 另一色版 → null 交由调用方回默认）。
+ * 解析当前应用/托盘图标绝对路径（同步；main.ts loadAppIcon / desktop-tray
+ * loadTrayIcon 调用）。**只认全局目录**（与图标包解耦）：
+ * 全局色版 → 全局另一色版 → 内置 web 默认图标。
  */
-function resolveThemeIconPath(entry: ThemeEntry, kind: ThemeIconKind, dark: boolean): string | null {
-  const preferred = join(entry.dir, dark ? ICON_FILES[kind].dark : ICON_FILES[kind].light)
+export function getActiveIconPath(kind: ThemeIconKind, dark: boolean): string {
+  const globalDir = resolveGlobalIconsDir()
+  const preferred = join(globalDir, dark ? ICON_FILES[kind].dark : ICON_FILES[kind].light)
   if (existsSync(preferred)) return preferred
-  const alternate = join(entry.dir, dark ? ICON_FILES[kind].light : ICON_FILES[kind].dark)
+  const alternate = join(globalDir, dark ? ICON_FILES[kind].light : ICON_FILES[kind].dark)
   if (existsSync(alternate)) return alternate
-  return null
+  return resolveDefaultIconPath(kind, dark)
 }
 
 /**
- * 解析当前激活主题的图标绝对路径（同步；main.ts loadAppIcon / desktop-tray
- * loadTrayIcon 调用）。回退链：主题色版 → 主题另一色版 → 内置 web 默认图标。
+ * 一次性迁移：把「包根 app/tray PNG」搬到全局目录（userData/icons）。
+ *
+ * 旧版本里应用/托盘图标存在图标包包根、随包切换；现在它们是全局单份、与包解耦。
+ * 为避免升级后图标凭空变回内置默认，这里在 ready 阶段按「激活包优先、其余包次之」
+ * 找到第一个提供该文件的包并复制过去；**全局已有的不覆盖**（用户自己传的就是真源）。
+ * 品牌 logo 不迁：旧口径下 default 激活时本就不启用包内 logo，迁了反而会改变外观。
  */
-export function getActiveIconPath(kind: ThemeIconKind, dark: boolean): string {
-  const entry = themes.get(activeThemeId)
-  if (entry !== undefined) {
-    const resolved = resolveThemeIconPath(entry, kind, dark)
-    if (resolved !== null) return resolved
-    log.warn(`[dsh-theme] 主题 ${activeThemeId} 缺少 ${kind} 图标，回退默认图标`)
+async function migratePackIconsToGlobal(): Promise<void> {
+  const globalDir = resolveGlobalIconsDir()
+  const files = Object.values(ICON_FILES).flatMap((kind) => [kind.light, kind.dark])
+  const order = [activeThemeId, ...themes.keys()]
+  let migrated = 0
+  for (const file of files) {
+    if (existsSync(join(globalDir, file))) continue
+    const source = order.map((id) => themes.get(id)).find((entry) => entry !== undefined && existsSync(join(entry.dir, file)))
+    if (source === undefined) continue
+    await mkdir(globalDir, { recursive: true })
+    await copyFile(join(source.dir, file), join(globalDir, file))
+    migrated += 1
   }
-  return resolveDefaultIconPath(kind, dark)
+  if (migrated > 0) log.info(`[dsh-theme] 已把 ${migrated} 个包根应用/托盘图标迁移到全局目录: ${globalDir}`)
 }
 
 /**
@@ -300,17 +422,20 @@ async function scanThemes(): Promise<void> {
 }
 
 /**
- * 槽位提供情况（相对指定主题包目录判定；目录未知时全判缺失）。
- * 设置页据此把「系统/插件需要什么」与「包里有什么」对齐，缺失项给出行内上传入口。
+ * 槽位提供情况（按各自 `scope` 取归属目录：global=userData/icons，pack=指定主题包；
+ * 目录未知时判缺失）。设置页据此把「系统/插件需要什么」与「已经有什么」对齐，
+ * 缺失项给出行内上传入口。
  *
- * 注：**空文件等同未提供**——0 字节占位协议层照样 200，但 renderer 解析不出
- * `<svg>` 会静默回退官方图标；只判 existsSync 会把这种缺口藏进「已提供」。
+ * 注：**空文件等同未提供**——0 字节占位协议层照样 200，但 renderer 解析不出内容
+ * 会静默回退；只判 existsSync 会把这种缺口藏进「已提供」。
  */
 function listSlotStatus(themeDir: string | undefined): IconSlotStatus[] {
+  const globalDir = resolveGlobalIconsDir()
   return ICON_SLOTS.map((slot) => {
+    const dir = slot.scope === 'global' ? globalDir : themeDir
     let provided = false
-    if (themeDir !== undefined) {
-      const file = join(themeDir, slot.file)
+    if (dir !== undefined) {
+      const file = join(dir, slot.file)
       provided = existsSync(file) && statSync(file).size > 0
     }
     return { ...slot, provided }
@@ -393,6 +518,8 @@ export function installDesktopTheme(options: DesktopThemeOptions): DesktopThemeH
     log.info(`[dsh-theme] 主题包清单扫描完成: [${[...themes.keys()].join(', ')}]`)
     try {
       applyActiveThemeId(await readActiveThemeId(options.callApi))
+      // 旧版包根 app/tray 图标迁到全局目录（建窗前完成，首帧图标即正确）
+      await migratePackIconsToGlobal()
       log.info(`[dsh-theme] 启动期激活主题就绪: ${activeThemeId}`)
     } catch (error) {
       log.warn('[dsh-theme] 读取图标主题偏好失败，使用默认主题:', error)
@@ -459,6 +586,7 @@ export function registerDesktopThemeMethods(desktop: DesktopCore): void {
       current: activeThemeId,
       slots: listSlotStatus(themes.get(activeThemeId)?.dir),
       uploadDir: resolveWritableThemeDir(activeThemeId),
+      globalDir: resolveGlobalIconsDir(),
     }
   }
 
@@ -497,11 +625,14 @@ export function registerDesktopThemeMethods(desktop: DesktopCore): void {
   }
 
   /**
-   * 图标上传（槽位驱动，目标 = **当前激活包**）：对话框按槽位格式单选 → 以槽位
-   * 规范名写入激活包对应位置（app/tray 在包根，UI 槽位在 `icons/`），用户无需
-   * 手工对齐文件名与目录。
-   * 激活包是内置包（打包后随 asar 只读）时，先整体克隆到用户目录同名包——扫描时
-   * 用户包覆盖内置，激活 ID 不变而内容就地可替换，用户视角仍是「传进了这个包」。
+   * 图标上传（槽位驱动）：对话框按槽位格式单选 → 以**槽位规范名**落盘，用户无需
+   * 手工对齐文件名与目录。目标按 `scope` 分流：
+   *   - `global`（应用/托盘图标、标题栏品牌 logo）→ `userData/icons/`，全局单份，
+   *     与图标包无关（换包不影响这些图标）；
+   *   - `pack`（界面图标）→ **当前激活包** `icons/`；激活包是内置包（打包后 asar
+   *     只读）时先整体克隆到用户目录同名包——扫描时用户包覆盖内置，激活 ID 不变
+   *     而内容就地可替换，用户视角仍是「传进了这个包」。
+   * 对话框先行弹出，取消时不做克隆等任何写操作。
    */
   const handleUpload = async (params: unknown): Promise<IconThemeUploadResult> => {
     const parsed = iconThemeUploadSchema.parse(params)
@@ -509,8 +640,7 @@ export function registerDesktopThemeMethods(desktop: DesktopCore): void {
     if (slot === undefined) {
       return { ok: false, message: `图标槽位不存在: ${parsed.slotId}` }
     }
-    const active = themes.get(activeThemeId)
-    if (active === undefined) {
+    if (slot.scope === 'pack' && !themes.has(activeThemeId)) {
       return { ok: false, message: `当前激活图标包不存在: ${activeThemeId}` }
     }
     const picked = await dialog.showOpenDialog({
@@ -525,24 +655,34 @@ export function registerDesktopThemeMethods(desktop: DesktopCore): void {
     if (!source.toLowerCase().endsWith(`.${slot.format}`)) {
       return { ok: false, message: `「${slot.label}」需要 .${slot.format} 文件` }
     }
-    let packDir = active.dir
+    let targetDir = resolveGlobalIconsDir()
     let cloned = false
-    if (!isUserThemeDir(packDir)) {
-      // 内置包只读 → 整体克隆到用户目录同名包（含 theme.json，显示名与强调色不变）
-      await cp(packDir, resolveUserThemeDir(activeThemeId), { recursive: true })
-      packDir = resolveUserThemeDir(activeThemeId)
-      cloned = true
+    if (slot.scope === 'pack') {
+      targetDir = themes.get(activeThemeId)?.dir ?? resolveUserThemeDir(activeThemeId)
+      if (!isUserThemeDir(targetDir)) {
+        // 内置包只读 → 整体克隆到用户目录同名包（含 theme.json，显示名与强调色不变）
+        await cp(targetDir, resolveUserThemeDir(activeThemeId), { recursive: true })
+        targetDir = resolveUserThemeDir(activeThemeId)
+        cloned = true
+      }
     }
-    const target = join(packDir, slot.file)
+    const target = join(targetDir, slot.file)
     await mkdir(dirname(target), { recursive: true })
     await copyFile(source, target)
     // 重扫：克隆出的新包需进主题表，否则协议层 resolveThemeDir 查不到 → 404
     await scanThemes()
-    // 同 ID 换内容不会触发 applyActiveThemeId → 宿主与 UI 两处刷新显式补发
+    // 同 ID/同归属换内容不会触发 applyActiveThemeId → 宿主与 UI 两处刷新显式补发
     onThemeChanged?.()
     notifyIconChange(activeThemeId)
-    log.info(`[dsh-theme] 图标上传: ${slot.id} → ${activeThemeId}/${slot.file}${cloned ? '（内置包已克隆到本地后写入）' : ''}`)
-    return { ok: true, imported: [slot.file], themeId: activeThemeId, cloned }
+    const where = slot.scope === 'global' ? '全局' : `${activeThemeId} 包`
+    log.info(`[dsh-theme] 图标上传: ${slot.id} → ${where}/${slot.file}${cloned ? '（内置包已克隆到本地后写入）' : ''}`)
+    return {
+      ok: true,
+      imported: [slot.file],
+      scope: slot.scope,
+      themeId: slot.scope === 'pack' ? activeThemeId : undefined,
+      cloned,
+    }
   }
 
   registerMethod('desktop.iconTheme.list', async () => handleList())

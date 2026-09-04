@@ -9,6 +9,11 @@
  *
  * v3 改进：SVG 图标 + 最大化状态切换
  * v4 改进：左侧品牌区（logo + 品牌名 + 折叠按钮），从 sidebar 迁移至此
+ * v5 改进：标题栏图标全面可主题化——除 titlebar-logo 外，窗控（minimize / maximize /
+ *   restore / close）与侧栏折叠（collapse-left / collapse-right）各槽位支持主题包
+ *   `icons/titlebar-*.svg`；口径=「激活包含该文件就用」，状态对（maximize↔restore、
+ *   collapse-left↔collapse-right）**成对提供才启用**，缺失回退内置 Fluent 图形；
+ *   先画内置再换主题稿，不出现空帧（详见 useThemeControls）。
  *
  * 职责边界：本插件只管标题栏自身（拖拽区/窗控/品牌区/下边线）；布局行骨架归
  *   @lansi-ai/dsh-desktop-layout。
@@ -88,38 +93,32 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 主题品牌 logo（方式 A · 内联渲染）。
-     *
-     * 激活图标主题非 default 时，品牌 logo 用主题包 icons/titlebar-logo.svg（经
-     * dsh-ui://app/theme/current/ 动态路由映射）；经 themeIcon.renderSvg 内联渲染，
-     * 单色稿随主题文字色变、彩色稿保留原色。default 保持官方鲸鱼 logo 原貌。
-     * theme.icon-change 下行事件触发重取（?t= 破缓存）。
+     * 标题栏品牌 logo —— **全局图标，与图标包解耦**：真源是 `userData/icons/`
+     * 下的 titlebar-logo.svg，经 `dsh-ui://app/icons/<file>` 路由取用；切换图标包
+     * 不影响它（品牌 logo 属于应用身份，不属于任何一个图标包）。
+     * 未上传/取不到 → 保持官方鲸鱼组件；单色稿随主题文字色变、彩色稿保留原色。
+     * `theme.icon-change` 下行事件（含全局图标上传）触发破缓存重取。
      */
     function useThemeLogo() {
       const [logoHtml, setLogoHtml] = useState(null)
       useEffect(() => {
         let disposed = false
-        const bridge = window.desktopBridge
-        const refresh = () => {
-          bridge?.iconTheme?.list?.().then((result) => {
-            if (disposed) return
-            const active = result?.current && result.current !== 'default'
-            if (!active || themeIconSvc === null) {
-              setLogoHtml(null)
-              return
-            }
-            themeIconSvc.renderSvg(`dsh-ui://app/theme/current/icons/titlebar-logo.svg?t=${Date.now()}`, 24)
-              .then((value) => {
-                if (!disposed) setLogoHtml(value)
-              })
-              .catch(() => {
-                if (!disposed) setLogoHtml(null)
-              })
-          }).catch(() => { /* bridge 未就绪，保持官方 logo */ })
+        const load = () => {
+          if (themeIconSvc === null) return
+          themeIconSvc.renderSvg(`dsh-ui://app/icons/titlebar-logo.svg?t=${iconBust}`, 24)
+            .then((value) => {
+              if (!disposed) setLogoHtml(value)
+            })
+            .catch(() => {
+              if (!disposed) setLogoHtml(null)
+            })
         }
-        refresh()
-        const off = bridge?.onDesktopEvent?.((event) => {
-          if (event?.action === 'theme.icon-change') setTimeout(refresh, 50)
+        load()
+        const off = window.desktopBridge?.onDesktopEvent?.((event) => {
+          if (event?.action === 'theme.icon-change') {
+            iconBust = Date.now()
+            setTimeout(load, 50)
+          }
         })
         return () => {
           disposed = true
@@ -127,6 +126,77 @@ window.__ModuleLoader__.load({
         }
       }, [])
       return { logoHtml }
+    }
+
+    /**
+     * 窗控/折叠槽位定义（与 host `ICON_SLOTS` 的 titlebar-* 条目同名同尺寸）。
+     * `pair` 标出状态对：同一按钮的两枚图标必须成对提供。
+     */
+    const CONTROL_ICONS = [
+      { key: 'minimize', file: 'titlebar-minimize.svg', size: 16, pair: null },
+      { key: 'maximize', file: 'titlebar-maximize.svg', size: 16, pair: 'restore' },
+      { key: 'restore', file: 'titlebar-restore.svg', size: 16, pair: 'maximize' },
+      { key: 'close', file: 'titlebar-close.svg', size: 16, pair: null },
+      { key: 'collapseLeft', file: 'titlebar-collapse-left.svg', size: 13, pair: 'collapseRight' },
+      { key: 'collapseRight', file: 'titlebar-collapse-right.svg', size: 13, pair: 'collapseLeft' },
+    ]
+
+    /** 图标破缓存 token（品牌 logo 与窗控共用：同一个 theme.icon-change 事件失效）。 */
+    let iconBust = Date.now()
+
+    /**
+     * 主题窗控/折叠图标（与 logo 同一取图路径：`icons/<名>.svg` 经
+     * `dsh-ui://app/theme/current/` 动态映射）。与 logo 的两点差别：
+     *   - 不看 `current !== 'default'`，只认「槽位文件在不在」——把 default 克隆到
+     *     本地做定制时同样生效；
+     *   - **状态对成对提供才启用**（maximize/restore、collapse-left/right），只给
+     *     一半就整套回退内置，避免同一个按钮两次点击呈现两种风格。
+     * 渲染时序：未就绪时先画内置 Fluent 图形，取到主题稿再换，不出现空帧；
+     * 已缓存的经 `peekSvg` 同步命中。
+     */
+    function useThemeControls() {
+      const [icons, setIcons] = useState({})
+      useEffect(() => {
+        let disposed = false
+        const bridge = window.desktopBridge
+        const refresh = () => {
+          bridge?.iconTheme?.list?.().then((result) => {
+            if (disposed || themeIconSvc === null) return
+            const active = (result?.themes ?? []).find((theme) => theme.current) ?? null
+            const files = new Set(active?.icons ?? [])
+            const has = (key) => files.has(`icons/${CONTROL_ICONS.find((item) => item.key === key).file}`)
+            const next = {}
+            for (const item of CONTROL_ICONS) {
+              if (!has(item.key)) continue
+              if (item.pair !== null && !has(item.pair)) continue
+              const url = `dsh-ui://app/theme/current/icons/${item.file}?t=${iconBust}`
+              const cached = themeIconSvc.peekSvg?.(url, item.size)
+              if (cached) {
+                next[item.key] = cached
+                continue
+              }
+              themeIconSvc.renderSvg(url, item.size)
+                .then((value) => {
+                  if (!disposed) setIcons((prev) => ({ ...prev, [item.key]: value }))
+                })
+                .catch(() => { /* 取不到就保持内置图形 */ })
+            }
+            setIcons(next)
+          }).catch(() => { /* bridge 未就绪，保持内置图标 */ })
+        }
+        refresh()
+        const off = bridge?.onDesktopEvent?.((event) => {
+          if (event?.action === 'theme.icon-change') {
+            iconBust = Date.now()
+            setTimeout(refresh, 50)
+          }
+        })
+        return () => {
+          disposed = true
+          if (typeof off === 'function') off()
+        }
+      }, [])
+      return icons
     }
 
     /** 注入标题栏样式（幂等：先清理旧 style 再写）。 */
@@ -226,14 +296,26 @@ window.__ModuleLoader__.load({
 .dsh-desktop-titlebar [data-dsh-control]:hover {
   background: light-dark(rgba(0,0,0,0.08), rgba(255,255,255,0.12));
 }
-.dsh-desktop-titlebar [data-dsh-control="close"]:hover { background: #e81123; }
-.dsh-desktop-titlebar [data-dsh-control="close"]:hover svg path { stroke: #fff; }
+/* 关闭 hover 红底：内置图形强制白描边，主题稿走 currentColor（只认 svg.dsh-desktop-titlebar-icon，
+   避免给彩色/填充型主题图标硬加白描边） */
+.dsh-desktop-titlebar [data-dsh-control="close"]:hover { background: #e81123; color: #fff; }
+.dsh-desktop-titlebar [data-dsh-control="close"]:hover svg.dsh-desktop-titlebar-icon path { stroke: #fff; }
 
-/* SVG 图标样式 */
+/* SVG 图标样式（内置=svg 自带类名；主题稿=span 包内联 svg，同吃尺寸规则） */
 .dsh-desktop-titlebar-icon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+span.dsh-desktop-titlebar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+span.dsh-desktop-titlebar-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* 最大化/还原图标特殊尺寸 */
@@ -255,18 +337,28 @@ window.__ModuleLoader__.load({
       document.head.appendChild(tag)
     }
 
+    /** 图标渲染：主题内联 SVG 优先（span 承载，内部 svg 撑满），否则内置 path。 */
+    function renderIcon(iconHtml, pathD, strokeWidth) {
+      if (typeof iconHtml === 'string') {
+        return h('span', {
+          className: 'dsh-desktop-titlebar-icon',
+          'aria-hidden': 'true',
+          dangerouslySetInnerHTML: { __html: iconHtml },
+        })
+      }
+      return makeSvgIcon(pathD, strokeWidth)
+    }
+
     /** 窗控按钮（no-drag 区域内的可点击按钮，经 windowControl 白名单 IPC 动作）。 */
     function ControlButton(props) {
       const action = props.action
-      const iconPath = props.iconPath
-
       return h('div', {
         'data-dsh-control': action,
         onClick: (e) => {
           e.stopPropagation()
           window.desktopBridge?.windowControl?.[action]?.()
         },
-      }, makeSvgIcon(iconPath, action === 'close' ? 2.4 : 2))
+      }, renderIcon(props.iconHtml, props.iconPath, action === 'close' ? 2.4 : 2))
     }
 
     /** 标题栏槽位内容：左侧品牌区 + 右侧窗控。 */
@@ -287,7 +379,11 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+      // 窗控/折叠主题图标（成对提供才启用；未启用时下面这些内置 path 兜底）
+      const controlIcons = useThemeControls()
+      const maximizeHtml = isMaximized ? controlIcons.restore : controlIcons.maximize
       const maximizeIcon = isMaximized ? ICON_RESTORE : ICON_MAXIMIZE
+      const collapseHtml = collapsed ? controlIcons.collapseRight : controlIcons.collapseLeft
       const collapseIcon = collapsed ? ICON_CHEVRON_RIGHT : ICON_CHEVRON_LEFT
 
       // 品牌区：主题 logo（图标主题激活时）> 官方 DeepSeek 品牌组件 > 内置占位。
@@ -322,13 +418,13 @@ window.__ModuleLoader__.load({
             title: collapsed ? '展开侧边栏' : '收起侧边栏',
             'aria-label': collapsed ? '展开侧边栏' : '收起侧边栏',
             onClick: () => toggleSidebar?.(),
-          }, makeSvgIcon(collapseIcon, 2)),
+          }, renderIcon(collapseHtml, collapseIcon, 2)),
         ),
         // 右侧窗控区
         h('div', { className: 'dsh-desktop-titlebar-controls' },
-          h(ControlButton, { action: 'minimize', iconPath: ICON_MINIMIZE }),
-          h(ControlButton, { action: 'maximize', iconPath: maximizeIcon }),
-          h(ControlButton, { action: 'close', iconPath: ICON_CLOSE }),
+          h(ControlButton, { action: 'minimize', iconPath: ICON_MINIMIZE, iconHtml: controlIcons.minimize }),
+          h(ControlButton, { action: 'maximize', iconPath: maximizeIcon, iconHtml: maximizeHtml }),
+          h(ControlButton, { action: 'close', iconPath: ICON_CLOSE, iconHtml: controlIcons.close }),
         ),
       )
     }

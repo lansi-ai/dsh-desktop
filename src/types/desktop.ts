@@ -235,9 +235,18 @@ export const iconSlotSchema = z.object({
   id: z.string().min(1),
   /** 用途名（设置页展示，如「标题栏品牌 logo」）。 */
   label: z.string().min(1),
-  /** 消费方分组（如「应用与托盘」「标题栏」「设置面板」）。 */
+  /** 消费方分组（用途域，如「应用与托盘」「标题栏」「设置面板」）。 */
   group: z.string().min(1),
-  /** 相对主题包目录的规范文件名（含子目录，如 'icons/titlebar-logo.svg'）。 */
+  /** 消费方插件/模块标识（设置页据此明确「这个图标位由谁取用」，如 @lansi-ai/dsh-desktop-titlebar）。 */
+  plugin: z.string().min(1),
+  /**
+   * 归属范围：
+   *   - `global`=应用/托盘图标与标题栏品牌 logo，存包外 `userData/icons/` 全局单份，
+   *     **不随图标包切换**（它们是应用身份标识，不属于任何图标包）；
+   *   - `pack`=界面图标（设置导航、窗控等），随激活包切换。
+   */
+  scope: z.enum(['global', 'pack']),
+  /** 相对归属目录的规范文件名（global：`app-icon-light.png`；pack：`icons/xxx.svg`）。 */
   file: z.string().min(1),
   /** 期望格式：svg=单色线条稿（随明暗自适应）；png=彩色位图。 */
   format: z.enum(['svg', 'png']),
@@ -247,9 +256,9 @@ export const iconSlotSchema = z.object({
   fallback: z.string().min(1),
 })
 
-/** 图标槽位状态（注册表 + 相对当前激活包的提供情况）。 */
+/** 图标槽位状态（注册表 + 相对其归属目录的提供情况）。 */
 export const iconSlotStatusSchema = iconSlotSchema.extend({
-  /** 当前激活图标包是否已提供该槽位文件。 */
+  /** 归属目录（global=userData/icons，pack=当前激活包）是否已提供该文件。 */
   provided: z.boolean(),
 })
 
@@ -259,10 +268,12 @@ export const iconThemeListResultSchema = z.object({
   themes: z.array(themeSummarySchema),
   /** 当前激活图标主题 ID（清单缺失时回退 'default'）。 */
   current: z.string().min(1),
-  /** 槽位需求清单（provided 相对激活包判定）。 */
+  /** 槽位需求清单（provided 按各自 scope 的归属目录判定）。 */
   slots: z.array(iconSlotStatusSchema),
-  /** 当前激活包的写入目录绝对路径（上传落盘位置；内置包为其本地克隆目标）。 */
+  /** 当前激活包的写入目录（pack 槽位上传落盘位置；内置包为其本地克隆目标）。 */
   uploadDir: z.string().min(1),
+  /** 全局图标目录绝对路径（global 槽位上传落盘位置，与图标包无关）。 */
+  globalDir: z.string().min(1),
 })
 
 /** 图标主题切换响应（写 settings 后的回执）。 */
@@ -285,9 +296,11 @@ export const iconThemeUploadSchema = z.object({
 export const iconThemeUploadResultSchema = z.object({
   /** 是否上传成功。 */
   ok: z.boolean(),
-  /** 落盘的相对路径（槽位规范名，如 'icons/titlebar-logo.svg'）。 */
+  /** 落盘的相对路径（槽位规范名，如 'icons/settings-nav-appearance.svg' / 'app-icon-light.png'）。 */
   imported: z.array(z.string()).optional(),
-  /** 实际写入的图标包 ID（= 上传时的激活包）。 */
+  /** 实际写入的归属：global=全局图标目录（与包无关）；pack=图标包。 */
+  scope: z.enum(['global', 'pack']).optional(),
+  /** scope=pack 时实际写入的图标包 ID（= 上传时的激活包）。 */
   themeId: z.string().optional(),
   /** 激活包为内置包（打包后只读）时置真：已先整体克隆到本地用户主题目录再写入。 */
   cloned: z.boolean().optional(),

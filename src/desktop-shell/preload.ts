@@ -176,22 +176,51 @@ interface DesktopUpdater {
   onStatus(cb: (state: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string }) => void): () => void
 }
 
+/**
+ * 图标槽位状态视图（真源 = types/desktop.ts `iconSlotStatusSchema`；
+ * 沙箱化 preload 不能 require 相对模块，故此处本地声明保持同步）。
+ */
+interface IconSlotStatusView {
+  id: string
+  /** 用途名（如「标题栏品牌 logo」）。 */
+  label: string
+  /** 消费方用途域（如「设置面板」）。 */
+  group: string
+  /** 消费方插件/模块标识（如 `@lansi-ai/dsh-desktop-settings-shell`）。 */
+  plugin: string
+  /** 归属：global=userData/icons（应用/托盘/品牌 logo，不随包切换）；pack=激活包 icons/。 */
+  scope: 'global' | 'pack'
+  /** 相对归属目录的规范文件名（global：`app-icon-light.png`；pack：`icons/xxx.svg`）。 */
+  file: string
+  format: 'svg' | 'png'
+  size: number
+  /** 缺失时的回退行为说明。 */
+  fallback: string
+  /** 归属目录是否已提供该文件（空文件等同未提供）。 */
+  provided: boolean
+}
+
+/** iconTheme.list 下发结构（真源 = types/desktop.ts `iconThemeListResultSchema`）。 */
+interface IconThemeListView {
+  themes: Array<{ id: string; name: string; color?: string; current: boolean; icons: string[] }>
+  current: string
+  slots: IconSlotStatusView[]
+  /** 当前激活包的写入目录（pack 槽位上传落盘位置；内置包为其本地克隆目标）。 */
+  uploadDir: string
+  /** 全局图标目录（global 槽位上传落盘位置，与图标包无关）。 */
+  globalDir: string
+}
+
 /** 桌面图标主题操作接口（图标主题与颜色主题为两个独立设置项；颜色主题后续版本）。 */
 interface DesktopIconTheme {
   /** 列出可用图标主题（激活标记 + 包内图标索引）+ 槽位需求清单 + 上传落盘目录。 */
-  list(): Promise<{
-    themes: Array<{ id: string; name: string; color?: string; current: boolean; icons: string[] }>
-    current: string
-    slots: Array<{ id: string; label: string; group: string; file: string; format: 'svg' | 'png'; size: number; fallback: string; provided: boolean }>
-    /** 当前激活包的写入目录（上传落盘位置；内置包为其本地克隆目标）。 */
-    uploadDir: string
-  }>
+  list(): Promise<IconThemeListView>
   /** 切换图标主题（主进程持久化后经 settings 联动自动应用图标）。 */
   set(id: string): Promise<{ ok: boolean; current?: string; message?: string }>
   /** 新建图标包（用户主题目录建空包，建完即激活 → 后续上传直接落该包）。 */
   create(id: string, name: string): Promise<{ ok: boolean; id?: string; current?: string; message?: string }>
-  /** 按槽位上传图标到**当前激活包**（对话框单选对应格式 → 主进程按规范名落盘）。 */
-  upload(slotId: string): Promise<{ ok: boolean; imported?: string[]; themeId?: string; cloned?: boolean; message?: string }>
+  /** 按槽位上传图标（global 槽位写 userData/icons；pack 槽位写当前激活包）。 */
+  upload(slotId: string): Promise<{ ok: boolean; imported?: string[]; scope?: 'global' | 'pack'; themeId?: string; cloned?: boolean; message?: string }>
 }
 export interface DesktopBridge {
   /** 上行 RPC 调用（替换 WebApiClient 的 doFetch）。 */
@@ -530,22 +559,12 @@ function createDesktopBridge(): DesktopBridge {
 
     // ── 桌面图标主题操作（图标主题 / 颜色主题独立设置 · 图标侧） ──
     iconTheme: {
-      list(): Promise<{
-        themes: Array<{ id: string; name: string; color?: string; current: boolean; icons: string[] }>
-        current: string
-        slots: Array<{ id: string; label: string; group: string; file: string; format: 'svg' | 'png'; size: number; fallback: string; provided: boolean }>
-        uploadDir: string
-      }> {
+      list(): Promise<IconThemeListView> {
         return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
           rpcId: generateUuid(),
           method: 'desktop.iconTheme.list',
           params: undefined,
-        }) as Promise<{
-          themes: Array<{ id: string; name: string; color?: string; current: boolean; icons: string[] }>
-          current: string
-          slots: Array<{ id: string; label: string; group: string; file: string; format: 'svg' | 'png'; size: number; fallback: string; provided: boolean }>
-          uploadDir: string
-        }>
+        }) as Promise<IconThemeListView>
       },
       set(id: string): Promise<{ ok: boolean; current?: string; message?: string }> {
         return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
@@ -561,12 +580,12 @@ function createDesktopBridge(): DesktopBridge {
           params: { id, name },
         }) as Promise<{ ok: boolean; id?: string; current?: string; message?: string }>
       },
-      upload(slotId: string): Promise<{ ok: boolean; imported?: string[]; themeId?: string; cloned?: boolean; message?: string }> {
+      upload(slotId: string): Promise<{ ok: boolean; imported?: string[]; scope?: 'global' | 'pack'; themeId?: string; cloned?: boolean; message?: string }> {
         return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
           rpcId: generateUuid(),
           method: 'desktop.iconTheme.upload',
           params: { slotId },
-        }) as Promise<{ ok: boolean; imported?: string[]; themeId?: string; cloned?: boolean; message?: string }>
+        }) as Promise<{ ok: boolean; imported?: string[]; scope?: 'global' | 'pack'; themeId?: string; cloned?: boolean; message?: string }>
       },
     },
 

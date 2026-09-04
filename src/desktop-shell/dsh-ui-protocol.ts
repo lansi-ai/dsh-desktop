@@ -6,7 +6,7 @@ import { dirname, extname, join, normalize, sep } from 'node:path'
 import { generateFullBootScript, resolveBundleRequest, buildThirdPartyBundles } from '../desktop-host/manifest.js'
 import { dispatchHttpCompat, matchesCompatRoute } from '../desktop-host/compat-webserver.js'
 import { dispatchConnectionFetch } from '../desktop-host/connection-fetch-bridge.js'
-import { getActiveThemeId, resolveThemeDir } from '../desktop-host/desktop-theme.js'
+import { getActiveThemeId, resolveThemeDir, resolveGlobalIconPath } from '../desktop-host/desktop-theme.js'
 import { log, logVerbose } from '../desktop-host/log.js'
 
 /**
@@ -265,11 +265,11 @@ export function registerDshUiProtocol(): void {
         return new Response(new Uint8Array(bundle.body), { headers: { 'content-type': bundle.contentType } })
       }
 
-      // 主题资源路由：/theme/<id|current>/<file> 与 /theme/<id|current>/icons/<file>
-      // → 主题包目录内对应文件（包根 app/tray PNG 预览 + icons/ svg/json/png）。
-      // current 段由主进程主题服务动态解析为激活主题（URL 恒定，切换主题后内容随之变化，
-      // renderer 以 ?t= 时间戳破缓存）。主题目录经 resolveThemeDir 查模块级主题表
-      // （覆盖内置包 + userData/themes 用户包）。id/file 白名单字符 + normalize 越界校验。
+      // 主题资源路由：/theme/<id|current>/icons/<file>（界面图标；id|current 段由主进程
+      // 主题服务动态解析为激活主题，URL 恒定，切换后内容随之变化，renderer 以 ?t= 破缓存）。
+      // 主题目录经 resolveThemeDir 查模块级主题表（内置包 + userData/themes 用户包，
+      // 用户包同名覆盖内置）。id/file 白名单字符 + normalize 越界校验。
+      // 兼容保留：包根文件（历史 app/tray PNG 预览）仍可命中，但清单/上传已改走 /icons/。
       const themeMatch = /^\/theme\/([a-z0-9_-]+)\/((?:icons\/)?[a-z0-9_-]+\.(?:svg|png|json))$/.exec(url.pathname)
       if (themeMatch !== null) {
         const [, scope, relFile] = themeMatch
@@ -288,6 +288,21 @@ export function registerDshUiProtocol(): void {
           ? 'application/json; charset=utf-8'
           : relFile.endsWith('.png') ? 'image/png' : 'image/svg+xml'
         logVerbose('dsh-ui-protocol', `200 (theme route) ${request.url} → ${themeId}/${relFile}`)
+        return new Response(new Uint8Array(data), { headers: { 'content-type': contentType } })
+      }
+
+      // 全局图标路由：/icons/<file> → userData/icons/<file>（应用图标 / 托盘图标 /
+      // 标题栏品牌 logo —— 与图标包解耦的全局单份，换包不影响）。路径与解析口径由
+      // 主题服务持有（resolveGlobalIconPath 内含白名单校验），此处只做读取与 404。
+      const globalIconMatch = /^\/icons\/([a-z0-9_-]+\.(?:svg|png))$/.exec(url.pathname)
+      if (globalIconMatch !== null) {
+        const filePath = resolveGlobalIconPath(globalIconMatch[1])
+        if (filePath === null || !existsSync(filePath)) {
+          return new Response('not found', { status: 404 })
+        }
+        const data = await readFile(filePath)
+        const contentType = filePath.endsWith('.png') ? 'image/png' : 'image/svg+xml'
+        logVerbose('dsh-ui-protocol', `200 (global icon route) ${request.url}`)
         return new Response(new Uint8Array(data), { headers: { 'content-type': contentType } })
       }
 

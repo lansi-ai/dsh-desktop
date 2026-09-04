@@ -15,8 +15,10 @@
  * 同一槽位里自定义图标会明显比官方图标小一圈。1/16 对齐官方留白比例。
  *
  * **跨插件复用契约**：`ctx.themeIcon.renderSvg(src, size)` 返回 `Promise<string>`
- * （已内联上色的 SVG 字符串，缓存复用）；消费插件 `inject: ['themeIcon']` 取服务，
- * 经 `dangerouslySetInnerHTML` 渲染。跨 bundle 只传字符串，无 React 实例耦合。
+ * （已内联上色的 SVG 字符串，缓存复用）；`ctx.themeIcon.peekSvg(src, size)` 同步取
+ * 缓存（未命中返回 null 并后台预热，供首帧就要正确的窗控类图标用）。消费插件
+ * `inject: ['themeIcon']` 取服务，经 `dangerouslySetInnerHTML` 渲染。
+ * 跨 bundle 只传字符串，无 React 实例耦合。
  *
  * 注：本文件为浏览器侧 bundle（含 window 全局），不参与 Node 编译。
  */
@@ -208,10 +210,26 @@ window.__ModuleLoader__.load({
       })
     }
 
-    /** 跨插件注入面：提供 renderSvg（纯函数，仅字符串）+ ThemeIcon 组件。 */
+    /**
+     * 同步取内联 SVG 缓存：命中返回字符串，未命中返回 null 并后台预热。
+     *
+     * 用途：窗控按钮这类**首帧就要正确**的小图标——异步 `renderSvg` 会让按钮空一帧，
+     * 而组件初值走 peek（同会话第二次起、或 apply 期已预热的场景直接命中），
+     * 未命中时先画内置图形、后台加载完再换。
+     */
+    function peekSvg(src, size) {
+      const cached = svgCache.get(`${src}|${size ?? ''}`)
+      if (cached === undefined) {
+        renderSvg(src, size).catch(() => { /* 失败由调用方的回退呈现 */ })
+        return null
+      }
+      return cached
+    }
+
+    /** 跨插件注入面：提供 renderSvg / peekSvg（纯函数，仅字符串）+ ThemeIcon 组件。 */
     exports.inject = []
     exports.apply = (ctx) => {
-      ctx.provide('themeIcon', { renderSvg, ThemeIcon })
+      ctx.provide('themeIcon', { renderSvg, peekSvg, ThemeIcon })
     }
 
     return module.exports

@@ -155,6 +155,7 @@
   1. **上传目标 = 当前激活包**（不再是固定 custom）：内置包在打包版随 asar 只读 → 先整体 `cp` 克隆到 `userData/themes/<id>`（扫描时用户包覆盖内置，**激活 ID 不变**）再写槽位文件，回执 `cloned` 供 UI 说明；`USER_THEME_ID` 常量下线
   2. **新增 `desktop.iconTheme.create({id,name})`**：用户目录建空包（theme.json + icons/）**建完即激活**，「建自己的包 → 逐项传图标」成一条连续路径；ID 走协议路由同款白名单 `[a-z0-9_-]{1,32}`，重名拒绝
   3. **需求清单默认折叠**：改 `<details>`，summary 带缺失计数（`缺 N 项` / `全部已提供`）作展开信号；`uploadDir` 语义改为「激活包写入目录」（内置包显示其克隆目标）
+  4. **分组改「分组卡」（用户反馈：分类不够显著、看不出图标归哪个插件用）**：槽位注册表新增 `plugin` 字段（取用方插件/模块标识，如 `@lansi-ai/dsh-desktop-settings-shell`、`desktop-host（main.ts / desktop-tray.ts）`），`group` 回归纯用途域；每组渲染成带边框容器——组头 = 用途域名（13/600）+ 插件标识 chip（等宽小字 + `fill-tsp-secondary` 底）+ 本组「缺 N / 共 M」计数（缺失走 warn 色），组体每行行首加**该槽位图标的实际缩略图**（未提供=虚线空格），一眼对上「哪个位、谁在用、现在长什么样」
 
 ### #10 · 设置页导航「外观」显示官方原生图标，且比其它自定义图标大一档
 
@@ -167,4 +168,34 @@
 - 根因（两件独立）：① 内置 `resources/themes/default/icons/settings-nav-appearance.svg` 是 **0 字节空占位**（由 `settings-nav-theme.svg` 重命名而来，本来就是空的）→ 协议层 200、renderer 解析不出 `<svg>` → 静默回退官方图标；而需求清单 `provided` 只判 `existsSync`，把空文件标成「已提供」，缺口被藏住；② 尺寸差是**画布留白规范不同**：官方 primitives 16 网格字形近乎满幅（≈87%、描边 1px），自定义为 Material Symbols 24 网格（`viewBox="0 -960 960 960"`，字形约 79%、描边缩到 ≈0.8px），两者被强制成同一 16px 盒子 → 看着小一档
 
 - 修复：① `provided` 改「存在且 `size > 0`」+ 删内置空占位（并清 `dist` 里的陈旧空文件——`copy-web` 只覆盖不删除）；② `desktop-icon-client.js` 的 `renderSvg` 加**光学归一**：离屏 `getBBox()` 测字形真实包围盒 → viewBox 重设为「最长边 + 每侧 1/16 内边距」的正方形并居中（1/16 对齐官方留白比例），测不到包围盒则不裁切，结果进缓存只测一次
+
+### #11 · 标题栏窗控/折叠图标无法主题化（硬编码内联 path）
+
+- 环境：dev（用户实机点验外观功能时提出「最大化最小化关闭的图标不能设置吗」）
+
+- 第一现场：非报错。需求清单里没有窗控槽位（`ICON_SLOTS` 只到 `titlebar-logo`），`desktop-titlebar-client.js` 里 `ICON_MINIMIZE / ICON_MAXIMIZE / ICON_RESTORE / ICON_CLOSE / ICON_CHEVRON_LEFT / RIGHT` 全是常量 path
+
+- 状态：**fixed**（2026-09-04 · 待实机点验）→ 坑 30
+
+- 修复（6 个新槽位 + 三条口径）：host `ICON_SLOTS` 补 `titlebar-minimize / -maximize / -restore / -close / -collapse-left / -collapse-right`（group=标题栏，plugin=@lansi-ai/dsh-desktop-titlebar）；titlebar 新增 `useThemeControls()` 按 `icons/<名>.svg` 是否存在启用，**状态对成对提供才启用**（maximize↔restore、collapse-left↔right，缺一整套回退内置）；`themeIcon` 加同步 `peekSvg`，未命中**先画内置 Fluent 图形**再换主题稿（不空帧），破缓存用模块级 `controlBust`；close 的 hover 反色改走 `color:#fff` + 旧 `svg path{stroke}` 收窄到 `svg.dsh-desktop-titlebar-icon`（避免给彩色/填充型主题稿硬加白描边）；顺带把 `useThemeLogo` 的 `current !== 'default'` 条件去掉，与清单 `provided` 同口径（否则克隆 default 定制 logo 时清单说已提供、界面却不生效）
+
+### #12 · 图标归属错位：应用/托盘图标与品牌 logo 被当成「图标包内容」
+
+- 环境：dev（用户点验外观页时提出「应用与托盘图标和标题栏品牌 logo 不属于图标包中的内容，应该与图标包平级」）
+
+- 第一现场：非报错。外观页把它们埋在「图标包 → 需求清单」的分组里，语义上等于宣称"应用图标属于某个图标包"；实际数据模型也确实如此（app/tray PNG 存包根、logo 存包内 `icons/`），**换包会连带换掉应用图标与品牌 logo**
+
+- 状态：**fixed**（2026-09-04 · 待实机点验）→ 决策 D-23
+
+- 修复（数据模型分层，不只是排版）：
+  1. `ICON_SLOTS` 新增 `scope: 'global' | 'pack'`（由 `GLOBAL_SLOT_IDS` 派生）——global=应用/托盘四件套 + 标题栏品牌 logo，pack=界面图标（设置导航、窗控、折叠钮）
+  2. 全局图标唯一落盘处 `userData/icons/`；`getActiveIconPath` **只认全局目录**（全局色版 → 全局另一色版 → 内置默认），不再读激活包；新增协议路由 `dsh-ui://app/icons/<file>`（`resolveGlobalIconPath` 内含白名单校验）
+  3. `upload({slotId})` 按 scope 分流：global 写 `userData/icons/`，pack 写激活包（内置包仍先克隆）；对话框先弹、取消不做任何写操作；回执带 `scope` 供 UI 说人话
+  4. **一次性迁移** `migratePackIconsToGlobal()`（ready 阶段、建窗前）：全局缺该文件时按「激活包优先、其余包次之」从包根复制过去，全局已有不覆盖；**品牌 logo 不迁**（旧口径 default 激活时本就不启用包内 logo，迁了会平白改变外观）
+  5. `listThemeIcons` 不再枚举包根 PNG（包内容=界面图标，图标包卡片预览与「N 个图标」计数随之变准）；titlebar `useThemeLogo` 改走 `/icons/` 且不再依赖 `iconTheme.list()`
+  6. 外观页改为**由上至下四项一级设置项**（用户定的层级与顺序）：**应用图标 → 托盘图标 → 品牌 logo → 图标包**；前三项的块标题与顺序直接取自注册表 global 槽位的 `group`（组名拆分：应用与托盘 → 应用图标 / 托盘图标，logo 从「标题栏」组独立为「品牌 logo」），界面图标需求清单降为「图标包」的二级明细（折叠）
+  7. **一级块再精简 + 改横向排布**（用户第二轮反馈"太复杂、竖向浪费空间"）：块内只留「标题 + **横向槽位卡网格**」（`.dsa-slotGrid` = `repeat(auto-fill,minmax(200px,1fr))`），每卡 = 缩略图 + 用途 + 上传·替换；删掉插件标识 chip、说明段、落盘路径行、规范文件名，以及「✓ 已提供」文字标签 —— 状态改由**视觉本身**表达：有缩略图=已提供、虚线空格=未提供，按钮文案「替换/上传」同步。格式与建议尺寸不丢（写在上传对话框标题里）。新增 `SlotCards` 组件专供一级块，`SlotGroups`/`IconSlotRow` 回到单一形态专供图标包下的需求清单（保留组头插件标识与计数、行内规范名与回退说明——那里才需要"哪个位、叫什么"）；一级块之间加 1px 分隔线（`.dsa-section + .dsa-section`，同构块只靠留白会糊）
+  8. **顺带修掉一个路径 bug**：`titlebar-logo` 槽位的 `file` 原为 `icons/titlebar-logo.svg`，改 global 后归属目录已是 `userData/icons/` —— 若不剥掉 `icons/` 前缀，上传会写出 `userData/icons/icons/titlebar-logo.svg`、清单也永远判缺失。现 global 槽位 `file` 一律只写文件名
+
+- 副作用（已知且符合新语义）：内置 aurora/sunset 包的差异全在 app/tray PNG 与 logo 上，改造后切到这两个包**几乎无视觉变化**（只剩 `ui-overrides.json`）；包根遗留 PNG 不删（协议路由仍兼容，属用户资产）
 
