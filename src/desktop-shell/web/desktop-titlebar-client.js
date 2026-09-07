@@ -9,11 +9,14 @@
  *
  * v3 改进：SVG 图标 + 最大化状态切换
  * v4 改进：左侧品牌区（logo + 品牌名 + 折叠按钮），从 sidebar 迁移至此
- * v5 改进：标题栏图标全面可主题化——除 titlebar-logo 外，窗控（minimize / maximize /
+ * v5 改进：标题栏图标全面可主题化——窗控（minimize / maximize /
  *   restore / close）与侧栏折叠（collapse-left / collapse-right）各槽位支持主题包
  *   `icons/titlebar-*.svg`；口径=「激活包含该文件就用」，状态对（maximize↔restore、
  *   collapse-left↔collapse-right）**成对提供才启用**，缺失回退内置 Fluent 图形；
  *   先画内置再换主题稿，不出现空帧（详见 useThemeControls）。
+ * v6 改进：标题栏品牌 logo 由独立 titlebar-logo.svg 内联改为 **复用 app-icon PNG**
+ *   （浅色/深色按 `document.body` 的 `data-ds-dark-theme` 属性切换，`<img>` 呈现，
+ *   缺失回退官方鲸鱼/占位）——与主应用图标一致，不再有独立的品牌 logo 图标槽位。
  *
  * 职责边界：本插件只管标题栏自身（拖拽区/窗控/品牌区/下边线）；布局行骨架归
  *   @lansi-ai/dsh-desktop-layout。
@@ -93,27 +96,22 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 标题栏品牌 logo —— **全局图标，与图标包解耦**：真源是 `userData/icons/`
-     * 下的 titlebar-logo.svg，经 `dsh-ui://app/icons/<file>` 路由取用；切换图标包
-     * 不影响它（品牌 logo 属于应用身份，不属于任何一个图标包）。
-     * 未上传/取不到 → 保持官方鲸鱼组件；单色稿随主题文字色变、彩色稿保留原色。
-     * `theme.icon-change` 下行事件（含全局图标上传）触发破缓存重取。
+     * 标题栏品牌 logo —— 复用全局 **app-icon PNG**（不再用独立 titlebar-logo.svg）：
+     * 真源是 `userData/icons/` 下的 app-icon-light/dark.png，经
+     * `dsh-ui://app/icons/<file>` 路由取用；按 `document.body` 的
+     * `data-ds-dark-theme` 深色属性（布局主题 presenter 写入）选浅/深色版，附带
+     * MutationObserver 监听该属性，深浅主题切换时即时换图。
+     * `/icons/` 协议路由只读 userData/icons，若缺失会 404 → 由调用方 `<img onError>`
+     * 回退官方鲸鱼组件。`theme.icon-change` 下行事件（含全局图标上传）触发破缓存重取。
      */
     function useThemeLogo() {
-      const [logoHtml, setLogoHtml] = useState(null)
+      const [dark, setDark] = useState(() => document.body.hasAttribute('data-ds-dark-theme'))
+      const [logoUrl, setLogoUrl] = useState(null)
       useEffect(() => {
-        let disposed = false
-        const load = () => {
-          if (themeIconSvc === null) return
-          themeIconSvc.renderSvg(`dsh-ui://app/icons/titlebar-logo.svg?t=${iconBust}`, 24)
-            .then((value) => {
-              if (!disposed) setLogoHtml(value)
-            })
-            .catch(() => {
-              if (!disposed) setLogoHtml(null)
-            })
-        }
-        load()
+        // 深浅变化（布局 presenter 写 body 属性）→ 切对应色版
+        const updateDark = () => setDark(document.body.hasAttribute('data-ds-dark-theme'))
+        const observer = new MutationObserver(updateDark)
+        observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
         const off = window.desktopBridge?.onDesktopEvent?.((event) => {
           if (event?.action === 'theme.icon-change') {
             iconBust = Date.now()
@@ -121,11 +119,17 @@ window.__ModuleLoader__.load({
           }
         })
         return () => {
-          disposed = true
+          observer.disconnect()
           if (typeof off === 'function') off()
         }
       }, [])
-      return { logoHtml }
+      useEffect(() => {
+        setLogoUrl(`dsh-ui://app/icons/${dark ? 'app-icon-dark.png' : 'app-icon-light.png'}?t=${iconBust}`)
+      }, [dark])
+      const load = () => {
+        setLogoUrl(`dsh-ui://app/icons/${document.body.hasAttribute('data-ds-dark-theme') ? 'app-icon-dark.png' : 'app-icon-light.png'}?t=${iconBust}`)
+      }
+      return { logoUrl }
     }
 
     /**
@@ -390,23 +394,32 @@ span.dsh-desktop-titlebar-icon svg {
       // 不再用 renderSlot('sidebar.brand.*') —— 该子槽位不属于 titlebar 槽的
       // children 声明，跨槽位调用会触发 SlotOwnershipError 崩溃。
       const brand = getOfficialBrand()
-      const { logoHtml } = useThemeLogo()
+      const { logoUrl } = useThemeLogo()
+      // 复用 app-icon PNG：/icons/ 路由缺失会 404 → onError 回退官方鲸鱼/占位；
+      // logoUrl 变化（深浅切换/破缓存）时重置失败标记，给新图一次机会。
+      const [logoFailed, setLogoFailed] = useState(false)
+      useEffect(() => { setLogoFailed(false) }, [logoUrl])
 
       return h('div', { className: 'dsh-desktop-titlebar' },
         // 左侧品牌区
         h('div', { className: 'dsh-desktop-titlebar-left' },
-          // Logo（主题 logo 内联 / 官方 FishLogo / 占位兜底）。品牌区仅作展示。
-          h('div', { className: 'dsh-desktop-titlebar-brand', title: 'DSH Desktop' },
-            logoHtml
-              ? h('span', {
+          // Logo（app-icon PNG / 官方 FishLogo / 占位兜底）。品牌区仅作展示。
+          h('div', { className: 'dsh-desktop-titlebar-brand', title: 'DSH Forge' },
+            logoUrl && !logoFailed
+              ? h('img', {
+                  key: logoUrl,
+                  src: logoUrl,
+                  width: 24,
+                  height: 24,
+                  alt: '',
                   'aria-hidden': 'true',
-                  style: { display: 'inline-flex', width: 24, height: 24 },
-                  // 单色稿随主题文字色、彩色稿保留原色
-                  dangerouslySetInnerHTML: { __html: logoHtml },
+                  style: { display: 'inline-flex', objectFit: 'contain', flexShrink: 0 },
+                  onError: () => setLogoFailed(true),
                 })
               : brand ? h(brand.mark, { size: 24 }) : h(BrandLogo, { size: 24 }),
-            h('span', { className: 'dsh-desktop-titlebar-brand-name' },
-              brand ? h(brand.name, { includeMark: false }) : 'DeepSeek'),
+            // 品牌名：自有产品名（不再展示官方 BrandWordmark 的 deepseek HARNESS）。
+            // 官方 DeepSeek 标识仅在左侧 logo 加载失败时作为图标兜底（见上）。
+            h('span', { className: 'dsh-desktop-titlebar-brand-name' }, 'DSH Forge'),
             // DSH 基线版本号（由主机注入的 __DSH_BASE_VERSION__ 全局供给）
             h('span', { className: 'dsh-desktop-titlebar-brand-version' },
               window.__DSH_BASE_VERSION__ || ''),

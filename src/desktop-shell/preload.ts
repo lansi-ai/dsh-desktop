@@ -182,7 +182,7 @@ interface DesktopUpdater {
  */
 interface IconSlotStatusView {
   id: string
-  /** 用途名（如「标题栏品牌 logo」）。 */
+  /** 用途名（如「应用图标（浅色底）」）。 */
   label: string
   /** 消费方用途域（如「设置面板」）。 */
   group: string

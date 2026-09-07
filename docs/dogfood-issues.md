@@ -208,3 +208,13 @@
 - 修复：inject 回调改经 `ctx.get('uiWorkspace')` 取官方 UiWorkspaceService（复用其 connectWorkspace + sessions.open 的「复用-or-新建」语义）；`exports.inject` 由 `['slots','layout','workspaces']` → `['slots','layout','uiWorkspace']`
 - 衔接：M6-P3 排除 `ui-workspace` 后此回调再切换为自研 viewing store 的 startSession（本 bug 与 P3 W1 顶层 startSession 语义重叠）
 
+### #14 · 标题栏品牌 logo 复用 app-icon PNG（承接 #12 · 用户指定，非 bug）
+
+- 环境：dev（dogfood 外观点验后，用户明确「标题栏 logo 要 PNG 不要 SVG」）
+- 第一现场：非报错。既有 `titlebar-logo.svg` 独立槽位内联渲染（`themeIconSvc.renderSvg`），用户希望标题栏 logo 与主应用图标同源（PNG）
+- 变更（2026-09-07 · M6-P2 前置微调，提交即生效）：
+  1. `desktop-titlebar-client.js` v6：品牌 logo 改 `<img>` 复用全局 `app-icon-light/dark.png`，按 `document.body` 的 `data-ds-dark-theme` 属性选版（MutationObserver 监听深浅切换即时换图）；`/icons/` 路由缺失 404 → `onError` 回退官方鲸鱼/占位。移除 `titlebar-logo.svg` 内联路径
+  2. `desktop-theme.ts`：移除 `titlebar-logo` 槽位定义 + `GLOBAL_SLOT_IDS` 条目（设置页「外观」图标清单动态渲染 `ICON_SLOTS`，自动收敛，无需改动前端）
+  3. `make-theme-assets.cjs`：停用 `titlebar-logo.svg` 生成；源码与 dist 各 3 个旧 `.svg` 资源已删
+- 副作用：设置页「外观」不再有独立的「标题栏品牌 logo」上传项 —— 标题栏 logo 跟随应用图标槽位（app-icon-light/dark），换应用图标即同步标题栏
+

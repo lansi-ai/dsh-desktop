@@ -291,8 +291,8 @@ export function registerDshUiProtocol(): void {
         return new Response(new Uint8Array(data), { headers: { 'content-type': contentType } })
       }
 
-      // 全局图标路由：/icons/<file> → userData/icons/<file>（应用图标 / 托盘图标 /
-      // 标题栏品牌 logo —— 与图标包解耦的全局单份，换包不影响）。路径与解析口径由
+      // 全局图标路由：/icons/<file> → userData/icons/<file>（应用图标 / 托盘
+      // 图标 —— 与图标包解耦的全局单份，换包不影响）。路径与解析口径由
       // 主题服务持有（resolveGlobalIconPath 内含白名单校验），此处只做读取与 404。
       const globalIconMatch = /^\/icons\/([a-z0-9_-]+\.(?:svg|png))$/.exec(url.pathname)
       if (globalIconMatch !== null) {

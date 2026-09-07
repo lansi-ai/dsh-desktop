@@ -2,8 +2,8 @@
  * dsh-desktop 桌面图标主题服务（图标主题 / 颜色主题拆分 · 图标侧）。
  *
  * 图标分两类归属，互不牵连：
- *   - **全局图标**（`scope='global'`）：应用图标（窗口/任务栏/Dock）、托盘图标、
- *     标题栏品牌 logo —— 存包外 `userData/icons/` 只有一份，**切换图标包不影响**
+ *   - **全局图标**（`scope='global'`）：应用图标（窗口/任务栏/Dock）、托盘图标
+ *     —— 存包外 `userData/icons/` 只有一份，**切换图标包不影响**
  *     （它们是「这个应用长什么样」的身份标识，不属于任何图标包）；
  *   - **图标包**（`scope='pack'`）：界面图标（设置导航、窗控、折叠钮）—— 存
  *     `resources/themes/<id>/icons/`（内置包）或 `userData/themes/<id>/icons/`
@@ -74,7 +74,7 @@ export type ThemeIconKind = keyof typeof ICON_FILES
  * 新增消费点（新插件按 `icons/<名>.svg` 取图）时必须在此登记，否则设置页
  * 看不见该需求。`group`（用途域）+ `plugin`（取用方插件/模块）共同回答
  * 「这个图标位归谁用」。两类归属（`scope`，见 `GLOBAL_SLOT_IDS`）：
- *   - `global`=应用/托盘图标 + 标题栏品牌 logo —— 存 `userData/icons/` 全局单份，
+ *   - `global`=应用/托盘图标 —— 存 `userData/icons/` 全局单份，
  *     **不随图标包切换**（它们是应用身份标识，不属于任何一个图标包）；
  *   - `pack`=界面图标（设置导航、窗控、折叠钮、工作区侧栏）—— 存激活包 `icons/` 子目录，
  *     随图标包切换，经 `dsh-ui://app/theme/current/icons/<文件名>` 引用。
@@ -121,16 +121,6 @@ const RAW_ICON_SLOTS: readonly Omit<IconSlot, 'scope'>[] = [
     format: 'png',
     size: 64,
     fallback: '回退全局浅色版，再回退内置默认 logo',
-  },
-  {
-    id: 'titlebar-logo',
-    label: '标题栏品牌 logo',
-    group: '品牌 logo',
-    plugin: '@lansi-ai/dsh-desktop-titlebar',
-    file: 'titlebar-logo.svg',
-    format: 'svg',
-    size: 24,
-    fallback: '回退官方品牌图标',
   },
   {
     id: 'titlebar-minimize',
@@ -262,16 +252,14 @@ const RAW_ICON_SLOTS: readonly Omit<IconSlot, 'scope'>[] = [
 ]
 
 /**
- * 全局归属的槽位 ID：应用/托盘图标与标题栏品牌 logo。
- * 它们是「这个应用长什么样」的身份标识，不属于任何一个图标包，故存包外的
- * `userData/icons/` 只有一份，切换图标包不影响（换包只换界面图标）。
+ * 全局归属的槽位 ID：应用图标与托盘图标。它们是不属于任何一个图标包的
+ * 「这个应用长什么样」身份标识。
  */
 const GLOBAL_SLOT_IDS: readonly string[] = [
   'app-icon-light',
   'app-icon-dark',
   'tray-icon-light',
   'tray-icon-dark',
-  'titlebar-logo',
 ]
 
 /** 带归属范围的图标槽位（对外下发的最终形态）。 */
@@ -329,8 +317,8 @@ function resolveWritableThemeDir(themeId: string): string {
 }
 
 /**
- * 全局图标目录（userData/icons）：`scope='global'` 槽位（应用/托盘图标、标题栏
- * 品牌 logo）的唯一落盘处 —— 与图标包解耦，只有一份，切换图标包不影响。
+ * 全局图标目录（userData/icons）：`scope='global'` 槽位（应用图标、托盘图标）
+ * 的唯一落盘处 —— 与图标包解耦，只有一份，切换图标包不影响。
  */
 function resolveGlobalIconsDir(): string {
   return join(app.getPath('userData'), 'icons')
@@ -400,9 +388,8 @@ export function getActiveIconPath(kind: ThemeIconKind, dark: boolean): string {
  * 一次性迁移：把「包根 app/tray PNG」搬到全局目录（userData/icons）。
  *
  * 旧版本里应用/托盘图标存在图标包包根、随包切换；现在它们是全局单份、与包解耦。
- * 为避免升级后图标凭空变回内置默认，这里在 ready 阶段按「激活包优先、其余包次之」
+ * 为升级后图标凭空变回内置默认，这里在 ready 阶段按「激活包优先、其余包次之」
  * 找到第一个提供该文件的包并复制过去；**全局已有的不覆盖**（用户自己传的就是真源）。
- * 品牌 logo 不迁：旧口径下 default 激活时本就不启用包内 logo，迁了反而会改变外观。
  */
 async function migratePackIconsToGlobal(): Promise<void> {
   const globalDir = resolveGlobalIconsDir()
@@ -703,7 +690,7 @@ export function registerDesktopThemeMethods(desktop: DesktopCore): void {
   /**
    * 图标上传（槽位驱动）：对话框按槽位格式单选 → 以**槽位规范名**落盘，用户无需
    * 手工对齐文件名与目录。目标按 `scope` 分流：
-   *   - `global`（应用/托盘图标、标题栏品牌 logo）→ `userData/icons/`，全局单份，
+   *   - `global`（应用/托盘图标）→ `userData/icons/`，全局单份，
    *     与图标包无关（换包不影响这些图标）；
    *   - `pack`（界面图标）→ **当前激活包** `icons/`；激活包是内置包（打包后 asar
    *     只读）时先整体克隆到用户目录同名包——扫描时用户包覆盖内置，激活 ID 不变

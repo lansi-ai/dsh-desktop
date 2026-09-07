@@ -87,13 +87,11 @@ async function main() {
     await renderIcon(svgLight, path.join(themeDir, 'tray-icon-light.png'), 64)
     await renderIcon(svgDark, path.join(themeDir, 'tray-icon-dark.png'), 64)
     // 壳层 UI 图标（renderer 经 dsh-ui://app/theme/<id|current>/icons/<file> 直读）：
-    // titlebar-logo.svg = 标题栏品牌 logo（default 用官方 favicon 原文——自带明暗
-    // media query 适配；自定义主题用图案 SVG）。官方 UI 内部小图标（设置/文件夹等）
-    // 经 ui-overrides.json 映射替换（desktop-ui-icons-client 消费，空表=不激活）。
+    // 标题栏品牌 logo 自 M6 起复用 app-icon PNG，不再单独生成 titlebar-logo.svg。
+    // 官方 UI 内部小图标（设置/文件夹等）经 ui-overrides.json 映射替换
+    // （desktop-ui-icons-client 消费，空表=不激活）。
     const iconsDir = path.join(themeDir, 'icons')
     fs.mkdirSync(iconsDir, { recursive: true })
-    const logoSvg = theme.source === 'official' ? officialSvg : theme.build(theme.light)
-    fs.writeFileSync(path.join(iconsDir, 'titlebar-logo.svg'), logoSvg, 'utf-8')
     fs.writeFileSync(path.join(iconsDir, 'ui-overrides.json'), JSON.stringify(UI_OVERRIDES[theme.id] ?? [], null, 2) + '\n', 'utf-8')
     const manifest = { id: theme.id, name: theme.name, color: theme.color }
     fs.writeFileSync(path.join(themeDir, 'theme.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf-8')
