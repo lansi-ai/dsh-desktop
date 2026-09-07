@@ -300,6 +300,18 @@
   - **成对/成组资源在消费方判齐**：「哪两枚属于同一个按钮」是用图插件的知识，注册表只声明单槽；判齐放在消费方，`fallback` 文案负责告知用户「需成对提供」。
   - **hover 反色规则要按渲染方式分流**：`svg path { stroke:#fff }` 会连主题内联稿一起强加白描边（填充型/彩色图标在红底上糊成一团）。内置=svg 自带类名、主题=span 包 svg，用 `svg.dsh-desktop-titlebar-icon` 收窄旧规则 + hover 改 `color:#fff` 走 `currentColor`。
 
+## 坑 31 · 上游新版判据拿错源：npm dist-tags 滞后于 GitHub release，auto 静默漏检 3 天
+
+- **现象**（2026-09-07，用户实查打脸）：`npm run upstream:auto` 报「无新版本（0.1.2-rc.1 已是最新）」，但上游 GitHub 已发布 `dsh-v0.1.3-alpha.1`（2026-09-04 19:34 北京时间）。每日 02:00 定时任务已连续 3 天静默漏检，工作区零改动、零报告。
+- **根因**（两层）：
+  1. `cmdCheck` 的新版判据取 `registry.npmjs.org/-/package/@deepseek-ai/dsh/dist-tags`（alpha/latest/next 三条），而上游发布顺序是**先打 GitHub tag/release、后发 npm**；`0.1.3-alpha.1` 在 npm `versions` 里根本不存在（`npm view @deepseek-ai/dsh@0.1.3-alpha.1` → E404），三条 tag 全指 0.1.2 系列，`compareVersions` 自然判不出更新。
+  2. 连带缺口：`assess` 的 roster 存在性是 `aligned.has(p) ? packageExistsAt(p, ver) : packageExistsAny(p)`，而 roster 清单（取自 `boot.ts` + `desktop-patch.yml`）**不含主包 `@deepseek-ai/dsh`**，独立版本线包只查「包在不在」。结果目标版本整体未发行也能报「92 包全部存在」，判成 `review` 而非 `blocked`——把「根本装不了」误报成「可人工适配升级」。
+- **解法**：权威源换成 GitHub releases（`/releases?per_page=30` → 过滤 `dsh-v*` 前缀得版本号 → `compareVersions` 降序），npm **降级为「是否可安装」的发行校验**（`packageExistsAt('@deepseek-ai/dsh', v)`）。check 输出三态：无新版 / 可安装候选 / **pending**（上游已 release、npm 未发行）。`cmdAuto` 遇 pending 显式停止（不改文件、不登记台账、打印 release notes 链接）；`cmdUpgrade` 加同口径前置校验，堵住手工 `upgrade <未发行版>`；`--tag alpha|latest|next` 随判据源作废删除。
+- **复盘要点**：
+  - **「上游出了新版」与「我能不能装」是两个正交问题**，判据源不能混用：git tag/release 是版本真源，registry 只是分发渠道（会滞后、会被镜像缓存掩盖）。
+  - **存在性检查必须区分「包存在」与「该版本存在」，且要覆盖主版本包**，否则「目标版整体未发行」这种最严重的阻断也能全绿通过。
+  - **自动化的「无变化」结论只能由权威源保证**，不能建立在下游代理指标上——代理指标缺数据时的表现恰好是「看起来一切正常」。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -324,6 +336,7 @@
 20. **「清单/概览」类 UI 的数据源必须是需求注册表，不是文件系统或目录扫描**：扫描只回答「有什么」，答不出「该有什么」；带静默回退链的槽位（缺了也能跑）缺口会被永久藏住。清单、上传、校验三处共用同一份注册表（真源一处，renderer 只渲染），新增消费点即新增登记项（坑 28）。
 21. **「有没有」判定要带最小有效性检查，替换字形要做光学归一**：`existsSync` 不等于可用——0 字节/解析不出的文件在静默回退链下表现为「显示成了别的东西」而非报错；跨来源的图标必须按内容包围盒（离屏 `getBBox()`）重设 viewBox 才能视觉等大，同盒子尺寸不等于同视觉尺寸。资源类改动收尾看 `dist/` 实际文件清单（copy 只覆盖不删除）（坑 29）。
 22. **清单展示、上传落盘、消费方启用三处必须同一口径同一真源**：注册表说「已提供」而界面不生效=假信号（消费方别自己加 `!== 'default'` 这类条件）；成组/成对的资源在消费方判齐再启用，注册表只声明单槽；首帧就要正确的控件不许用异步渲染填空——先画兜底图形、缓存命中走同步 peek（坑 30）。
+23. **版本跟踪先定权威源，再定发行校验**：判「上游有没有新版」用 git tag/release（版本真源），判「我能不能装」用 registry 该版本是否存在（分发渠道会滞后）；两者混用会让「渠道还没发」表现为「上游没发」这种最坏形态的静默漏检。「无新版」结论要能用第二源交叉对账（release 清单 vs registry versions）（坑 31）。
 
 ## 结论
 

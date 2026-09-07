@@ -4,21 +4,25 @@
 /**
  * dsh 上游基座版本自动检查与升级工具（sync-upstream 自动化 · ADR-005）
  *
+ * 版本权威源 = GitHub releases（上游先打 `dsh-v*` tag，npm 发行常有滞后）：
+ *   - check 以 release 清单判定「上游是否出了新版」，不能因为 npm 没有就说无新版本
+ *   - npm 仅用于「该版本是否可安装」的发行校验，不再充当新版判据
+ *
  * 子命令：
- *   check                只读：查询 npm 上游 dist-tags，报告相对当前基线是否有新版本
+ *   check                只读：查 GitHub releases 相对基线的新版，并标注每个新版的 npm 发行状态
  *   assess <version>     只读：评估目标版本破坏性（拴合面 diff + roster 存在性 + 官方 roster 包集）
  *   upgrade <version>    评估通过(safe)则自动升级（bump + install + typecheck/lint/build + 迁移登记）
- *   auto [--tag X]       check → 选候选 → assess → 非破坏则 upgrade 全自动
+ *   auto                 check → assess → 非破坏则 upgrade 全自动
  *
  * 选项：
- *   --tag alpha|latest|next   跟踪的 npm dist-tag（默认 alpha，当前基线所在线）
  *   --dry-run                 只打印将执行的动作，不写文件/不安装
  *   --commit                  升级成功后自动创建 git commit（默认只输出命令）
  *
- * 破坏性判定（对齐 docs/upstream-contracts.md §7.4 升级 SOP）：
+ * 判定（对齐 docs/upstream-contracts.md §7.4 升级 SOP）：
  *   blocked = roster 引用的官方包在目标版本不存在（如 alpha.4 的 tool-subagent-report 漏发）
  *   review  = S1/S2/S3/S3b 拴合面或 ui-* 槽位契约有差异（需人工对照 diff 适配）
  *   safe    = 拴合面 + ui-* 契约零差异且 roster 包全部存在（可自动升级）
+ *   pending = GitHub release 已发布但 npm 尚未发行（不可安装 → 只报告不升级，转人工关注）
  */
 
 const https = require('node:https');
@@ -29,6 +33,8 @@ const path = require('node:path');
 const REPO = 'deepseek-ai/deepseek-harness';
 const REPO_URL = `https://api.github.com/repos/${REPO}`;
 const REGISTRY = 'https://registry.npmjs.org';
+// 上游 release tag 前缀：tag `dsh-v<x.y.z-prerelease>` 去掉前缀即 npm 版本号
+const RELEASE_TAG_PREFIX = 'dsh-v';
 
 const ROOT = path.resolve(__dirname, '..');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
@@ -234,6 +240,28 @@ async function getOfficialRosterPackages(tag) {
   return set;
 }
 
+// 上游 release 清单（版本权威源）：`dsh-v*` tag → 版本号，按版本降序
+async function getUpstreamReleases(perPage = 30) {
+  const list = await ghGet(`/releases?per_page=${perPage}`);
+  return list
+    .filter((r) => !r.draft && typeof r.tag_name === 'string' && r.tag_name.startsWith(RELEASE_TAG_PREFIX))
+    .map((r) => ({
+      version: r.tag_name.slice(RELEASE_TAG_PREFIX.length),
+      url: r.html_url,
+      publishedAt: r.published_at || r.created_at || '',
+    }))
+    .sort((a, b) => compareVersions(b.version, a.version));
+}
+
+// 日期一律北京时间显示（台账同规则，避免 UTC 跨日）
+function beijingStamp(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
+  const time = d.toLocaleTimeString('sv-SE', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit' });
+  return `${date} ${time}`;
+}
+
 // ── 评估 ─────────────────────────────────────────────────────────────────────
 
 async function assess(version) {
@@ -357,52 +385,46 @@ function printAssessment(a) {
 
 // ── check ───────────────────────────────────────────────────────────────────
 
-async function cmdCheck(opts) {
+/**
+ * 新版判定以 GitHub releases 为权威源，npm 只作「是否可发行可装」校验。
+ * 返回 { newer, best, pending }：
+ *   best    = 最新的「GitHub 已发布 + npm 已发行」可安装候选
+ *   pending = 上游已 release 但 npm 未发行（不可装 → 只报告不升级）
+ */
+async function cmdCheck() {
   const pkg = readPackageJson();
   const baseline = getBaselineVersion(pkg);
   console.log(`[dsh-upstream] 当前基线: ${baseline}`);
+  console.log(`[dsh-upstream] 权威源: GitHub releases（${REPO}）；npm 仅判「是否可安装」`);
 
-  const tags = {};
-  for (const p of TRACKED_PACKAGES) {
-    tags[p] = await getDistTags(p);
-  }
-  for (const p of TRACKED_PACKAGES) {
-    const t = tags[p];
-    console.log(`  ${p.padEnd(34)} alpha=${t.alpha ?? '-'}  latest=${t.latest ?? '-'}  next=${t.next ?? '-'}`);
-  }
-
-  const candidates = pickCandidates(tags['@deepseek-ai/dsh'], baseline, opts.tag);
-  if (!candidates.length) {
-    console.log(`[dsh-upstream] 结论: 无新版本（${baseline} 已是最新）`);
+  const releases = await getUpstreamReleases();
+  const newer = releases.filter((r) => compareVersions(r.version, baseline) > 0);
+  if (!newer.length) {
+    console.log(`[dsh-upstream] 结论: 无新版本（GitHub 最新 ${releases[0] ? releases[0].version : '未知'} ≤ 基线 ${baseline}）`);
     return { newer: false };
   }
-  console.log(`[dsh-upstream] 候选新版本:`);
-  for (const c of candidates) {
-    console.log(`  - ${c.version}（${c.tag} 线${c.stable ? ' · 稳定' : ''}）`);
-  }
-  const best = candidates[0];
-  console.log(`[dsh-upstream] 结论: 有新版本 → 运行评估: node scripts/upstream.cjs assess ${best.version}`);
-  return { newer: true, best: best.version };
-}
 
-// 从 dist-tags 选比基线新的候选，稳定线优先
-function pickCandidates(distTags, baseline, tagOpt) {
-  const lines = [
-    { tag: 'latest', stable: true },
-    { tag: 'next', stable: true },
-    { tag: tagOpt || 'alpha', stable: false },
-  ];
-  const seen = new Set();
-  const out = [];
-  for (const { tag, stable } of lines) {
-    const v = distTags[tag];
-    if (!v || seen.has(v)) continue;
-    if (compareVersions(v, baseline) > 0) {
-      seen.add(v);
-      out.push({ version: v, tag, stable });
-    }
+  for (const p of TRACKED_PACKAGES) {
+    const t = await getDistTags(p);
+    console.log(`  ${p.padEnd(34)} alpha=${t.alpha ?? '-'}  latest=${t.latest ?? '-'}  next=${t.next ?? '-'}（npm 发行参考）`);
   }
-  return out;
+  console.log(`[dsh-upstream] 上游已发布、新于基线的版本:`);
+  const status = [];
+  for (const r of newer) {
+    const onNpm = await packageExistsAt('@deepseek-ai/dsh', r.version);
+    status.push({ ...r, onNpm });
+    console.log(`  - ${r.version.padEnd(18)} ${beijingStamp(r.publishedAt)} 北京时间  npm ${onNpm ? '已发行 ✓' : '未发行 ✗（不可安装）'}`);
+  }
+
+  const installable = status.find((s) => s.onNpm);
+  if (!installable) {
+    console.log(`[dsh-upstream] 结论: pending —— 上游已发布 ${status[0].version}，npm 尚未发行，不升级、不改任何文件`);
+    console.log(`  release notes: ${status[0].url}`);
+    console.log(`  待 npm 发行后重跑: node scripts/upstream.cjs auto`);
+    return { newer: true, best: null, pending: status[0].version };
+  }
+  console.log(`[dsh-upstream] 结论: 有新版本 ${installable.version}（npm 可安装）→ 评估: node scripts/upstream.cjs assess ${installable.version}`);
+  return { newer: true, best: installable.version };
 }
 
 // ── upgrade ─────────────────────────────────────────────────────────────────
@@ -491,6 +513,12 @@ async function cmdUpgrade(version, opts) {
     process.exit(1);
   }
 
+  // 发行前置校验：GitHub release 会先于 npm 出现，未发行则装了必失败
+  if (!(await packageExistsAt('@deepseek-ai/dsh', version))) {
+    console.error(`[ABORT] ${version} 在 npm 尚未发行（GitHub 已 release）→ 不可安装，待发行后重跑 auto。`);
+    process.exit(1);
+  }
+
   console.log(`[dsh-upstream] 评估 ${baseline} → ${version}`);
   const a = await assess(version);
   printAssessment(a);
@@ -543,8 +571,12 @@ async function cmdUpgrade(version, opts) {
 // ── auto ────────────────────────────────────────────────────────────────────
 
 async function cmdAuto(opts) {
-  const { newer, best } = await cmdCheck(opts);
+  const { newer, best, pending } = await cmdCheck();
   if (!newer) return;
+  if (!best) {
+    console.log(`[dsh-upstream] auto 停止：GitHub 已发布 ${pending} 但 npm 未发行 → 不改文件、不登记台账，转人工关注。`);
+    return;
+  }
   if (opts['dry-run']) {
     console.log(`[DRY-RUN] 将评估并升级 ${best}`);
     return;
@@ -573,7 +605,7 @@ async function main() {
 
   try {
     if (cmd === 'check') {
-      await cmdCheck(opts);
+      await cmdCheck();
     } else if (cmd === 'assess') {
       const version = positional[0];
       if (!version) throw new Error('assess 需要 <version> 参数');
@@ -586,10 +618,10 @@ async function main() {
       await cmdAuto(opts);
     } else {
       console.log(`用法:
-  node scripts/upstream.cjs check [--tag alpha|latest|next]
+  node scripts/upstream.cjs check
   node scripts/upstream.cjs assess <version>
   node scripts/upstream.cjs upgrade <version> [--dry-run] [--commit]
-  node scripts/upstream.cjs auto [--tag alpha|latest|next] [--dry-run] [--commit]`);
+  node scripts/upstream.cjs auto [--dry-run] [--commit]`);
       process.exit(cmd ? 1 : 0);
     }
   } catch (e) {
