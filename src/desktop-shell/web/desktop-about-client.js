@@ -73,7 +73,8 @@ window.__ModuleLoader__.load({
       const busy = phase === 'checking' || phase === 'available' || phase === 'downloading'
       const buttonStyle = {
         padding: '6px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-        fontSize: '13px', background: '#38bdf8', color: '#0f172a', fontWeight: 500,
+        fontSize: '13px', background: 'var(--dsw-alias-button-info-fill)',
+        color: 'var(--dsw-alias-label-primary)', fontWeight: 500, whiteSpace: 'nowrap',
       }
       const actionButton = phase === 'downloaded'
         ? h('button', { onClick: () => window.desktopBridge?.updater?.install(), style: { ...buttonStyle, background: '#16a34a', color: '#f8fafc' } }, '重启以更新')
@@ -83,29 +84,23 @@ window.__ModuleLoader__.load({
             style: { ...buttonStyle, ...(busy ? { opacity: 0.5, cursor: 'default' } : {}) },
           }, phase === 'checking' ? '检查中…' : '检查更新')
 
-      return h('div', { style: { padding: '16px 24px', maxWidth: '480px', color: '#f8fafc' } },
-        h('h3', { style: { margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600 } }, '关于'),
-        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' } },
-          h('div', null,
-            h('div', { style: { fontSize: '14px', fontWeight: 500 } }, 'DSH Desktop'),
-            h('div', { style: { fontSize: '12px', color: '#94a3b8', marginTop: '2px' } }, 'DeepSeek Harness 桌面客户端'),
-          ),
-          h('div', { style: { fontSize: '13px', color: '#94a3b8' } }, `v${currentVersion}`),
-        ),
-        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' } },
-          h('div', null,
-            h('div', { style: { fontSize: '14px', fontWeight: 500 } }, '上游基线'),
-            h('div', { style: { fontSize: '12px', color: '#94a3b8', marginTop: '2px' } }, '@deepseek-ai/dsh 官方包版本'),
-          ),
-          h('div', { style: { fontSize: '13px', color: '#94a3b8' } }, baselineVersion),
-        ),
-        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' } },
-          h('div', null,
-            h('div', { style: { fontSize: '14px', fontWeight: 500 } }, '检查更新'),
-            h('div', { style: { fontSize: '12px', color: '#94a3b8', marginTop: '2px' } }, statusText),
-          ),
-          actionButton,
-        ),
+      // 单行信息行：左主文案 + 右值/按钮，细分割线分隔（字体/分割线/间距跟随主题 token）
+      const row = (label, value, divider) => h('div', {
+        style: {
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px',
+          padding: '14px 0',
+          ...(divider ? { borderBottom: '1px solid var(--dsw-alias-border-l2)' } : {}),
+        },
+      },
+        h('span', { style: { fontSize: '14px', fontWeight: 500, color: 'var(--dsw-alias-label-primary)', lineHeight: '22px' } }, label),
+        h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-secondary)', lineHeight: '22px' } }, value),
+      )
+
+      return h('div', { style: { padding: '16px 24px 24px', maxWidth: '480px' } },
+        h('h3', { style: { margin: '0 0 12px 0', fontSize: '16px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)', lineHeight: '24px' } }, '关于'),
+        row('DeepSeek Harness 桌面客户端', `v${currentVersion}`, true),
+        row('@deepseek-ai/dsh 官方包版本', baselineVersion, true),
+        row(statusText, actionButton, false),
       )
     }
 
