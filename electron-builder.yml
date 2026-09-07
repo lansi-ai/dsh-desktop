@@ -1,7 +1,7 @@
 # electron-builder 打包配置（M4-a1·Win 安装包首发）
 # 产物：release/ 下 NSIS 安装包 + 便携包 + SHA256SUMS（由 scripts/make-sums.cjs 生成）
-appId: deepseek-harness.desktop
-productName: DSH Desktop
+appId: deepseek-harness.forge
+productName: DSH Forge
 copyright: MIT License
 directories:
   output: release

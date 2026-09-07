@@ -7,6 +7,16 @@
 > 自绘 Desktop UI（[`docs/13-ui-design.md`](docs/13-ui-design.md)、[ADR-006](docs/adr/adr-006-custom-ui.md)）**暂缓为二期可选**，
 > 本轮不纳入主线。下文「定位/判定/路线」均以「官方 UI 复用 + 内嵌宿主 + IPC 载波」为默认方案。
 
+## 名称与含义：DSH Forge
+
+项目的公开产品名是 **DSH Forge**（`dsh-desktop` 为工程代号）。Forge 意为「锻炉」，直接回应本项目的一句话定位——**把桌面操作系统锻造成 DeepSeek Harness 的可插拔能力层**：
+
+1. **锻造，而非套壳**：桌面能力不是给网页套个外置浏览器，而是像冶炼锻造一样，把托盘、全局热键、系统通知、多窗口等原生能力逐一铸成 host 插件，与官方装配进同一个 Cordis Host 插件树。
+2. **可插拔、可卸载、可审查**：每个桌面能力都是一个可被 `dsh plugin` 列出、可被 patch 增删的插件；Forge 的心智在于「组合与再加工」——没有写死的外壳，只有一套可持续锻造的能力层。
+3. **经得起锤炼的出厂标准**：锻造意味着每处都要经受检查——桌面动作进会话轨迹、敏感操作过 approval 审批、日志统一。可审查是 Forge 的默认品质。
+
+在 DSH（DeepSeek Harness）生态中，「DSH Forge」意为**为 DeepSeek Harness 锻造桌面的炉台**：上游提供内核，Forge 在其上加装一张可塑性、可组合、可审查的桌面锻床。
+
 ## 一句话定位
 
 把 DeepSeek Harness 做成一个**真正的桌面应用**：Electron 主进程**内嵌 Cordis Host**（与官方 Web 版同内核、零移植），

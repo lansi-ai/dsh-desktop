@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
 
       return h('div', { style: { padding: '16px 24px 24px', maxWidth: '480px' } },
         h('h3', { style: { margin: '0 0 12px 0', fontSize: '16px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)', lineHeight: '24px' } }, '关于'),
-        row('DeepSeek Harness 桌面客户端', `v${currentVersion}`, true),
+        row('DSH Forge', `v${currentVersion}`, true),
         row('@deepseek-ai/dsh 官方包版本', baselineVersion, true),
         row(statusText, actionButton, false),
       )

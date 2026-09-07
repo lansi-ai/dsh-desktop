@@ -70,7 +70,7 @@ export async function showFirstRunWindow(options: FirstRunOptions): Promise<Firs
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    title: 'DSH Desktop 初始设置',
+    title: 'DSH Forge 初始设置',
     show: false,
     backgroundColor: state.isDark ? '#1c1c1e' : '#f2f3f5',
     webPreferences: {

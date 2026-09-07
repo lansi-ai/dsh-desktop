@@ -144,7 +144,7 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
           const v = (info as { version?: string }).version
           setState({ phase: 'downloaded', newVersion: v, percent: 100 })
           log.ok(`${TAG} 新版本 v${v} 已就绪，重启以更新`)
-          notify('更新已就绪', `DSH Desktop v${v} 已下载完成，点击可立即重启以更新。`, () => restartToInstall())
+          notify('更新已就绪', `DSH Forge v${v} 已下载完成，点击可立即重启以更新。`, () => restartToInstall())
         },
       },
       { event: 'error', handler: (error) => { setState({ phase: 'error', error: error instanceof Error ? error.message : String(error) }); log.error(`${TAG} 检查/下载更新失败:`, error) } },
