@@ -312,6 +312,15 @@
   - **存在性检查必须区分「包存在」与「该版本存在」，且要覆盖主版本包**，否则「目标版整体未发行」这种最严重的阻断也能全绿通过。
   - **自动化的「无变化」结论只能由权威源保证**，不能建立在下游代理指标上——代理指标缺数据时的表现恰好是「看起来一切正常」。
 
+### 坑 32 · 自绘侧栏「新会话」崩：把 UI service 方法当 domain service 方法调
+
+- **现象**：点侧栏「新会话」（宽列按钮 / rail 加号）触发 `Uncaught TypeError: ctx.workspaces.startSession is not a function`，报错路径 `dsh-ui://app/assets/index-*.b.js`。
+- **根因**：自研 sidebar 壳 `src/desktop-shell/web/desktop-sidebar-client.js` 的 `sidebar` 槽位 `inject` 里写 `ctx.workspaces.startSession(...)`。`ctx.workspaces` 是 framework 的 **workspace domain service**（只挂 `list` viewer、`insertSessionBefore` 等数据方法），**没有** `startSession`；`startSession` 属官方 **UiWorkspaceService** 的 UI 动作（`connectWorkspace` + `sessions.open` 的「复用-or-新建」语义），官方 ui-sidebar 用 `ctx.get("uiWorkspace")` 取它再调用。
+- **解法**：inject 回调改 `const workspaceNavigation = ctx.get('uiWorkspace'); return { startSession: (id) => workspaceNavigation.startSession(id), toggleSidebar: () => ctx.layout.toggleSidebar() }`；`exports.inject` 由 `['slots','layout','workspaces']` → `['slots','layout','uiWorkspace']`。
+- **复盘要点**：
+  - `ctx.get()` 的 key 是**服务注册名**（camelCase），不同 service 域方法集迥异——domain service（workspaces 管数据）与 UI service（uiWorkspace 管动作）别混着取方法。
+  - 报错栈在压缩 bundle `index-*.b.js` 是**宿主把自研壳消息打进官方主 bundle 的行号**，不代表失败发生在官方源码。
+
 ## 通用排障方法论
 
 1. **沙箱无法代跑 GUI** → 让用户外部跑，**加精确断点日志** + 用户回传，避免盲试。
@@ -337,6 +346,7 @@
 21. **「有没有」判定要带最小有效性检查，替换字形要做光学归一**：`existsSync` 不等于可用——0 字节/解析不出的文件在静默回退链下表现为「显示成了别的东西」而非报错；跨来源的图标必须按内容包围盒（离屏 `getBBox()`）重设 viewBox 才能视觉等大，同盒子尺寸不等于同视觉尺寸。资源类改动收尾看 `dist/` 实际文件清单（copy 只覆盖不删除）（坑 29）。
 22. **清单展示、上传落盘、消费方启用三处必须同一口径同一真源**：注册表说「已提供」而界面不生效=假信号（消费方别自己加 `!== 'default'` 这类条件）；成组/成对的资源在消费方判齐再启用，注册表只声明单槽；首帧就要正确的控件不许用异步渲染填空——先画兜底图形、缓存命中走同步 peek（坑 30）。
 23. **版本跟踪先定权威源，再定发行校验**：判「上游有没有新版」用 git tag/release（版本真源），判「我能不能装」用 registry 该版本是否存在（分发渠道会滞后）；两者混用会让「渠道还没发」表现为「上游没发」这种最坏形态的静默漏检。「无新版」结论要能用第二源交叉对账（release 清单 vs registry versions）（坑 31）。
+24. **压缩后源码的方法名不可 grep，用原文对账**：官方 node_modules `lib/*.js` 发布时方法名被压缩（如 `startSession` 显示为 `ln`），grep 可读结果会骗你又骗日志栈；读时用 Read/原文，方法名以 source map / 调用链上下文为准。`ctx.get()` 的 key 是 service 注册名，**domain service（workspaces 管数据）与 UI service（uiWorkspace 管动作）方法集不同**，UI 动作必须从 `uiWorkspace` 取，别在 domain 上硬调（坑 32）。
 
 ## 结论
 

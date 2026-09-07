@@ -144,7 +144,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    exports.inject = ['slots', 'layout', 'workspaces']
+    exports.inject = ['slots', 'layout', 'uiWorkspace']
 
     exports.apply = (ctx) => {
       // 注入壳样式（幂等：style 标签带插件标识，重复装载先移除）
@@ -164,14 +164,17 @@ window.__ModuleLoader__.load({
           'sidebar.workspaces': { kind: 'single', scope: 'root' },
           'sidebar.settings': { kind: 'single', scope: 'root' },
         },
-        inject: () => ({
-          startSession: (workspaceId) => {
-            ctx.workspaces.startSession(workspaceId)
-          },
-          toggleSidebar: () => {
-            ctx.layout.toggleSidebar()
-          },
-        }),
+        inject: () => {
+          const workspaceNavigation = ctx.get('uiWorkspace')
+          return {
+            startSession: (workspaceId) => {
+              workspaceNavigation.startSession(workspaceId)
+            },
+            toggleSidebar: () => {
+              ctx.layout.toggleSidebar()
+            },
+          }
+        },
       }, SidebarRoot)
 
       return () => {

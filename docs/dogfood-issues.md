@@ -199,3 +199,12 @@
 
 - 副作用（已知且符合新语义）：内置 aurora/sunset 包的差异全在 app/tray PNG 与 logo 上，改造后切到这两个包**几乎无视觉变化**（只剩 `ui-overrides.json`）；包根遗留 PNG 不删（协议路由仍兼容，属用户资产）
 
+### #13 · 新会话崩溃：`ctx.workspaces.startSession is not a function`
+
+- 环境：dev（点侧栏「新会话」（宽列）或新会话加号按钮触发；`dsh-ui://app/assets/index-*.b.js`）
+- 第一现场：`Uncaught TypeError: ctx.workspaces.startSession is not a function`
+- 状态：**fixed**（2026-09-07 · 待实机点验）→ 坑 32
+- 根因：自研 sidebar 壳 `src/desktop-shell/web/desktop-sidebar-client.js` 在 `sidebar` 槽位 `inject` 的 `startSession` 回调里误写 `ctx.workspaces.startSession(...)` —— `ctx.workspaces` 是 framework 的 workspace service（只挂 `list` viewer），**没有 `startSession`**；官方 ui-sidebar 的正宗写法是 `ctx.get("uiWorkspace").startSession(...)`（官方 node_modules 内该方法名经压缩后显示为 `ln`，用手锨原文 grep 极易被误导）
+- 修复：inject 回调改经 `ctx.get('uiWorkspace')` 取官方 UiWorkspaceService（复用其 connectWorkspace + sessions.open 的「复用-or-新建」语义）；`exports.inject` 由 `['slots','layout','workspaces']` → `['slots','layout','uiWorkspace']`
+- 衔接：M6-P3 排除 `ui-workspace` 后此回调再切换为自研 viewing store 的 startSession（本 bug 与 P3 W1 顶层 startSession 语义重叠）
+
