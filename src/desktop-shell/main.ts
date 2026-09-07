@@ -46,7 +46,7 @@ if (!app.isPackaged) {
 // Electron 把命令行参数挂在 app.commandLine，argv[1] 是 script 路径，
 // parseArgv 内部会跳过前两项，因此直接传 process.argv 即可。
 const launchOptions = parseArgv(process.argv)
-log.phase('DSH Desktop 启动')
+log.phase('DSH Forge 启动')
 if (launchOptions.serve) {
   log.warn(`[dsh-desktop] 启动参数：--serve=${launchOptions.servePort}（兼容模式，第三方 web 路由走 HTTP 原义）`)
 } else {
@@ -264,6 +264,13 @@ async function bootstrap(): Promise<void> {
     log.phase('数据目录')
     const { ensureDataHome } = await import('./data-home.js')
     await ensureDataHome({ silent: launchOptions.hidden, selectDataDir: launchOptions.selectDataDir })
+
+    // 0.55 闪屏前同步应用主题偏好：theme-sync 要等 host 装配后才读 ui-theme.preference
+    // （settings.describe RPC），闪屏创建早于它。此处直接从 <home>/settings.yaml 读偏好
+    // 并提前设 nativeTheme.themeSource，保证闪屏首帧即应用主题（深色系统 + 应用浅色时
+    // 不再按系统明暗渲染成黑屏）。读不到则保持默认，由 theme-sync 晚同步兜底。
+    const { applyPersistedThemeSource } = await import('./theme-pref-init.js')
+    applyPersistedThemeSource(process.env.DSH_HOME)
 
     // 0.6 即时响应闪屏：Host 装配在低配机器可达数秒，必须先给「已响应」反馈
     // （纯静态窗口，whenReady 后立即显示；--hidden 静默驻留托盘时不弹）。主窗口

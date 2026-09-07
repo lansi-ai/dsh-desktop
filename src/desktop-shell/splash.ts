@@ -16,6 +16,9 @@ import { log } from '../desktop-host/log.js'
 /** 闪屏窗口引用（null = 未创建或已销毁）。 */
 let splash: BrowserWindow | null = null
 
+/** nativeTheme 变化时刷新闪屏配色的监听回调（供 removeListener）。 */
+let onThemeUpdated: (() => void) | null = null
+
 /** 闪屏页面（内联静态 HTML：spinner + 应用名 + 进度条 + 阶段文案，随 OS 明暗配色）。 */
 function splashHtml(): string {
   const dark = nativeTheme.shouldUseDarkColors
@@ -37,7 +40,7 @@ function splashHtml(): string {
   .progress{font-size:11px;opacity:.5;min-height:14px;max-width:240px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   </style></head><body><div class="wrap">
-  <div class="spin"></div><div class="name">DSH Desktop</div>
+  <div class="spin"></div><div class="name">DSH Forge</div>
   <div class="bar"><div class="fill" id="fill"></div></div>
   <div class="phase" id="phase">正在启动…</div>
   <div class="progress" id="progress"></div>
@@ -111,6 +114,10 @@ export function splashProgress(progress: SplashProgress): void {
 
 /** 销毁闪屏（主窗口首帧后接管；未创建/已销毁时静默忽略）。 */
 export function closeStartupSplash(): void {
+  if (onThemeUpdated) {
+    nativeTheme.removeListener('updated', onThemeUpdated)
+    onThemeUpdated = null
+  }
   if (splash === null) return
   if (!splash.isDestroyed()) splash.destroy()
   splash = null

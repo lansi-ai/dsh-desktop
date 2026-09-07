@@ -351,3 +351,15 @@
 ## 结论
 
 攻坚第 2 批（官方 UI 完成日常对话全流程）在剔除 client-connection 抢占 connection、修 RPC 入口、扩自动扫描图谱、换 Electron 目录选择器、补 settings 注册后**实机验收通过**：官方 UI 成功渲染 + 工作区选择 + 日常对话全流程打通。
+
+---
+
+## 坑 33：启动闪屏首帧主题不跟随应用（深色系统 + 应用浅色 → 裸屏黑色）
+
+- **现象**：应用内设为浅色主题、系统为深色时，启动闪屏（裸屏启动页）仍是黑色，与主窗口/应用主题不一致。
+- **根因**：闪屏 `createStartupSplash()` 在主进程早期（main.ts 0.6 步）创建，此时 `nativeTheme.themeSource` 仍是默认 `'system'`（跟随 OS），闪屏 HTML 按 `nativeTheme.shouldUseDarkColors`（系统明暗）渲染。应用主题偏好 `ui-theme.preference` 由 `src/desktop-host/theme-sync.ts` 等 host 装配后经 `settings.describe`（RPC）才同步到 `themeSource`；其 `ready` 语义只保证「建**主**窗口」前同步，不覆盖更早创建的闪屏。且闪屏是静态 data-URL HTML，晚同步到达前视图早已渲染，后续不重绘。
+- **解法**：
+  1. `src/desktop-shell/theme-pref-init.ts`（新增 `applyPersistedThemeSource`）：闪屏创建前用 Node fs + `yaml` 同步读 `$DSH_HOME/settings.yaml` 的 `ui-theme.preference`，提前设 `nativeTheme.themeSource`；ENOENT / 非法值静默回退默认。
+  2. `main.ts` 0.55 步：`ensureDataHome()`（已设 DSH_HOME）之后、`createStartupSplash()` 之前调用。
+  3. 兜底：`splash.ts` 配色改 `:root` CSS 变量承载 + 监听 `nativeTheme 'updated'` 实时重绘（OS 切换、主题运行中变更时刷新）。
+- **复盘要点**：判定「跟随主题」必须区分两类信号——「建主窗口首帧前才同步」（theme-sync ready）与「host 装配前就渲染的极早期视图」（闪屏）。数据早于 host 装配、且项目已有 `yaml` runtime 依赖时，直接同步读持久化文件最可靠，勿依赖晚同步 + RPC 的反馈链路。
