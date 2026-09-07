@@ -20,7 +20,7 @@ import { closeStartupSplash, createStartupSplash, splashPhase, splashProgress, s
 import { refreshTrayIcon, markQuitting, refreshTrayMenu, setTrayUpdaterControl } from '../desktop-host/desktop-tray.js'
 import { getActiveIconPath } from '../desktop-host/desktop-theme.js'
 import type { DesktopThemeHandle } from '../desktop-host/desktop-theme.js'
-import type { AutoUpdaterHandle } from '../desktop-host/auto-updater.js'
+import type { AutoUpdaterHandle, UpdaterChannel } from '../desktop-host/auto-updater.js'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection' with { 'resolution-mode': 'import' }
 import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway' with { 'resolution-mode': 'import' }
 
@@ -584,15 +584,27 @@ async function bootstrap(): Promise<void> {
 
     // 9. 应用自动更新（electron-updater · 仅打包版生效；dev 下返回禁用句柄）。
     // 启动即装配（内部带 20s 延迟静默检查），状态变更刷新托盘菜单并下行桌面事件。
+    // 渠道/自动检查从 settings `desktop` 命名空间读取（updaterChannel/updaterAutoCheck，
+    // 未设置回退默认 stable / true；off 渠道完全关闭）。
+    // settings 值域为字符串（Schema.dict(any, string)），故读取一律归一：渠道校验三态
+    // 白名单，布尔同时接受真布尔与 'true'/'false'（否则 'false' 会被当 truthy 误开自动检查）。
     const { createAutoUpdater } = await import('../desktop-host/auto-updater.js')
+    const rawChannel = desktopCore?.readConfig<string>('updaterChannel')
+    const updaterChannel: UpdaterChannel | undefined =
+      rawChannel === 'stable' || rawChannel === 'rc' || rawChannel === 'off' ? rawChannel : undefined
+    const rawAutoCheck = desktopCore?.readConfig<unknown>('updaterAutoCheck')
+    const updaterAutoCheck: boolean | undefined =
+      rawAutoCheck === undefined ? undefined : rawAutoCheck === true || rawAutoCheck === 'true'
     autoUpdaterHandle = createAutoUpdater({
       desktop: desktopCore ?? null,
       getWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
       onStateChange: () => refreshTrayMenu(),
+      ...(updaterChannel !== undefined ? { channel: updaterChannel } : {}),
+      ...(updaterAutoCheck !== undefined ? { autoCheck: updaterAutoCheck } : {}),
     })
     // 托盘菜单注入「检查更新/立即重启以更新」区块。
     setTrayUpdaterControl(autoUpdaterHandle)
-    // 注册桥方法：desktop.updater.* （renderer 设置页「关于」区的检查更新入口）。
+    // 注册桥方法：desktop.updater.* （renderer 设置页「关于」区检查更新 + 「更新」配置）。
     const { registerMethod: registerUpdaterMethod } = await import('../desktop-host/bridge.js')
     registerUpdaterMethod('desktop.updater.check', async () => {
       autoUpdaterHandle?.check()
@@ -603,6 +615,29 @@ async function bootstrap(): Promise<void> {
     })
     registerUpdaterMethod('desktop.updater.install', async () => {
       autoUpdaterHandle?.restartToInstall()
+      return { ok: true }
+    })
+    registerUpdaterMethod('desktop.updater.getChannel', async () => {
+      return { channel: autoUpdaterHandle?.getChannel() ?? 'stable' }
+    })
+    registerUpdaterMethod('desktop.updater.setChannel', async (params: unknown) => {
+      const channel = (params as { channel?: UpdaterChannel })?.channel
+      if (channel === undefined || !(['stable', 'rc', 'off'] as UpdaterChannel[]).includes(channel)) {
+        return { ok: false, message: '无效渠道（应为 stable/rc/off）' }
+      }
+      desktopCore?.writeConfig('updaterChannel', channel)
+      autoUpdaterHandle?.setChannel(channel)
+      return { ok: true }
+    })
+    registerUpdaterMethod('desktop.updater.getAutoCheck', async () => {
+      return { enabled: autoUpdaterHandle?.getAutoCheck() ?? true }
+    })
+    registerUpdaterMethod('desktop.updater.setAutoCheck', async (params: unknown) => {
+      const enabled = (params as { enabled?: boolean })?.enabled
+      if (typeof enabled !== 'boolean') return { ok: false, message: '无效开关值' }
+      // 写字符串以贴合 settings 值域（与桌面设置项 String(value) 约定一致）
+      desktopCore?.writeConfig('updaterAutoCheck', enabled ? 'true' : 'false')
+      autoUpdaterHandle?.setAutoCheck(enabled)
       return { ok: true }
     })
 

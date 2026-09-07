@@ -158,7 +158,7 @@ interface DesktopAutostart {
   getStatus(): Promise<{ enabled: boolean; supported: boolean; devMode: boolean; message?: string }>
 }
 
-/** 应用自动更新操作接口（关于页检查更新）。 */
+/** 应用自动更新操作接口（关于页检查更新 + 设置页三通道配置）。 */
 interface DesktopUpdater {
   /** 手动检查更新（后台进行，状态经 onStatus 事件推送）。 */
   check(): Promise<{ ok: boolean }>
@@ -174,6 +174,14 @@ interface DesktopUpdater {
   install(): Promise<{ ok: boolean }>
   /** 订阅更新状态变更（action='app-update:status' 的下行桌面事件）。返回注销函数。 */
   onStatus(cb: (state: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string }) => void): () => void
+  /** 读取当前更新渠道（stable/rc/off）。 */
+  getChannel(): Promise<{ channel: 'stable' | 'rc' | 'off' }>
+  /** 运行时切换更新渠道（主进程持久化 + 即时生效，off↔on 补/撤检查）。 */
+  setChannel(channel: 'stable' | 'rc' | 'off'): Promise<{ ok: boolean; message?: string }>
+  /** 读取当前「启动静默自动检查」开关。 */
+  getAutoCheck(): Promise<{ enabled: boolean }>
+  /** 运行时切换自动检查开关（主进程持久化 + 即时生效）。 */
+  setAutoCheck(enabled: boolean): Promise<{ ok: boolean; message?: string }>
 }
 
 /**
@@ -554,6 +562,34 @@ function createDesktopBridge(): DesktopBridge {
         return () => {
           ipcRenderer.removeListener(IPC_CHANNELS.DESKTOP_EVENT, handler)
         }
+      },
+      getChannel() {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.updater.getChannel',
+          params: undefined,
+        }) as Promise<{ channel: 'stable' | 'rc' | 'off' }>
+      },
+      setChannel(channel) {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.updater.setChannel',
+          params: { channel },
+        }) as Promise<{ ok: boolean; message?: string }>
+      },
+      getAutoCheck() {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.updater.getAutoCheck',
+          params: undefined,
+        }) as Promise<{ enabled: boolean }>
+      },
+      setAutoCheck(enabled) {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.updater.setAutoCheck',
+          params: { enabled },
+        }) as Promise<{ ok: boolean; message?: string }>
       },
     },
 
