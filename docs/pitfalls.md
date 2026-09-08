@@ -451,3 +451,13 @@
 - **根因**：electron-builder 生成 `latest.yml` 时从 git 仓库探测 GitHub owner/repo；worktree 的 `.git` 是**文件**（指向主仓库的指针）而非目录，探测失败 → publish 配置解析为 null → 崩溃。配置里 `publish: provider: github` 未写 owner/repo，全靠 git 探测兜底，在 worktree 里断链。
 - **解法**：`electron-builder.yml` 的 publish 段**显式写死** `owner: lansi-ai` / `repo: dsh-desktop`——两处环境（主区/worktree）都能打，不再依赖探测。
 - **复盘要点**：「同一份代码换个目录结果不同」时，先 diff 环境差异（此处 `.git` 形态）；隐式探测（git/registry/env）类配置，发布产物要走通就得显式钉死，探测只配兜底。
+
+## 坑 41：CI 用 `--publish never` + `gh release upload` 发布，`latest.yml` 的 path（连字符）与 GitHub 资产名（点号）脱节 → 自动更新 404
+
+- **现象**：v0.1.1-alpha.4 经 CI（release-win/win-mac）上传到 GitHub Releases 后，Release 资产名形如 `DSH.Forge-0.1.1-alpha.4-setup.exe`（**点号**），而 `latest.yml`/`latest-mac.yml` 的 `path` 字段是 `DSH-Forge-0.1.1-alpha.4-setup.exe`（**连字符**）。electron-updater 按 `path` 拼下载 URL，命中的资产名不匹配 → 更新下载 404，M4-b 三通道自动更新静默失效。
+- **根因**：electron-builder 磁盘产物由 `nsis.artifactName: ${productName}-${version}-setup.${ext}` 生成，`productName="DSH Forge"`（含空格）；它**自己 publish** 时会做空格的规范化（空→`-`）并保证 `latest.yml` 的 path 与上传资产名一致。但 CI 用了 `--publish never` + `gh release upload` 绕过这套协调：`gh upload` 按磁盘字面名上传，GitHub 把文件名里空格规范成**点号**存储，于是 path（连字符）与资产名（点号）错位。
+- **解法**：本轮已对已发布 Release 用 `PATCH /repos/{o}/{r}/releases/assets/{id}` 逐资产把 `DSH.Forge-` 改成 `DSH-Forge-`，与 `latest.yml` 的 path 对齐（blockmap 一并改），并匿名 `HEAD` 验证 `releases/download/{tag}/DSH-Forge-*.setup.exe` 及其 `.blockmap` 返回 200。**根治**：今后 release workflow 在上传步骤加一步——读 `latest.yml` 的 `path` 字段，把待上传产物重命名为与该 path 完全一致的落盘名再 `gh release upload`。
+- **复盘要点**：
+  1. 凡 CI 手动上传 electron-builder 产物（非 `--publish always`），必须核对 `latest.yml` 的 `path` 与实际上传资产名逐字节一致，否则平台自动更新是"假功能"。
+  2. 验证手段：下载 `latest.yml` 读 `path`，再匿名 `HEAD https://github.com/{o}/{r}/releases/download/{tag}/{path}` 应 200；**验证不可带 Authorization header**（公开下载端点带 token 反被 401，曾误判）。
+  3. artifactName 里的 `${productName}` 含空格，是这场错位的源头——要么 workflow 显式重命名对齐 path，要么后续把 artifactName 改为无歧义 `${name}-...`（等于 package.json name）。
