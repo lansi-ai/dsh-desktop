@@ -347,6 +347,7 @@
 22. **清单展示、上传落盘、消费方启用三处必须同一口径同一真源**：注册表说「已提供」而界面不生效=假信号（消费方别自己加 `!== 'default'` 这类条件）；成组/成对的资源在消费方判齐再启用，注册表只声明单槽；首帧就要正确的控件不许用异步渲染填空——先画兜底图形、缓存命中走同步 peek（坑 30）。
 23. **版本跟踪先定权威源，再定发行校验**：判「上游有没有新版」用 git tag/release（版本真源），判「我能不能装」用 registry 该版本是否存在（分发渠道会滞后）；两者混用会让「渠道还没发」表现为「上游没发」这种最坏形态的静默漏检。「无新版」结论要能用第二源交叉对账（release 清单 vs registry versions）（坑 31）。
 24. **压缩后源码的方法名不可 grep，用原文对账**：官方 node_modules `lib/*.js` 发布时方法名被压缩（如 `startSession` 显示为 `ln`），grep 可读结果会骗你又骗日志栈；读时用 Read/原文，方法名以 source map / 调用链上下文为准。`ctx.get()` 的 key 是 service 注册名，**domain service（workspaces 管数据）与 UI service（uiWorkspace 管动作）方法集不同**，UI 动作必须从 `uiWorkspace` 取，别在 domain 上硬调（坑 32）。
+25. **依赖安装「退出码 0」不等于环境就绪**：靠 postinstall 拉二进制的包（electron / playwright / esbuild / better-sqlite3 等）npm 会吞掉其失败，缺口延后到运行期由 CLI 自愈补装才暴露——报错点与失败点分离。install 后先 `Test-Path` 落地物（`electron/dist/electron.exe`、`path.txt`）再谈运行；多 worktree 同 commit 时优先复用主工作区重资产（拷 `dist` 或 junction `node_modules`），不要默认全量重来（坑 34）。
 
 ## 结论
 
@@ -363,3 +364,26 @@
   2. `main.ts` 0.55 步：`ensureDataHome()`（已设 DSH_HOME）之后、`createStartupSplash()` 之前调用。
   3. 兜底：`splash.ts` 配色改 `:root` CSS 变量承载 + 监听 `nativeTheme 'updated'` 实时重绘（OS 切换、主题运行中变更时刷新）。
 - **复盘要点**：判定「跟随主题」必须区分两类信号——「建主窗口首帧前才同步」（theme-sync ready）与「host 装配前就渲染的极早期视图」（闪屏）。数据早于 host 装配、且项目已有 `yaml` runtime 依赖时，直接同步读持久化文件最可靠，勿依赖晚同步 + RPC 的反馈链路。
+
+---
+
+## 坑 34：worktree 里 `npm install` 报成功但 electron 二进制缺失，`npm start` 才触发 365 MB 补装
+
+- **现象**：新建 worktree（`desktop/dsh-workspaces`，`feat/workspaces`）后执行 `npm install`，输出 `added 967 packages in 1m` **无报错**；随后 `npm run dev` 在 `[build] 已复制 22 个静态文件…` 之后突然打印 `Downloading Electron binary...`。检查发现 `node_modules/electron/` 下**没有 `dist/`**、`path.txt` 为空文件，而主工作区同版本（44.0.0）两者齐备。
+- **根因**：两层叠加。
+  1. electron 的二进制**不经 npm 分发**——包体只含 `install.js`，实际 `dist/` + `path.txt` 由 `postinstall` 经 `@electron/get` 落地。本次 install 的 postinstall 未成功完成（沙箱环境下对受限路径的写入会被拦），而 npm 对 postinstall 异常仍可整体返回成功 → **「install 成功」≠「环境就绪」**。
+  2. `electron/cli.js` 启动时若发现 `path.txt` 不存在，会**自动拉起 `install.js` 补装**并打印那行 `Downloading Electron binary...`。这条自愈链把安装期的缺口一路延后到运行期才暴露，表现为「凭空多出一趟大文件拉取」，且日志与真正的失败点（早先的 postinstall）完全脱节。
+- **解法**：**不重下，复用主工作区现成产物**（两树同 commit、`package.json`/`package-lock.json` 逐字一致、electron 版本同为 44.0.0，复用无风险）：
+
+  ```powershell
+  robocopy '<主>/node_modules/electron/dist' '<worktree>/node_modules/electron/dist' /E /NFL /NDL /NJH /NJS /NP
+  Set-Content '<worktree>/node_modules/electron/path.txt' -Value 'electron.exe' -Encoding ASCII -NoNewline
+  node node_modules\electron\cli.js --version   # → v44.0.0，不再触发补装
+  ```
+
+  拷后**双向核对规模**（73 文件 / 365.9 MB，文件数与总字节数均一致）再验证运行。
+- **复盘要点**：
+  1. 凡「二进制不走 npm 分发、靠 postinstall 拉取」的依赖（electron / playwright / puppeteer / esbuild / better-sqlite3 / node-gyp 系），install 后必须**显式 `Test-Path` 落地物**，不能只看 npm 退出码与 `added N packages`。
+  2. 多 worktree 同 commit 时应**优先复用重资产**：轻则拷单个 `dist`，重则整体 junction `node_modules` 到主工作区（省 GB 级重复）；别默认全量重来。分支一旦改依赖，junction 需退回独立安装。
+  3. 这类缺口的**报错点在运行期、不在安装期**——见到运行期才出现的「正在下载/正在编译」，先回查安装期是否静默降级，而非就地等它下完。
+  4. 本地其实已有 `electron-v44.0.0-win32-x64.zip` 缓存（`%LOCALAPPDATA%\electron\Cache`），说明这趟即便走原路也只是解压 365 MB；**缓存存在不是理由，直接拷现成 `dist` 更快且零副作用**。
