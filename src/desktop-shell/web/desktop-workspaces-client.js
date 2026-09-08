@@ -223,6 +223,260 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // ── W2 · tree 派生层（纯函数，逐字对齐官方 ui-workspace 的 derive 族）───────
+    //
+    // 本段是会话浏览区从「会话清单 × 工作区 × 视图偏好」到「可渲染行投影」的全部纯计算，
+    // 无 React / DOM 依赖，可被 Node 直接单测（exports.derive 钩子，见 test/workspace-tree.test.cjs）。
+    // 语义约束：① 行状态 pendingInteraction(琥珀) > running(蓝) > completed(绿)，
+    //         由 sessionNode 的顺序字段承载；② Manual 拖拽经 orderBy 进 Host 持久排序（W4 消费）。
+
+    /** 可进入行投影的 pending 交互种类（其余零投影，保持行态与领域对象解耦）。 */
+    function visiblePendingKind(kind) {
+      switch (kind) {
+        case 'approval':
+        case 'plan-review':
+        case 'question': return kind
+        default: return undefined
+      }
+    }
+
+    /**
+     * 取工作区路径的最后非空段（POSIX / Windows 分隔符均接受），供显示标签使用。
+     * ⚠ 逐字对齐官方 `@deepseek-ai/dsh-util-workspace-path`（该官方包为 ESM，__ModuleLoader__ 无
+     *   选择器保证→此处内联等价实现，官方 ui-workspace 打包时同样是内联该工具）。
+     * @param path 路径；分隔符路径返回空串。
+     */
+    function workspaceTitleOf(path) {
+      const trimmed = path.replace(/[/\\]+$/, '')
+      const separator = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+      return trimmed.slice(separator + 1)
+    }
+
+    /**
+     * 目录显示标签：取路径 basename；无按分组桶兜底空串。
+     * @param cwd 目录路径，或 undefined（未分组桶）。
+     */
+    function workspaceLabel(cwd) {
+      if (cwd === undefined || cwd === '') return ''
+      const base = workspaceTitleOf(cwd)
+      return base !== '' ? base : cwd
+    }
+
+    /** 新旧比较器：新在前，id 做确定性平局断（同组内 id 唯一）。 */
+    function byRecency(a, b) {
+      if (b.updatedAt !== a.updatedAt) return b.updatedAt - a.updatedAt
+      return a.id < b.id ? -1 : 1
+    }
+
+    /** 普通会话可见；空白会话仅当前选中者可见（暂定新会话行）；子代理随父标题档，归档处处不可见。 */
+    function sessionVisible(session, current, archived) {
+      return session.origin !== 'subagent' && !archived.has(session.id) && (!session.blank || session.id === current)
+    }
+
+    /** 空白会话的规范标题永不入搜索；其绘本行标签由渲染层本地化。 */
+    function sessionTitle(session) {
+      return session.blank ? '' : session.displayTitle
+    }
+
+    /** 列表投影独享 best-effort 活动定时任务指示。 */
+    function hasActiveSchedule(session) {
+      return (session.projectionValues?.schedule?.length ?? 0) > 0
+    }
+
+    /** 按祖先聚合不受中断的子代理后代，running 计数仅对 running 后代累加。 */
+    function indexSubagentDescendants(summaries) {
+      const indexed = new Map()
+      for (const descendant of Object.values(summaries)) {
+        if (descendant.origin !== 'subagent') continue
+        const seen = new Set()
+        let current = descendant
+        while (current?.origin === 'subagent' && current.parentId !== undefined && !seen.has(current.id)) {
+          seen.add(current.id)
+          const aggregate = indexed.get(current.parentId)
+          if (aggregate === undefined) indexed.set(current.parentId, { count: 1, runningCount: descendant.running ? 1 : 0 })
+          else {
+            aggregate.count += 1
+            if (descendant.running) aggregate.runningCount += 1
+          }
+          current = summaries[current.parentId]
+        }
+      }
+      return indexed
+    }
+
+    function sessionNode(s, descendants, pendingInteractions) {
+      const pendingInteraction = visiblePendingKind(pendingInteractions.get(s.id)?.kind)
+      return {
+        id: s.id,
+        title: sessionTitle(s),
+        blank: s.blank,
+        running: s.running,
+        runningSubagentCount: descendants.get(s.id)?.runningCount ?? 0,
+        completed: s.completed === true,
+        hasActiveSchedule: hasActiveSchedule(s),
+        updatedAt: s.updatedAt,
+        ...pendingInteraction === undefined ? {} : { pendingInteraction },
+      }
+    }
+
+    /** 组装一组，不把会话血缘投影进展示层。 */
+    function buildGroup(key, workspaceId, cwd, createdAt, label, members, order) {
+      const sessions = [...members]
+      if (order === 'recency') sessions.sort(byRecency)
+      return { key, workspaceId, cwd, createdAt, label, sessions }
+    }
+
+    /** 套用持久化的未分组顺序，后接按新旧补齐新脱组的会话。 */
+    function orderedUngrouped(members, stored) {
+      const byId = new Map(members.map((session) => [session.id, session]))
+      const included = new Set()
+      const ordered = []
+      for (const key of stored) {
+        const session = byId.get(key)
+        if (session === undefined || included.has(key)) continue
+        ordered.push(session)
+        included.add(key)
+      }
+      for (const session of [...members].sort(byRecency)) {
+        if (included.has(session.id)) continue
+        ordered.push(session)
+      }
+      return ordered
+    }
+
+    /**
+     * 按 Host 工作区分组：每组随稳定 Host 顺序，成员自 workspace.sessionIds 按其存储序解析。
+     * 所有工作区之外的会话汇入未分组桶，其顺序优先持久序、回退新旧。
+     */
+    function groupByWorkspace(list, workspaces, archived, ungroupedOrder) {
+      const groups = []
+      const accounted = new Set()
+      for (const workspace of workspaces) {
+        const members = []
+        for (const id of workspace.sessionIds) {
+          const summary = list.byId[id]
+          if (summary === undefined) continue
+          accounted.add(id)
+          if (!sessionVisible(summary, list.current, archived)) continue
+          members.push(summary)
+        }
+        groups.push(buildGroup(workspace.workspaceId, workspace.workspaceId, workspace.path,
+          Date.parse(workspace.createdAt), workspace.title, members, 'account'))
+      }
+      const stray = list.ids.map((id) => list.byId[id])
+        .filter((s) => s !== undefined && !accounted.has(s.id) && sessionVisible(s, list.current, archived))
+      if (stray.length > 0) {
+        groups.push(buildGroup('', undefined, undefined, undefined, '',
+          ungroupedOrder === undefined ? stray : orderedUngrouped(stray, ungroupedOrder),
+          ungroupedOrder === undefined ? 'recency' : 'account'))
+      }
+      return groups
+    }
+
+    /**
+     * 派生分组视图：每组作顶层行，展开组内会话按本地顺序投影为行。
+     * 空白会话排除，仅当前选中者的暂定「新会话」行保留；归档处处排除；内容搜索在 view 外。
+     * @param view `{ expandedGroups, ungroupedOrder? }` 由上层从 store 状态构造（W3/W4）。
+     */
+    function deriveGroups(list, workspaces, archivedSessionIds, pendingInteractions, view) {
+      const archived = new Set(archivedSessionIds)
+      const expandedGroups = new Set(view.expandedGroups)
+      const descendants = indexSubagentDescendants(list.byId)
+      const currentGroup = list.current === undefined
+        ? undefined
+        : workspaces.find((w) => w.sessionIds.includes(list.current))?.workspaceId ?? ''
+      const groups = []
+      for (const g of groupByWorkspace(list, workspaces, archived, view.ungroupedOrder)) {
+        const expanded = expandedGroups.has(g.key)
+        groups.push({
+          key: g.key,
+          workspaceId: g.workspaceId,
+          cwd: g.cwd,
+          createdAt: g.createdAt,
+          label: g.label,
+          sessionCount: g.sessions.length,
+          expanded,
+          containsCurrent: g.key === currentGroup,
+          sessions: expanded ? g.sessions.map((session) => sessionNode(session, descendants, pendingInteractions)) : [],
+        })
+      }
+      return groups
+    }
+
+    /** 派生单列表：所有会话（含分叉子）作顶层行，严格新在前。无分组、无母子邻接。 */
+    function deriveFlat(list, archivedSessionIds, pendingInteractions) {
+      const archived = new Set(archivedSessionIds)
+      const descendants = indexSubagentDescendants(list.byId)
+      const rows = []
+      for (const id of list.ids) {
+        const s = list.byId[id]
+        if (s === undefined || !sessionVisible(s, list.current, archived)) continue
+        rows.push(s)
+      }
+      rows.sort(byRecency)
+      return rows.map((session) => sessionNode(session, descendants, pendingInteractions))
+    }
+
+    /**
+     * 合并本地标题/工作区子串命中与 Host 排名内容命中：本地行新在前，内容行保持后端口径，
+     * 重复会话就地取后端片段。
+     * @returns 有界去重的扁平行 + 需进一步细化查询的提示位。
+     */
+    function deriveSearchResults(list, workspaces, query, archivedSessionIds, pendingInteractions, content, limit) {
+      const q = query.trim().toLowerCase()
+      if (q === '') return { items: [], hasMore: false }
+      const archived = new Set(archivedSessionIds)
+      const descendants = indexSubagentDescendants(list.byId)
+      const workspaceBySession = new Map()
+      for (const workspace of workspaces) {
+        for (const sessionId of workspace.sessionIds) {
+          if (!workspaceBySession.has(sessionId)) workspaceBySession.set(sessionId, workspace.title)
+        }
+      }
+      const labelOf = (summary) => workspaceBySession.get(summary.id) ?? workspaceLabel(summary.cwd)
+      const contentBySession = new Map()
+      for (const item of content.items) {
+        if (!contentBySession.has(item.sessionId)) contentBySession.set(item.sessionId, item)
+      }
+      const local = []
+      for (const id of list.ids) {
+        const summary = list.byId[id]
+        if (summary === undefined || summary.blank || !sessionVisible(summary, list.current, archived)) continue
+        if (sessionTitle(summary).toLowerCase().includes(q) || labelOf(summary).toLowerCase().includes(q)) local.push(summary)
+      }
+      local.sort(byRecency)
+      const ordered = []
+      const included = new Set()
+      const include = (summary) => {
+        if (included.has(summary.id)) return
+        included.add(summary.id)
+        ordered.push(summary)
+      }
+      for (const summary of local) include(summary)
+      for (const item of content.items) {
+        const summary = list.byId[item.sessionId]
+        if (summary !== undefined && !summary.blank && sessionVisible(summary, list.current, archived)) include(summary)
+      }
+      return {
+        items: ordered.slice(0, limit).map((summary) => {
+          const match = contentBySession.get(summary.id)
+          const pendingInteraction = visiblePendingKind(pendingInteractions.get(summary.id)?.kind)
+          return {
+            id: summary.id,
+            title: sessionTitle(summary),
+            workspace: labelOf(summary),
+            running: summary.running,
+            runningSubagentCount: descendants.get(summary.id)?.runningCount ?? 0,
+            ...pendingInteraction === undefined ? {} : { pendingInteraction },
+            completed: summary.completed === true,
+            hasActiveSchedule: hasActiveSchedule(summary),
+            ...match === undefined ? {} : { snippet: match.snippet },
+          }
+        }),
+        hasMore: content.hasMore || ordered.length > limit,
+      }
+    }
+
     // ── 接管面③前置：viewing store（persist key 沿用官方，用户偏好天然继承）──
 
     /**
@@ -581,6 +835,24 @@ window.__ModuleLoader__.load({
     }
 
     exports.inject = ['slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.directoryPicker']
+
+    // W2 导出钩子：派生纯函数供「node:test 单测」与之共享同一份真源（不复制避免漂移），
+    // 亦供 W3 Rows / W4 Browser 复用；生产运行时 cordis 只消费 inject/apply，此面纯只读。
+    exports.derive = {
+      indexSubagentDescendants,
+      deriveGroups,
+      deriveFlat,
+      deriveSearchResults,
+      groupByWorkspace,
+      sessionNode,
+      sessionVisible,
+      sessionTitle,
+      hasActiveSchedule,
+      visiblePendingKind,
+      workspaceLabel,
+      workspaceTitleOf,
+      byRecency,
+    }
 
     exports.apply = (ctx) => {
       // 样式注入（幂等：带本件标识，重复装载先移除）

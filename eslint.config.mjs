@@ -76,6 +76,13 @@ export default tseslint.config(
     },
   },
   {
+    files: ['test/**/*.cjs'],
+    languageOptions: { globals: NODE_GLOBALS, sourceType: 'commonjs' },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     files: ['src/desktop-shell/web/**/*.js'],
     languageOptions: { globals: BROWSER_GLOBALS },
     rules: {

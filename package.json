@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/copy-web.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test",
     "lint": "eslint .",
     "dev": "npm run build && electron .",
     "start": "electron .",
