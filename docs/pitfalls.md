@@ -406,3 +406,13 @@
   2. 排除官方 UI 件后，验收要看**下游依赖链是否仍成立**（本例输入框 disabled 由 `sessionId` 决定，而 `sessionId` 由被排除件的 picker 决定），只看"本槽位渲染成功"会得出完全错误的结论。
   3. `return null` 是**合法渲染结果**，静态门禁一律放过——这类静默锁死只有实机或行为级测试能发现。空壳阶段尤其需要行为断言兜底。
   4. 定位手法：症状在 A（输入框）、病因在 B（picker）、判据在 C（`inert` 表达式）。读官方源码里把控件置灰的那个布尔表达式，比在症状组件里翻找快得多。
+
+## 坑 36：部署器把 session-query 索引设为 `openAt "never"` → 内容搜索每次按键都打 `RPC 失败 (session/search)`
+
+- **现象**：接入 W4 内容搜索后，搜索框每敲一个词，主机侧日志就抛一条 `RPC 失败 (session/search): ...SessionQueryError: session search is disabled: this deployment configures the session-query index with openAt "never"`（栈落在 `unpackServerResponse → callApi → bridge.js`）。输入仍出本地名匹配且弹「内容搜索暂不可用」警告——功能降级本身对，但每次按键都重发注定失败的 RPC，噪声持续刷屏。
+- **根因**：宿主按部署配置把会话内容检索索引关闭（`openAt "never"`），`session.search` 一经调用必失败。渲染侧 `searchSessions` 的 `.catch` 已把它当作「不可用」降级，但**失败发生在 RPC 载波层**（主机侧在拒绝时自行打日志），早于组件 catch——依赖「每次失败 → catch 设 error」就必然每个输入事件都触发一次主机侧报错。
+- **解法**：给 `searchSessions` 加**探测即锁定**：首次调用捕获到 `/disabled|openAt/` 类错误后置 `remoteSearchDisabled = true`，后续调用直接短路抛同义错误、**不再向 Host 发 RPC**。本地名称命中与「不可用」警告的降级路径原样保留（`SearchResults` 对 error 态只消费本地 items）。锁定值放 `apply()` 作用域（装载一次、跨重挂载持久）。build 后 `dist/` 同步生效。
+- **复盘要点**：
+  1. 命令行/桥接层自带的失败日志与组件级降级是**两条独立路径**：组件 catch 只止住「未捕获异常」，止不住 infra 层的 per-request 打印。要消除噪声须**少发请求**，而非多 catch。
+  2. 「被功能开关关闭的能力」是**稳定的持续状态**，应在首次探测后 latch，不要每次用户操作都去重复试探；判据用错误文案匹配是当前唯一可用信号，锁定态宁可误锁（少发请求）不可漏锁（刷屏）。
+  3. 该部署下内容搜索**本就不该可用**，正确结局=本地名匹配 + 明确「仅名称匹配」提示，而不是假调用或持久报错。可后置判据再次验证：连「花哨能力」的失败也要有体面出口。

@@ -2578,10 +2578,22 @@ window.__ModuleLoader__.load({
       // ③ 字典命名空间
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-desktop-workspaces: dictionaries')
 
+      // 内容搜索索引禁用锁：部署器以 openAt "never" 关闭 session-query 索引时首次失败即
+      // 锁定——后续查询直接短路（抛同义错误），不再向 Host 重发注定失败的 RPC（避免桥接层
+      // 持续打印 session/search 失败），本地名称匹配与「不可用」警告照常降级呈现。
+      let remoteSearchDisabled = false
       const searchSessions = async (query, signal) => {
-        const result = await sessions.search(query, signal)
-        if (!result.ok) throw new Error(result.error.message)
-        return result.value
+        if (remoteSearchDisabled) throw new Error('session search is disabled')
+        try {
+          const result = await sessions.search(query, signal)
+          if (!result.ok) throw new Error(result.error.message)
+          return result.value
+        } catch (reason) {
+          if (/disabled|openAt/i.test(reason instanceof Error ? reason.message : String(reason))) {
+            remoteSearchDisabled = true
+          }
+          throw reason
+        }
       }
       /** 目录流占洞态：洞有人占用才显示「添加工作区」入口（uSES 契约，反应式驱动）。 */
       const flowSource = (hole) => ({
