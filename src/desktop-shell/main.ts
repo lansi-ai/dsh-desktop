@@ -16,6 +16,11 @@ import {
 import type { RpcRequest } from '../types/contract.js'
 import type { DesktopCore } from '../types/desktop.js'
 import { extractDshUrlFromArgv, routeDshProtocol } from '../desktop-host/dsh-protocol.js'
+import {
+  protocolSourceAllowlistSchema,
+  type DshProtocolSource,
+  type ProtocolSourceAllowlistItem,
+} from '../types/desktop.js'
 import { closeStartupSplash, createStartupSplash, splashPhase, splashProgress, startSplashDemo } from './splash.js'
 import { refreshTrayIcon, markQuitting, refreshTrayMenu, setTrayUpdaterControl } from '../desktop-host/desktop-tray.js'
 import { getActiveIconPath } from '../desktop-host/desktop-theme.js'
@@ -80,8 +85,10 @@ if (isCircuitBroken()) {
       // M3-b1：从 second-instance 参数中提取 dsh:// URL 并路由
       const dshUrl = extractDshUrlFromArgv(commandLine)
       if (dshUrl !== null) {
-        // 延迟到 bootstrap 完成后再路由
+        // M4-a2：Windows 协议唤起来源记为 argv；bootstrap 未完成先缓存，已完成则立即路由（热唤起）
         pendingDshUrl = dshUrl
+        pendingDshSource = 'argv'
+        if (bootstrapCompleted) routePendingDshUrl()
         return
       }
       // 默认行为：聚焦窗口
@@ -95,6 +102,9 @@ if (isCircuitBroken()) {
     // M3-b1：macOS open-url 事件（协议唤起）
     app.on('open-url', (_event, url) => {
       pendingDshUrl = url
+      pendingDshSource = 'open-url'
+      // M4-a2：热唤起——bootstrap 已完成则立即路由
+      if (bootstrapCompleted) routePendingDshUrl()
     })
 
     void bootstrap()
@@ -133,6 +143,54 @@ let windowManager: WindowManager | null = null
 
 /** M3-b1：待处理的 dsh:// 协议 URL（second-instance/open-url 先缓存，bootstrap 完成后路由）。 */
 let pendingDshUrl: string | null = null
+
+/** M4-a2：pendingDshUrl 的唤起来源标识（second-instance→argv / open-url→open-url / 启动参数→launch）。 */
+let pendingDshSource: DshProtocolSource | null = null
+
+/** bootstrap 装配出的 `ctx.desktop` 聚合服务引用（热唤起路由用）。 */
+let desktopCoreRef: DesktopCore | null = null
+
+/**
+ * M4-a2：路由待处理的 dsh:// URL（冷启动 bootstrap 末尾与热唤起 second-instance/open-url 共用）。
+ *
+ * 热唤起修复：应用已运行时协议唤起不再只缓存不路由——入口事件在 bootstrap
+ * 完成后直接调用本函数；白名单/外部开关每次路由时从 settings 实时读取。
+ * `desktopCoreRef` 未就绪（bootstrap 未装配完）时静默保留缓存，由 bootstrap 末尾兜底。
+ */
+function routePendingDshUrl(): void {
+  if (pendingDshUrl === null || desktopCoreRef === null) return
+
+  // M4-a2：从 settings 读取 dsh:// 协议白名单与外部唤起总开关。
+  // settings 值域为字符串，故来源白名单存 JSON 字符串，布尔同时接受真布尔与 'true'/'false'。
+  let protocolAllowlist: readonly ProtocolSourceAllowlistItem[] = []
+  const rawAllowlist = desktopCoreRef.readConfig<unknown>('protocolSources')
+  if (typeof rawAllowlist === 'string') {
+    try {
+      protocolAllowlist = protocolSourceAllowlistSchema.parse(JSON.parse(rawAllowlist))
+    } catch {
+      /* 非法白名单配置忽略，回退受限默认 */
+    }
+  } else if (Array.isArray(rawAllowlist)) {
+    const parsedAllowlist = protocolSourceAllowlistSchema.safeParse(rawAllowlist)
+    if (parsedAllowlist.success) protocolAllowlist = parsedAllowlist.data
+  }
+  const rawExternal = desktopCoreRef.readConfig<unknown>('protocolExternalEnabled')
+  const protocolExternalEnabled: boolean =
+    rawExternal === undefined || rawExternal === true || rawExternal === 'true'
+
+  const getWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
+  const result = routeDshProtocol(pendingDshUrl, {
+    getWindow,
+    desktop: desktopCoreRef,
+    windowManager,
+    source: pendingDshSource ?? 'launch',
+    allowlist: protocolAllowlist,
+    externalEnabled: protocolExternalEnabled,
+  })
+  log.info(`[dsh-protocol] 路由结果: ${result.success ? '成功' : '失败'} - ${result.message ?? result.action}`)
+  pendingDshUrl = null
+  pendingDshSource = null
+}
 
 /**
  * bootstrap 是否已完成（M4-a4 修复 #7 · 首启窗口 quit 竞态守卫）。
@@ -565,19 +623,13 @@ async function bootstrap(): Promise<void> {
       const startupDshUrl = extractDshUrlFromArgv(process.argv)
       if (startupDshUrl !== null) {
         pendingDshUrl = startupDshUrl
+        pendingDshSource = 'launch'
       }
 
-      // M3-b1：路由待处理的 dsh:// 协议 URL（second-instance/open-url 缓存 + 启动参数）
-      if (pendingDshUrl !== null) {
-        const getWindow = (): BrowserWindow | null => BrowserWindow.getAllWindows()[0] ?? null
-        const result = routeDshProtocol(pendingDshUrl, {
-          getWindow,
-          desktop: desktopCore,
-          windowManager,
-        })
-        log.info(`[dsh-protocol] 路由结果: ${result.success ? '成功' : '失败'} - ${result.message ?? result.action}`)
-        pendingDshUrl = null
-      }
+      // M3-b1 + M4-a2：路由待处理的 dsh:// 协议 URL（second-instance/open-url 缓存 + 启动参数）
+      // 白名单/外部开关读取与授权判定统一在 routePendingDshUrl 内（与热唤起共用一条路径）
+      desktopCoreRef = desktopCore
+      routePendingDshUrl()
     } else {
       log.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
     }

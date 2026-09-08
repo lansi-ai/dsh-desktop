@@ -91,20 +91,75 @@ export type CmdPaletteSwitchSession = z.infer<typeof cmdPaletteSwitchSessionSche
 
 // ── dsh:// 协议 Schema（M3-b1 system protocol）─────────────────────
 
-/** dsh://open 协议载荷（聚焦/创建指定会话窗口）。 */
-export const dshProtocolOpenSchema = z.object({
-  /** 目标会话 ID。 */
-  session: z.string(),
-})
+/**
+ * dsh://open 协议载荷（聚焦/创建指定会话窗口）。
+ *
+ * 安全（R10 / M4-a2）：session id 走白名单字符集强约束，防路径/超长串注入；
+ * `.strict()` 拒绝 `?session=xxx&_evil=1` 之类的未知 query key。
+ */
+export const dshProtocolOpenSchema = z
+  .object({
+    /** 目标会话 ID（白名单字符集，最长 64）。 */
+    session: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+  })
+  .strict()
 
-/** dsh://ask 协议载荷（唤起快速提问 + 预填问题）。 */
-export const dshProtocolAskSchema = z.object({
-  /** 预填问题文本。 */
-  q: z.string().optional(),
-})
+/**
+ * dsh://ask 协议载荷（唤起快速提问 + 预填问题）。
+ *
+ * 安全（R10 / M4-a2）：`q` 为文本注入到 UI 的预填文本框（React 渲染，非 innerHTML），
+ * 仅加长度上限 `.max(2000)` 防超长灌入；`.strict()` 拒绝未知 query key。
+ */
+export const dshProtocolAskSchema = z
+  .object({
+    /** 预填问题文本（最长 2000 字符）。 */
+    q: z.string().max(2000).optional(),
+  })
+  .strict()
+
+/** dsh://settings 协议载荷（打开桌面设置面板，不接受任何 query key）。 */
+export const dshProtocolSettingsSchema = z.object({}).strict()
 
 /** dsh:// 协议动作枚举。 */
 export const dshProtocolActionSchema = z.enum(['open', 'ask', 'settings'])
+
+/**
+ * dsh:// 唤起来源标识。
+ *
+ * 受限于 OS 协议唤起（second-instance/argv 仅有命令行、open-url 仅有 URL），
+ * 来源方不可精确保定，此枚举仅尽量区分唤起通道：Windows 命令行（second-instance/
+ * 启动参数）记为 `argv`，macOS `open-url` 事件记为 `open-url`，应用自身启动参数记为
+ * `launch`。命中白名单 → `allow`；未命中按受限默认 `degrade`。
+ */
+export const dshProtocolSourceSchema = z.union([
+  z.literal('argv'),
+  z.literal('open-url'),
+  z.literal('launch'),
+])
+
+/** dsh:// 协议授权判定。 */
+export const dshProtocolDecisionSchema = z.enum(['allow', 'deny', 'degrade'])
+
+/** 授权层输出（供路由决策与审计记录）。 */
+export const dshProtocolDecisionResultSchema = z.object({
+  /** 判定：allow=放行全量；deny=拒绝；degrade=受限默认（动作被削权）。 */
+  decision: dshProtocolDecisionSchema,
+  /** 本次唤起来源。 */
+  source: dshProtocolSourceSchema,
+  /** 关注来源未在白名单的具体判决（审计用）。 */
+  authorized: z.boolean().optional(),
+  /** 拒绝/降级原因（审计展示）。 */
+  reason: z.string().optional(),
+})
+
+/** 来源白名单条目（settings 挂载，`source` 不在白名单即按受限默认）。 */
+export const protocolSourceAllowlistItemSchema = z.object({
+  /** 被信任的唤起来源标识。 */
+  source: dshProtocolSourceSchema,
+})
+
+/** dsh:// 协议来源白名单配置。 */
+export const protocolSourceAllowlistSchema = z.array(protocolSourceAllowlistItemSchema)
 
 /** dsh:// 协议路由结果。 */
 export const dshProtocolResultSchema = z.object({
@@ -122,6 +177,10 @@ export type DshProtocolOpen = z.infer<typeof dshProtocolOpenSchema>
 export type DshProtocolAsk = z.infer<typeof dshProtocolAskSchema>
 export type DshProtocolAction = z.infer<typeof dshProtocolActionSchema>
 export type DshProtocolResult = z.infer<typeof dshProtocolResultSchema>
+export type DshProtocolSource = z.infer<typeof dshProtocolSourceSchema>
+export type DshProtocolDecision = z.infer<typeof dshProtocolDecisionSchema>
+export type DshProtocolDecisionResult = z.infer<typeof dshProtocolDecisionResultSchema>
+export type ProtocolSourceAllowlistItem = z.infer<typeof protocolSourceAllowlistItemSchema>
 
 // ── 审计查询 Schema（M3-b2 audit viewer）────────────────────────────
 
