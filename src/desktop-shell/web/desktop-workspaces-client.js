@@ -20,10 +20,10 @@
  *      两洞各自继续声明 `*.directoryFlow` 子洞（single/root），否则 native picker 无处占洞。
  *   ⑤ 动作注入面 `browserInjected` 十三项，全部薄转发官方 domain 服务（数据面零新增、零重实现）。
  *
- * W1 边界（有意为之）：两个槽位组件是**空壳**——只证明接管成功（本件组件渲染、locale 生效、
- * owner props 流通），行组件/树派生/搜索/拖拽归 W2-W4。故实机上侧栏工作区区域显示空态文案、
- * 对话区 workspace 选择器无内容，**这是预期中间态，不是回归**。
- * directoryFlow 洞在 W1 只声明不渲染（无「添加工作区」入口 → 流无从触发），W4 接通。
+ * 承重边界（2026-09-08 实机修正）：**选/加工作区的路径不得留空**——它决定能否建立
+ * current session，进而决定官方输入框是否 `inert`（disabled）。故 Picker 与「添加工作区」
+ * 入口随本件首批落地。仍可后置的是视觉与浏览效率件：会话树派生（W2）、行组件与状态点
+ * （W3）、搜索 / 视图选项 / 折叠 / 拖拽（W4）。
  *
  * 回滚：从 CLIENT_EXCLUDE_IDS 移除 ui-workspace 一行即回官方原状（本件与官方互斥，
  * 双激活会在 sidebar.workspaces 抛 "already has a registration"）。
@@ -39,8 +39,12 @@ window.__ModuleLoader__.load({
 
     const React = require('react')
     const h = React.createElement
+    const { useState, useEffect, useCallback } = React
     const { Service } = require('@deepseek-ai/cordis')
     const { defineStore } = require('@deepseek-ai/dsh-client-store')
+    // 官方 UI 原语：平台种子模块，与官方 ui-workspace 同口径直接 require（不做守卫回退，
+    // 取不到即整个应用不可用，回退无意义）。
+    const { Menu, Modal, Button, IconPlusOutline16, IconFolderClose16 } = require('@deepseek-ai/dsh-client-ui-primitives')
 
     /** 本件顶替官方件，复用官方字典命名空间（官方包已互斥排除，无冲突）。 */
     const NS = 'workspace'
@@ -330,7 +334,17 @@ window.__ModuleLoader__.load({
       'time.days': '{n}d', 'time.months': '{n}mo', 'time.years': '{n}y', 'time.ago': '{t} ago',
     }
 
-    // ── 接管面④：两个槽位组件（W1 空壳）─────────────────────────────
+    // ── 接管面④：槽位组件（选/加工作区 = 应用可用性承重件）───────────
+    //
+    // ⚠ 教训（2026-09-08 实机）：本段曾按「W1 空壳」实现（Picker 直接 return null），
+    // 结果整个应用被锁死——无工作区 ⇒ 无 current session ⇒ 官方 ui-conversation 判
+    // `inert` 把输入框 disabled（占位「选择一个工作区开始」），「新会话」也只能空转。
+    // 官方语义里 `conversation.hero.workspace` 的 picker 是选/加工作区的**唯一入口**
+    // （「添加工作区只有一条路」），它不是可后置的视觉件，必须与服务接管同批落地。
+    // ⇒ 修正 M6 施工纪律：**接管某官方件时，其承重交互路径不得留空**。
+
+    /** 菜单内「添加工作区」的合成条目 id（与官方同值）。 */
+    const ADD_WORKSPACE = '::add-workspace'
 
     const CSS_TEXT = `
 .dsh-desktop-workspaces-section {
@@ -339,42 +353,231 @@ window.__ModuleLoader__.load({
   min-height: 0;
   gap: 2px;
 }
-.dsh-desktop-workspaces-title {
+.dsh-desktop-workspaces-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
   padding: 6px 2px 2px;
+}
+.dsh-desktop-workspaces-title {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .02em;
-  color: var(--dsw-alias-label-tertiary, light-dark(rgba(0,0,0,.45), rgba(255,255,255,.50)))!important;
+  color: var(--dsw-alias-label-tertiary)!important;
+}
+.dsh-desktop-workspaces-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary)!important;
+  cursor: pointer;
+}
+.dsh-desktop-workspaces-add:hover {
+  background: var(--dsw-alias-interactive-bg-hover)!important;
 }
 .dsh-desktop-workspaces-placeholder {
   padding: 8px 2px;
   font-size: 12px;
-  color: var(--dsw-alias-label-secondary, light-dark(rgba(0,0,0,.62), rgba(255,255,255,.68)))!important;
+  color: var(--dsw-alias-label-secondary)!important;
+}
+.dsh-desktop-workspaces-flow-status {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary)!important;
 }
 `
 
     /**
-     * 侧栏工作区浏览区（W1 空壳）。
-     * props 契约对齐官方 WorkspaceBrowser：owner `{ wide, expandSidebar }` +
-     * register 的 store/inject/locale 标准面。W2-W4 在此填树、行组件与目录流。
+     * 选取 / 收养工作区的共享内核（官方 `WorkspacePickFlow` 等价实现）。
+     * Browser 与 Picker 只是参数分化的两个壳，语义全部收在本函数，避免两处漂移。
+     *
+     * 关键行为：① 有工作区 → 列工作区菜单 + 底部固定「添加工作区…」；
+     * ② 无工作区且目录流可用 → 「添加」是唯一条目，`open` 即**直接抬系统目录选择器**
+     * （不多一层菜单）；③ 收养成功交回 owner 定位会话，失败落 folderError 弹层可重试。
      */
-    function WorkspaceBrowser({ wide, t }) {
+    function WorkspacePickFlow({ t, open, anchorRef, useWorkspaces, createWorkspace, useDirectoryFlow, renderDirectoryFlow, onPick, onClose, addOnly = false, side = 'bottom', selectedId }) {
+      const workspaceSnapshot = useWorkspaces((state) => state)
+      const workspaces = workspaceSnapshot.items
+      const getAnchorRect = useCallback(() => anchorRef?.current?.getBoundingClientRect() ?? null, [anchorRef])
+      const [errorOpen, setErrorOpen] = useState(false)
+      const [modalError, setModalError] = useState(null)
+      const [flowOpen, setFlowOpen] = useState(false)
+      const [pickingFolder, setPickingFolder] = useState(false)
+      const flowBusy = flowOpen || pickingFolder
+      /** 目录流是否有占洞者（native picker）——无则整个「添加」路径不可用。 */
+      const flowAvailable = useDirectoryFlow((occupied) => occupied)
+      // 占洞者中途消失时收回已抬起的流，避免卡在无人应答的空转态
+      useEffect(() => {
+        if (flowOpen && !flowAvailable) setFlowOpen(false)
+      }, [flowOpen, flowAvailable])
+      const addEntries = flowAvailable ? [{
+        id: ADD_WORKSPACE,
+        label: t('menu.addWorkspace'),
+        icon: h(IconPlusOutline16, { size: 16 }),
+        disabled: flowBusy,
+      }] : []
+      const pinAdd = !addOnly && workspaces.length > 0
+      const items = pinAdd ? workspaces.map((workspace) => ({
+        id: workspace.workspaceId,
+        label: workspace.title,
+        icon: h(IconFolderClose16, { size: 16 }),
+        disabled: flowBusy,
+      })) : addEntries
+      const menuIsEmpty = items.length === 0
+      const closeModal = () => {
+        setErrorOpen(false)
+        setModalError(null)
+      }
+      /** 收养所选目录：成功即交 owner 定位会话；失败落错误弹层（可「重新选择」）。 */
+      const adoptDirectory = (path) => createWorkspace({ path }).then((workspace) => {
+        setFlowOpen(false)
+        onPick(workspace.workspaceId)
+      }).catch((reason) => {
+        setModalError(reason instanceof Error ? reason.message : String(reason))
+        setFlowOpen(false)
+        setErrorOpen(true)
+      })
+      const openDirectoryFlow = useCallback(() => {
+        onClose()
+        setErrorOpen(false)
+        setModalError(null)
+        setFlowOpen(true)
+      }, [onClose])
+      const listSettled = addOnly || workspaceSnapshot.phase === 'ready'
+      const addIsTheOnlyEntry = !pinAdd && listSettled && addEntries.length === 1
+      // 「添加」为唯一条目时跳过菜单层，直接抬目录流
+      useEffect(() => {
+        if (open && addIsTheOnlyEntry && !flowBusy) openDirectoryFlow()
+      }, [open, addIsTheOnlyEntry, flowBusy, openDirectoryFlow])
+      /** 目录流 owner 侧：收养期间置 busy，occupant 据此禁用其提交控件直到 Host 答复。 */
+      const flowOwner = {
+        open: flowOpen,
+        busy: pickingFolder,
+        onPicked: (path) => {
+          setPickingFolder(true)
+          adoptDirectory(path).finally(() => {
+            setPickingFolder(false)
+          })
+        },
+        onCancel: () => {
+          setFlowOpen(false)
+        },
+        onError: (message) => {
+          setFlowOpen(false)
+          setModalError(message)
+          setErrorOpen(true)
+        },
+      }
+      const handleSelect = (id) => {
+        if (id === ADD_WORKSPACE) {
+          openDirectoryFlow()
+          return
+        }
+        onPick(id)
+      }
+      const menuVisible = open && !addIsTheOnlyEntry && !menuIsEmpty
+      return h(React.Fragment, null,
+        h(Menu, {
+          open: menuVisible,
+          anchor: null,
+          items,
+          ...(pinAdd ? { footer: addEntries } : {}),
+          selectedId,
+          onSelect: handleSelect,
+          onClose,
+          side,
+          portal: true,
+          getAnchorRect,
+        }),
+        menuVisible && workspaceSnapshot.phase === 'pending'
+          ? h('div', { className: 'dsh-desktop-workspaces-flow-status', role: 'status' }, t('picker.loading'))
+          : null,
+        renderDirectoryFlow(flowOwner),
+        h(Modal, {
+          open: errorOpen,
+          onClose: closeModal,
+          closeLabel: t('close'),
+          title: t('folderError.title'),
+          footer: h(React.Fragment, null,
+            h(Button, { variant: 'outline', onClick: closeModal }, t('cancel')),
+            h(Button, { variant: 'primary', disabled: !flowAvailable, onClick: openDirectoryFlow }, t('folderError.retry')),
+          ),
+        }, h('div', { role: 'alert' }, modalError)),
+      )
+    }
+
+    /**
+     * 侧栏工作区浏览区。owner `{ wide, expandSidebar }` + store/inject/locale 标准面。
+     * 当前落地「添加工作区」承重路径（rail 态点击先请求展开）；
+     * 会话树 / 搜索 / 视图选项 / 拖拽归 W2-W3，届时替换下方占位空态。
+     */
+    function WorkspaceBrowser({ wide, expandSidebar, t, renderSlot, useWorkspaces, useDirectoryFlow, startSession, createWorkspace }) {
+      const [addOpen, setAddOpen] = useState(false)
       return h('div', {
         className: 'dsh-desktop-workspaces-section',
         'data-dsh-desktop-workspaces': 'browser',
         'data-wide': wide ? '1' : '0',
       },
-        h('div', { className: 'dsh-desktop-workspaces-title' }, t('section.workspaces')),
+        h('div', { className: 'dsh-desktop-workspaces-header' },
+          h('span', { className: 'dsh-desktop-workspaces-title' }, t('section.workspaces')),
+          h('button', {
+            type: 'button',
+            className: 'dsh-desktop-workspaces-add',
+            title: t('workspace.add'),
+            'aria-label': t('workspace.add'),
+            onClick: () => {
+              if (!wide) expandSidebar()
+              setAddOpen(true)
+            },
+          }, h(IconPlusOutline16, { size: 14 })),
+        ),
+        // 会话树占位：W2 派生层 + W3 行组件接入后替换
         h('div', { className: 'dsh-desktop-workspaces-placeholder' }, t('empty.none')),
+        h(WorkspacePickFlow, {
+          t,
+          open: addOpen,
+          useWorkspaces,
+          createWorkspace,
+          useDirectoryFlow,
+          renderDirectoryFlow: (owner) => renderSlot('sidebar.workspaces.directoryFlow', owner),
+          addOnly: true,
+          side: 'right',
+          onPick: (workspaceId) => {
+            setAddOpen(false)
+            startSession(workspaceId)
+          },
+          onClose: () => {
+            setAddOpen(false)
+          },
+        }),
       )
     }
 
     /**
-     * 对话区空态工作区选择器（W1 空壳，渲染 null）。
-     * 槽位仍必须注册：一是顶掉官方件，二是继续声明 directoryFlow 子洞供 native picker 占位。
+     * 对话区空态工作区选择器（**承重件**）。owner props 由官方 ui-conversation 下发：
+     * `{ open, anchorRef, selectedId, onPick, onClose }`；选/加工作区只有这一条路。
      */
-    function WorkspacePicker() {
-      return null
+    function WorkspacePicker({ open, anchorRef, selectedId, onPick, onClose, t, renderSlot, useWorkspaces, useDirectoryFlow, createWorkspace }) {
+      return h(WorkspacePickFlow, {
+        t,
+        open,
+        anchorRef,
+        useWorkspaces,
+        createWorkspace,
+        useDirectoryFlow,
+        renderDirectoryFlow: (owner) => renderSlot('conversation.hero.workspace.directoryFlow', owner),
+        selectedId,
+        onPick,
+        onClose,
+      })
     }
 
     exports.inject = ['slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.directoryPicker']

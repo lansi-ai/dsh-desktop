@@ -348,6 +348,7 @@
 23. **版本跟踪先定权威源，再定发行校验**：判「上游有没有新版」用 git tag/release（版本真源），判「我能不能装」用 registry 该版本是否存在（分发渠道会滞后）；两者混用会让「渠道还没发」表现为「上游没发」这种最坏形态的静默漏检。「无新版」结论要能用第二源交叉对账（release 清单 vs registry versions）（坑 31）。
 24. **压缩后源码的方法名不可 grep，用原文对账**：官方 node_modules `lib/*.js` 发布时方法名被压缩（如 `startSession` 显示为 `ln`），grep 可读结果会骗你又骗日志栈；读时用 Read/原文，方法名以 source map / 调用链上下文为准。`ctx.get()` 的 key 是 service 注册名，**domain service（workspaces 管数据）与 UI service（uiWorkspace 管动作）方法集不同**，UI 动作必须从 `uiWorkspace` 取，别在 domain 上硬调（坑 32）。
 25. **依赖安装「退出码 0」不等于环境就绪**：靠 postinstall 拉二进制的包（electron / playwright / esbuild / better-sqlite3 等）npm 会吞掉其失败，缺口延后到运行期由 CLI 自愈补装才暴露——报错点与失败点分离。install 后先 `Test-Path` 落地物（`electron/dist/electron.exe`、`path.txt`）再谈运行；多 worktree 同 commit 时优先复用主工作区重资产（拷 `dist` 或 junction `node_modules`），不要默认全量重来（坑 34）。
+26. **分阶段替换 UI 的「可后置」判据 = 是否唯一交互入口，不是视觉复杂度**：把某个槽位实现成 `return null` 是合法渲染、静态门禁全绿，却可能锁死整条下游链（本例 picker ⇒ 无 session ⇒ 官方输入框判 `inert` 置灰）。唯一入口类控件必须与服务接管同批落地；验收要顺依赖链看到最终用户动作，别只看本槽位是否渲染（坑 35）。
 
 ## 结论
 
@@ -387,3 +388,20 @@
   2. 多 worktree 同 commit 时应**优先复用重资产**：轻则拷单个 `dist`，重则整体 junction `node_modules` 到主工作区（省 GB 级重复）；别默认全量重来。分支一旦改依赖，junction 需退回独立安装。
   3. 这类缺口的**报错点在运行期、不在安装期**——见到运行期才出现的「正在下载/正在编译」，先回查安装期是否静默降级，而非就地等它下完。
   4. 本地其实已有 `electron-v44.0.0-win32-x64.zip` 缓存（`%LOCALAPPDATA%\electron\Cache`），说明这趟即便走原路也只是解压 365 MB；**缓存存在不是理由，直接拷现成 `dist` 更快且零副作用**。
+
+---
+
+## 坑 35：W1「空壳」把应用整体锁死——picker 是唯一交互入口，不属可后置的视觉件
+
+- **现象**：`feat/workspaces` 装载后**全应用不可用**：侧栏只有「工作区 / 暂无会话」两行；对话区「选择工作区 ▾」点了无反应；输入框占位「选择一个工作区开始」且**敲不进任何字符**；「新会话」按钮点击无效果。同版本基线的 `main` 分支一切正常 ⇒ 坐实为 W1 引入的回归。**全程无任何报错**，typecheck / lint / build 全绿。
+- **根因**：W1 把 `WorkspacePicker` 按「可后置的视觉件」实现成 `return null`，但它其实是选/加工作区的**唯一入口**，锁死一条三级连锁：
+  1. 无入口 ⇒ 无法创建/选中工作区 ⇒ 无 `current session`；
+  2. 官方 `ui-conversation` 据此判 `const inert = sessionId === void 0 || hero && chipTitle === void 0`（`lib/client.js:14436`）⇒ 输入框 `disabled: true` + 占位 `placeholder.workspace`——**这正是"打不进字"的直接出处**，而非输入框自身有 bug；
+  3. 「新会话」走 `uiWorkspace.startSession()`，其 target 解析链（显式 id → 当前会话所属 → 最近活跃）全部落空 ⇒ 只能 `sessions.clear()` 空转。
+  官方源码里「添加工作区只有一条路」+「`addIsTheOnlyEntry` 时 open 即直接抬系统目录选择器」这两条设计约束，本已明示该槽位的承重性质。
+- **解法**：按官方 `WorkspacePickFlow` 等价实现**共享内核**（`Menu`/`Modal`/`Button`/图标直接 `require` 官方 primitives），Browser 与 Picker 两壳仅以 `addOnly` / `side` / `onPick` 分化——侧栏 `addOnly + startSession(workspaceId)`，对话区完整菜单 + `onPick` 交回 owner。语义收在一处防两壳漂移。补 21 项行为断言锁死该链（菜单抑制条件、工作区列表、`::add-workspace` 固定项、收养 create→onPick、失败弹层两出口、**无占洞者时不得出现假「添加」入口**、侧栏 addOnly）。
+- **复盘要点**：
+  1. 分阶段自绘（「先换壳不换内容」）的**可后置判据不是"视觉复杂度高低"，而是"是否承载唯一交互路径"**。凡某条业务链的唯一入口，必须与服务接管同批落地，否则整链锁死。
+  2. 排除官方 UI 件后，验收要看**下游依赖链是否仍成立**（本例输入框 disabled 由 `sessionId` 决定，而 `sessionId` 由被排除件的 picker 决定），只看"本槽位渲染成功"会得出完全错误的结论。
+  3. `return null` 是**合法渲染结果**，静态门禁一律放过——这类静默锁死只有实机或行为级测试能发现。空壳阶段尤其需要行为断言兜底。
+  4. 定位手法：症状在 A（输入框）、病因在 B（picker）、判据在 C（`inert` 表达式）。读官方源码里把控件置灰的那个布尔表达式，比在症状组件里翻找快得多。
