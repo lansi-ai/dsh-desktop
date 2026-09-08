@@ -150,10 +150,11 @@
       </ul>
 
       <div class="phase-divider"></div>
-      <div class="phase-label pending">M4 · 分发与更新 ⏸️ 延后（b ✅；重启先做 a2）</div>
+      <div class="phase-label pending">M4 · 分发与更新 ⏸️ 延后（a2 ✅ b ✅；余 a3/c/e）</div>
       <ul class="task-list">
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a2 R10 协议安全白名单</strong>（分发前必补）：dsh:// 来源校验 + 参数 zod 强校验（<code>src/types/desktop.ts|protocol.ts</code> + <code>src/desktop-host/dsh-protocol.ts</code>）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-b 应用自动更新·三通道 ✅（2026-09-08 实机验收）</strong>：<code>auto-updater.ts</code> 增 <code>UpdaterChannel=stable|rc|off</code>（stable→latest.yml / rc→<code>channel='rc'</code>→latest-rc.yml / off 全关，静默与手动 check 均 no-op）+ 运行时 <code>getChannel/setChannel/getAutoCheck/setAutoCheck</code>（off↔on 即时补/撤检查）；settings <code>desktop</code> 命名空间持久化；<code>desktop.updater.*</code> 桥扩展；UI 归位<strong>关于页</strong>（渠道三态分段 + 自动检查开关，off 联动置灰）；实机验证：渠道回显「预发布」+ 自动检查开关持久化到 settings-file（桩验证 59 项 + 修复 renderer 误用 Host settings 服务）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-a2 R10 协议安全白名单 ✅（2026-09-08 冷/热双路实机验收）</strong>：参数强校验（<code>parseDshUrl</code> 改 <code>URL</code>+<code>URLSearchParams</code>+各 action zod <code>.strict()</code>：session 白名单字符集≤64 / q≤2000 / settings 拒 query / 未知 key·多余 pathname·超长 2048 全拒）+ 来源授权三态 <code>authorizeDshUrl</code>（白名单命中 allow / 未命中 degrade：<strong>open 仅聚焦已有会话拒绝新建</strong>，ask/settings 放行 / 外部开关关 deny；落 <code>protocol.deny|degrade</code> 审计）+ 三入口收口（argv/open-url/launch，settings <code>protocolSources</code>/<code>protocolExternalEnabled</code>）+ <strong>热唤起缺口修复</strong>（M3-b1 遗留：运行中唤起只缓存不路由 → <code>routePendingDshUrl()</code> 冷热统一）；单测 13 项 + 实机：冷启动降级拒绝 / 热唤起 ask 成功+open 降级，审计 <code>source:"argv"</code> 留痕</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-b 应用自动更新·三通道 ✅（2026-09-08 实机验收）</strong>：<code>auto-updater.ts</code> 增 <code>UpdaterChannel=stable|rc|off</code>（stable→latest.yml / rc→<code>channel='rc'</code>→latest-rc.yml / off 全关，静默与手动 check 均 no-op）+ 运行时 <code>getChannel/setChannel/getAutoCheck/setAutoCheck</code>（off↔on 即时补/撤检查）；settings <code>desktop</code> 命名空间持久化；<code>desktop.updater.*</code>
+桥扩展；UI 归位<strong>关于页</strong>（渠道三态分段 + 自动检查开关，off 联动置灰）；实机验证：渠道回显「预发布」+ 自动检查开关持久化到 settings-file（桩验证 59 项 + 修复 renderer 误用 Host settings 服务）</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span>M4-a3 零依赖实机验证 · M4-c 离线 e2e · M4-e 门禁（≥3 人安装即用 + SHA256SUMS 外部可验证）</span></li>
       </ul>
     </div>
@@ -165,7 +166,7 @@
         <li><strong>活跃决策</strong>：D-18 布局接管 root 槽位 · D-19 scope=<code>@lansi-ai/dsh-*</code> · D-20 全量自绘 · D-21 骨架宿主化（<code>--dsd-*</code> 外观契约）· D-22 启动即时响应 · D-23 图标资产 global（<code>userData/icons/</code>）/pack（包内 <code>icons/</code>）分层</li>
         <li><strong>基座决策</strong>：D-1 主进程内嵌 Cordis Host · D-2 IPC fetch 载波零端口 · D-5 roster/manifest 覆盖不改 dist · D-6 <code>ctx.webServer</code> 等价面 · D-8 第三方经 <code>buildThirdPartyBundleDecl</code> 装载（详见 <code>docs/adr/</code>）</li>
         <li><strong>铁律</strong>：绝不改官方代码；官方未自有化处只走适配器；官方 <code>#root</code> 保留原生自适应，只用 padding/圆角垫层（坑 20）；自绘样式一律 important 化（坑 19）</li>
-        <li><strong>风险 open</strong>：R6 <code>!!js</code> 不求值 · R7 <code>.runtime</code> 硬编码 · R9 多窗口内存（M5 验）· R10 协议安全（排 M4-a2）；全录见 <code>docs/11-risks.md</code></li>
+        <li><strong>风险 open</strong>：R6 <code>!!js</code> 不求值 · R7 <code>.runtime</code> 硬编码 · R9 多窗口内存（M5 验）；R10 协议安全已收口（M4-a2 白名单+降级，2026-09-08）；全录见 <code>docs/11-risks.md</code></li>
         <li><strong>技术债</strong>：<code>dsh-cordis-host-runner</code> 未装载 → 动态插件运行不支持（客户端半已清噪，插件清单经 cordis-inventory 兼容面查看；M5 评估装载链）</li>
       </ul>
     </div>
@@ -173,7 +174,7 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前焦点</strong>：M6-P2 外壳小件 <code>@lansi-ai/dsh-desktop-brand</code>（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底。</p>
+      <p style="margin:0;"><strong>当前焦点</strong>：M4-a2 R10 协议安全白名单已完成（待提交）；回主线 M6-P2 外壳小件 <code>@lansi-ai/dsh-desktop-brand</code>（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底。</p>
       <p style="margin:4px 0 0 0;"><strong>日常</strong>：dogfood 问题按 <code>docs/dogfood-issues.md</code> #N 直取；上游升级 <code>npm run upstream:auto</code>（每日 02:00 自动，<strong>判据源=GitHub releases</strong>；升级成功后按脚本打印的 <code>[TODO] 台账待人工同步</code> 清单收口）。当前上游 pending：待 <code>0.1.3-alpha.1</code> 上 npm 后先 <code>assess</code> 再人工适配，勿硬升。</p>
       <p style="margin:4px 0 0 0;"><strong>按需查阅台账</strong>：<code>docs/pitfalls.md</code>（坑 1~N 排障档案）· <code>docs/dogfood-issues.md</code>（dogfood 现场）· <code>docs/upstream-contracts.md</code>（拴合面速查 + 升级 SOP）· <code>docs/upstream-migrations.md</code>（升级台账 C 区）· <code>docs/11-risks.md</code>（风险全录）· <code>docs/adr/</code>（架构决策全文）。</p>
     </div>

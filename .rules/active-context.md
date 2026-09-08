@@ -64,6 +64,12 @@ alwaysApply: true
   - [x] UI 归位于**关于页** `web/desktop-about-client.js`：新增「更新渠道」三态分段按钮 + 「自动检查更新」开关；off 时开关与「检查更新」联动置灰、状态文案转「已关闭自动更新」；主进程拒绝时回滚选中态并显示其 message；配置真源单一在主进程（插件不依赖 `ctx.settings`，桌面设置页不留重复入口）
   - [x] 发布面：`electron-builder.yml` 登记三通道与 GitHub Releases 更新描述符的对应关系（rc 版打 pre-release 即被 `channel='rc'` 自动匹配）
   - [x] 验证方式（沙箱内无法代跑 Electron GUI，见坑 0）：桩替换 `electron`/`electron-updater` 驱动编译产物做状态机断言 31 项 + 最小 React 桩执行关于页 bundle 断言 28 项，全过
+- [x] **M4-a2 R10 协议安全白名单（dsh:// 来源校验 + 参数强校验）**（2026-09-08 完成，build/test 全绿 + 实机冷/热双路验收通过）
+  - [x] 参数强校验 `types/desktop.ts` + `dsh-protocol.ts`：`parseDshUrl` 改 `URL`+`URLSearchParams`+各 action zod `.strict()` 白名单——session 限 `^[A-Za-z0-9_-]{1,64}$`、q 限 2000、settings 拒任何 query key、未知 key/多余 pathname/非 dsh scheme/URL 超 2048 一律拒绝；`extractDshUrlFromArgv` 加超长防护
+  - [x] 来源授权三态 `authorizeDshUrl`（受限默认 + 白名单升级，OS 协议唤起拿不到可靠来源方故来源枚举只区分通道 argv/open-url/launch）：白名单命中→allow；未命中且外部开关开→degrade（ask/settings 放行、**open 仅聚焦已有会话拒绝新建**）；外部开关关→deny；拒绝/降级落 `protocol.deny`/`protocol.degrade` 审计（R-15）
+  - [x] 三入口收口 `main.ts`：second-instance→argv / open-url→open-url / 启动参数→launch，白名单 `protocolSources`（JSON 字符串归一）与总开关 `protocolExternalEnabled` 从 settings `desktop` 命名空间读取
+  - [x] **热唤起路由缺口修复**（M3-b1 遗留：运行中协议唤起只缓存不路由）：抽取 `routePendingDshUrl()` 统一冷/热双路（bootstrap 末尾兜底 + 入口事件 `bootstrapCompleted` 后立即路由），白名单每次实时读取
+  - [x] 单测 `test/dsh-protocol.test.cjs` 13 项（解析拒绝矩阵/三态授权/降级拒新建/deny 审计/argv 防护）+ 实机验收：冷启动 `open?session=nonexistent` 降级拒绝、热唤起 ask 成功 + open 降级（截图留痕）、审计 `source:"argv"` 的 degrade 与 `protocol.ask` 均落盘
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
 - **已做出的关键技术决策**：
@@ -86,7 +92,7 @@ alwaysApply: true
   - **排障手册**：`docs/pitfalls.md`（M1 攻坚第 2 批实战踩坑记录，含 8 类坑 + 排障方法论）——后续会话排障时**先查阅该文档**再动手
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **最近收口（2026-09-08）**：M4-b 应用自动更新·三通道已并入 main（rebase 后线性 4 提交：`feat(updater)` → `feat(settings)`×2 → `build(updater)`）。M4 剩余 = a2 R10 协议安全白名单（分发前必补）· a3 零依赖实机 · c 离线 e2e · e 门禁；主线焦点仍在 M6 P2 外壳小件。
+- **最近收口（2026-09-08）**：M4-b 应用自动更新·三通道已并入 main（rebase 后线性 4 提交：`feat(updater)` → `feat(settings)`×2 → `build(updater)`）；**M4-a2 R10 协议安全白名单完成**（参数强校验 + 三态授权 + 热唤起缺口修复，单测 13 项 + 冷/热双路实机验收通过，待提交）。M4 剩余 = a3 零依赖实机 · c 离线 e2e · e 门禁；主线焦点仍在 M6 P2 外壳小件。
 - **当前正在处理**：步骤 7 攻坚第 2 批（**已完成，实机验收通过**，2026-08-26）。官方 UI 成功渲染进入 + 工作区选择 + 日常对话全流程打通；期间按 D-9/10/11/12 连环修复（client-connection 预载注册、自动扫描图谱、Electron 目录选择器、toFetchHandler RPC 入口）；typecheck/lint/build + 双验证脚本全绿。
 - **下一攻坚目标**：步骤 7 剩余项 —— (1) 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层）；(2) `docs/active-context.html` 看板同步落盘 + 里程碑提交。
 - **关键阻塞项**：（已解除）官方 UI 对话全链路（IPC 载波 + 自动扫描图谱 + 工作区 + 会话）已通。剩余待办为第三方 web 插件装载（desktop-compat 层）+ 看板落盘。
