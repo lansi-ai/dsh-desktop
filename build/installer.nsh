@@ -1,4 +1,4 @@
-﻿﻿; DSH Desktop NSIS 自定义安装脚本（electron-builder nsis.include）。
+﻿; DSH Desktop NSIS 自定义安装脚本（electron-builder nsis.include）。
 ; 卸载询问（M4 · 数据目录选择配套）：卸载时读取应用运行期写入的数据目录
 ; 标记（HKCU\Software\DSH Desktop\DataDir，打包版由 data-home.ts applyHome 写入），
 ; 询问用户是否一并删除用户数据（API 凭据/会话记录/设置等）。

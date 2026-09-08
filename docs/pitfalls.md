@@ -428,3 +428,26 @@
   1. 顶层 `import { app } from 'electron'` 的对象只在 Electron 主进程才有值；**可被纯 Node require 的模块**（尤其被 `scripts/*.cjs` 测试/校验脚本加载的）不能在建模块时触碰 `app`/`BrowserWindow` 等 Electron 专属 API，须惰性取或判空。
   2. 校验脚本的期望值要**随契约源头同步**：`parseArgv` 返回结构变了，`verify-serve-mode.cjs` 的 `deepEqual` 断言也要跟着改，否则每次 CI/冒烟都误报。
   3. 这类「既有但从未跑过」的脚本，凡改动其依赖模块就会把潜伏失配引爆——改 boot.ts 前先跑一次该脚本探底，比事后逐一修快。
+
+## 坑 38：TRAE 沙箱拦截 electron-builder 图标工具——打包卡死在 icon 转换（环境坑，非代码坑）
+
+- **现象**：worktree 内 `npm run dist` 编译全过（tsc ✅、electron zip 下载解压 ✅），卡在图标转换报 `TRAE Sandbox Error: hit restricted`，被拒路径 `AppData\...\Windows\Recent\CustomDestinations\*.temp` 与 `AppData\Local\electron-builder\Cache\icons@1.1.0`。
+- **根因**：electron-builder 转 PNG→.ico 的内置工具要写 AppData 下两个系统路径（Recent\CustomDestinations 临时文件 + electron-builder 图标缓存），TRAE 沙箱默认只放行工作区。与坑 0（沙箱拦 Electron 启动）同族：**GUI/工具链进程天然要碰工作区外文件**。
+- **解法**：Settings → Permission & Approval → Custom Configuration 放行 `C:\Users\Administrator\AppData\Local\electron-builder\`（缓存目录，放行后后续打包全免拦）；或当次授权「沙箱外运行」。
+- **复盘要点**：打包类命令（electron-builder/electron 均如此）在沙箱内首次跑失败时，先看报错是否 `TRAE Sandbox Error`——环境坑不用改代码，改配置即可；配置一次全项目受益。
+
+## 坑 39：`installer.nsh` 带**双 BOM** 潜伏一个里程碑——NSIS 报 `Invalid command: "?;"` 才引爆
+
+- **现象**：NSIS 打包报 `Invalid command: "?;"  !include: error in script: "build/installer.nsh" on line 1`，第 1 行明明是注释。
+- **根因**：文件头字节 `EF BB BF EF BB BF`——**双 BOM**。NSIS 吃掉第一个 BOM 当文件标记，第二个成了第 1 行正文，报「非法命令」。该双 BOM 自 M4-a4 提交（086c4c2）起就存在，但那次提交后**再没执行过 dist**，潜伏到今天。
+- **解法**：读全文去首个 U+FEFF 后以「UTF-8 with BOM」单 BOM 重写（NSIS 对中文 .nsh 恰恰**要求**保留 BOM，见 electron-builder.yml 注释——坑在「双」不在「有」）。
+- **复盘要点**：
+  1. `.nsh/.ps1` 等 Windows 工具链消费的文件，BOM 是正确性而非风格问题；提交前可 `Format-Hex` 抽查头部。
+  2. **提交≠验证过**：M4-a4 只验了运行时行为（卸载询问），没跑过完整 dist——「改了打包配置但没打包」的提交就是定时炸弹；凡动 `build/`、`electron-builder.yml`，收尾必须跑一次 `npm run dist`。
+
+## 坑 40：worktree 里打包——`.git` 是指针文件，electron-builder 探测不到仓库致 latest.yml 生成崩溃
+
+- **现象**：主工作区打包历来成功；在 worktree（`dsh-updater`）里 dist，安装包/便携包/签名全部产出后**最后一步崩**：`⨯ Cannot read properties of null (reading 'provider')` at `updateInfoBuilder.ts`，且前置警告 `Cannot detect repository by .git/config` × 3。
+- **根因**：electron-builder 生成 `latest.yml` 时从 git 仓库探测 GitHub owner/repo；worktree 的 `.git` 是**文件**（指向主仓库的指针）而非目录，探测失败 → publish 配置解析为 null → 崩溃。配置里 `publish: provider: github` 未写 owner/repo，全靠 git 探测兜底，在 worktree 里断链。
+- **解法**：`electron-builder.yml` 的 publish 段**显式写死** `owner: lansi-ai` / `repo: dsh-desktop`——两处环境（主区/worktree）都能打，不再依赖探测。
+- **复盘要点**：「同一份代码换个目录结果不同」时，先 diff 环境差异（此处 `.git` 形态）；隐式探测（git/registry/env）类配置，发布产物要走通就得显式钉死，探测只配兜底。

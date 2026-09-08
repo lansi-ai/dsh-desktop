@@ -26,11 +26,15 @@ npmRebuild: false
 asarUnpack:
   - "**/node-pty/**"
 # CI 发布通道：GitHub Releases（本地 dist 脚本用 --publish never 覆盖，不会误发布）。
+# owner/repo 必须显式写死：worktree 下 .git 是指针文件，electron-builder 探测不到
+# 仓库信息会导致 latest.yml 生成崩溃（Cannot read properties of null (reading 'provider')）。
 # 三通道（M4-b）：electron-updater 运行侧按渠道请求更新描述符 —— stable 读 latest.yml，
 # rc 经 `channel='rc'` 读 latest-rc.yml（off 仅本地停用，不涉发布）；发布时须保证对应
 # 更新描述符随 GitHub Releases 一并上传（rc 版打 pre-release）即可被对应渠道自动匹配。
 publish:
   provider: github
+  owner: lansi-ai
+  repo: dsh-desktop
 # dsh:// 协议声明：mac 写入 Info.plist CFBundleURLTypes（Windows 仍由运行时 setAsDefaultProtocolClient 注册）
 protocols:
   - name: DSH Protocol
