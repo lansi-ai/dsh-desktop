@@ -21,6 +21,8 @@ const argvMod = require(path.join(root, 'dist', 'desktop-shell', 'argv.js'))
 const hostMod = require(path.join(root, 'dist', 'desktop-host', 'boot.js'))
 
 // ── 1. argv parser 行为矩阵 ────────────────────────────────────────────
+// 期望结构随 src/desktop-shell/argv.ts 的 CliOptions 对齐：M4 新增 --hidden /
+// --select-data-dir 后 parseArgv 恒返回 { serve, servePort, hidden, selectDataDir }。
 
 function testParse(label, argv, expected) {
   const got = argvMod.parseArgv(argv)
@@ -28,14 +30,18 @@ function testParse(label, argv, expected) {
   console.log(`   ✓ ${label}: ${JSON.stringify(argv)} → ${JSON.stringify(got)}`)
 }
 
-testParse('默认无参数', ['electron', 'app'], { serve: false, servePort: 38000 })
-testParse('--serve 无参', ['electron', 'app', '--serve'], { serve: true, servePort: 38000 })
-testParse('--serve=5173 等号', ['electron', 'app', '--serve=5173'], { serve: true, servePort: 5173 })
-testParse('--serve 5173 空格', ['electron', 'app', '--serve', '5173'], { serve: true, servePort: 5173 })
-testParse('--serve=65535 上限', ['electron', 'app', '--serve=65535'], { serve: true, servePort: 65535 })
-testParse('--serve=0 非法值回退默认', ['electron', 'app', '--serve=0'], { serve: true, servePort: 38000 })
-testParse('--serve=-1 非法值回退默认', ['electron', 'app', '--serve=-1'], { serve: true, servePort: 38000 })
-testParse('其他参数忽略', ['electron', 'app', '--serve', '4321', '--foo', 'bar'], { serve: true, servePort: 4321 })
+const base = { hidden: false, selectDataDir: false }
+
+testParse('默认无参数', ['electron', 'app'], { serve: false, servePort: 38000, ...base })
+testParse('--serve 无参', ['electron', 'app', '--serve'], { serve: true, servePort: 38000, ...base })
+testParse('--serve=5173 等号', ['electron', 'app', '--serve=5173'], { serve: true, servePort: 5173, ...base })
+testParse('--serve 5173 空格', ['electron', 'app', '--serve', '5173'], { serve: true, servePort: 5173, ...base })
+testParse('--serve=65535 上限', ['electron', 'app', '--serve=65535'], { serve: true, servePort: 65535, ...base })
+testParse('--serve=0 非法值回退默认', ['electron', 'app', '--serve=0'], { serve: true, servePort: 38000, ...base })
+testParse('--serve=-1 非法值回退默认', ['electron', 'app', '--serve=-1'], { serve: true, servePort: 38000, ...base })
+testParse('--hidden 静默', ['electron', 'app', '--hidden'], { serve: false, servePort: 38000, hidden: true, selectDataDir: false })
+testParse('--select-data-dir 重选目录', ['electron', 'app', '--select-data-dir'], { serve: false, servePort: 38000, hidden: false, selectDataDir: true })
+testParse('其他参数忽略', ['electron', 'app', '--serve', '4321', '--foo', 'bar'], { serve: true, servePort: 4321, ...base })
 
 // ── 2. 默认补丁栈禁用 Web 传输层（零端口红线） ────────────────────────
 const patches = hostMod.getDesktopOverlayPatches()
@@ -67,12 +73,20 @@ assert.strictEqual(webRuntime.disabled, true, 'web-runtime 默认应为 disabled
 assert.strictEqual(webStartup.disabled, true, 'web-startup 默认应为 disabled（零端口红线）')
 console.log('   ✓ 默认补丁栈：webserver/web-runtime/web-startup 均为 disabled（零端口 R-03 红线成立）')
 
-// IPC 载波变体仍在列（connection/client-runtime 被禁用 → 走 IPC 桥）。
-const connection = findById('connection')
-const clientRuntime = findById('client-runtime')
-assert.ok(connection !== undefined && connection.disabled === true, 'connection 应为 disabled（IPC 载波变体替代）')
-assert.ok(clientRuntime !== undefined && clientRuntime.disabled === true, 'client-runtime 应为 disabled（IPC 载波变体替代）')
-console.log('   ✓ connection/client-runtime 已禁用（IPC 载波变体替换生效）')
+// 0.1.2 IPC 载波替换后的传输层断言（对齐 boot.ts §3 现状）：
+//   - host-connection 激活（createSharedFetchHandler 是桌面传输背板核心，不再禁用）；
+//   - client-runtime 已随上游删除（无此行）；client-hmr / cordis-client-runner /
+//     cordis-host-runner 仍 disabled（IPC 载波替代）。
+const hostConnection = findById('host-connection')
+const clientHmr = findById('client-hmr')
+const cordisClientRunner = findById('cordis-client-runner')
+const cordisHostRunner = findById('cordis-host-runner')
+assert.ok(hostConnection !== undefined && hostConnection.disabled !== true, 'host-connection 应激活（IPC 载波背板）')
+assert.ok(findById('client-runtime') === undefined, 'client-runtime 应已删除（0.1.2 上游移除）')
+assert.ok(clientHmr !== undefined && clientHmr.disabled === true, 'client-hmr 应为 disabled')
+assert.ok(cordisClientRunner !== undefined && cordisClientRunner.disabled === true, 'cordis-client-runner 应为 disabled')
+assert.ok(cordisHostRunner !== undefined && cordisHostRunner.disabled === true, 'cordis-host-runner 应为 disabled')
+console.log('   ✓ host-connection 激活 + client-runtime 已删 + runner 三行 disabled（IPC 载波替换成立）')
 
 console.log('')
 console.log('✅ Step 6·零端口 + --serve 兼容模式冒烟通过')

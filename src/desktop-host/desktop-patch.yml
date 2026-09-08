@@ -87,8 +87,12 @@
     - id: session-query-sqlite
       name: '@deepseek-ai/dsh-session-query-sqlite'
       config:
+        # 运行期由 boot.ts buildPatches() 以 $DSH_HOME 解析为持久化索引
+        # （<DSH_HOME>/search/session-query.sqlite，openAt: startup）；此处仅为
+        # roster 提取与文档占位，YAML 不参与运行期装配（boot.ts 注释：补丁以
+        # JS 对象直传，!!js 表达式管道不激活）。
         path: ':memory:'
-        openAt: never
+        openAt: startup
 
     - id: session-projection
       name: '@deepseek-ai/dsh-session-projection'
@@ -372,11 +376,12 @@
 - id: hmr
   disabled: true
 
-# 全文会话搜索保持关闭
+# 会话全文搜索：openAt startup + 持久化索引（运行期由 boot.ts buildPatches()
+# 以 $DSH_HOME 解析 path 为 <DSH_HOME>/search/session-query.sqlite；此处占位）。
 - id: session-query-sqlite
   config:
     path: ':memory:'
-    openAt: never
+    openAt: startup
 
 # ═══════════════════════════════════════════════════════════════════════════
 # §3 禁用 Web 传输层（零端口 IPC 载波替代，步骤 4 实现）

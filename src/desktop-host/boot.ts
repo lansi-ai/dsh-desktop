@@ -22,9 +22,16 @@ import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'r
 // 运行时数据根目录（M4-a1·打包路径适配）：
 // 开发模式 → 项目内 .runtime（随仓库可清理）；打包模式 → 系统 userData 下 .runtime
 // （asar 只读不可写，R7 硬编码路径的打包态收口；完整可配置化留 M5）。
-const RUNTIME_ROOT = app.isPackaged
-  ? join(app.getPath('userData'), '.runtime')
-  : join(__dirname, '..', '..', '.runtime')
+// 惰性求值：顶层求值会在纯 Node 环境（verify-serve-mode.cjs require）下因
+// electron.app 为 undefined 而崩（坑 37）。
+function runtimeRoot(): string {
+  // 纯 Node 环境（verify-serve-mode.cjs require 本模块）下 electron.app 为
+  // undefined：回退开发路径；Electron 运行时 app 必存在（isPackaged 区分 dev/packaged）。
+  if (app !== undefined && app.isPackaged) {
+    return join(app.getPath('userData'), '.runtime')
+  }
+  return join(__dirname, '..', '..', '.runtime')
+}
 
 /** boot 启动选项（含 Step 6 --serve 兼容模式）。 */
 export interface BootOptions {
@@ -131,8 +138,11 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai' },
       // session-persistence-jsonl: !!js dshHomePath('sessions') → 使用运行时数据根下的 sessions 目录
       // 开发模式：userData 在 main.ts 中重定向至 .runtime/user-data；打包模式：RUNTIME_ROOT（系统 userData）
-      { id: 'session-persistence-jsonl', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(RUNTIME_ROOT, 'user-data', 'sessions') } },
+      { id: 'session-persistence-jsonl', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(runtimeRoot(), 'user-data', 'sessions') } },
       { id: 'attachment-local', name: '@deepseek-ai/dsh-attachment-local' },
+      // 会话全文搜索（opt-in）：静态 insert 仅保证插件行存在；config 由
+      // buildPatches() 动态覆盖为 openAt 'startup' + $DSH_HOME/search/ 持久化索引。
+      // 此处 :memory:/never 为兜底默认（供自定义 patches/测试场景，不触发持久化）。
       { id: 'session-query-sqlite', name: '@deepseek-ai/dsh-session-query-sqlite', config: { path: ':memory:', openAt: 'never' } },
       { id: 'session-projection', name: '@deepseek-ai/dsh-session-projection' },
       {
@@ -263,8 +273,6 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
 
   // ── §2 dsh-web-app 选择性覆盖（桌面 persona）─────────────────────────────
   { id: 'system-prompt', config: { persona: 'You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.' } },
-  { id: 'session-query-sqlite', config: { path: ':memory:', openAt: 'never' } },
-
   // ── §3 禁用 Web 传输层 + 启用 0.1.2 IPC 载波变体 ────────────────
   // 零端口：禁用官方 webserver/web-runtime/web-startup/modules（host 传输层绑定端口）。
   // api-remotes 不再禁用——0.1.2 中它是 $events 转发源（renderer 经 __DSH_TRANSPORT__
@@ -294,7 +302,7 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   {
     insert: [
       { id: 'storage', name: '@deepseek-ai/dsh-storage' },
-      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(RUNTIME_ROOT, 'user-data', 'storages') } },
+      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(runtimeRoot(), 'user-data', 'storages') } },
       { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
       // roots 指向仓库随附的裁剪预设（仅用已装插件，避免缺依赖导致 mount 失败）。
       {
@@ -317,8 +325,9 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
  * @returns cordis.yml 的绝对路径。
  */
 function createRootConfig(): string {
-  mkdirSync(RUNTIME_ROOT, { recursive: true })
-  const configPath = join(RUNTIME_ROOT, 'cordis.yml')
+  const root = runtimeRoot()
+  mkdirSync(root, { recursive: true })
+  const configPath = join(root, 'cordis.yml')
   writeFileSync(configPath, '# dsh-desktop profile root — 所有配置由 desktop-patch.yml overlay 补丁覆盖。\n[]\n')
   return configPath
 }
@@ -326,8 +335,24 @@ function createRootConfig(): string {
 // ── 入口函数 ────────────────────────────────────────────────────────────────
 
 /**
- * 根据 serveMode 构造最终 overlay patches（Step 6 兼容模式切换）。
+ * 会话全文搜索索引补丁（openAt: startup + 持久化 path）。
  *
+ * path 在装配期解析（此时 DSH_HOME 已由 ensureDataHome 就绪）为
+ * `<DSH_HOME>/search/session-query.sqlite`，索引文件跨重启持久；startup 只打开
+ * 索引库（读 global_generation，毫秒级），真正的索引对账在首次搜索时增量发生
+ * （dsh-session-query-sqlite `_reconcile` 按 revision/fingerprint 比对，不重复全量）。
+ * DSH_HOME 未就绪（测试/自定义 patches 场景）回退 :memory: + startup 保证服务可用。
+ */
+function sessionQueryIndexPatch(): PatchOptions {
+  const home = process.env.DSH_HOME
+  if (home === undefined || home === '') {
+    log.warn('[dsh-boot] DSH_HOME 未就绪，会话搜索索引回退 :memory:（openAt startup）')
+    return { id: 'session-query-sqlite', config: { path: ':memory:', openAt: 'startup' } }
+  }
+  return { id: 'session-query-sqlite', config: { path: join(home, 'search', 'session-query.sqlite'), openAt: 'startup' } }
+}
+
+/**
  * 默认模式（portless）：沿用 DESKTOP_OVERLAY_PATCHES，webserver/web-runtime/
  *   web-startup 保持 disabled，connection/client-runtime 由 IPC 载波变体替代。
  * --serve 模式：解除 webserver/web-runtime/web-startup 的 disabled 标记，
@@ -338,9 +363,11 @@ function createRootConfig(): string {
  * @returns 最终传给 boot() 的 patches 数组。
  */
 function buildPatches(serveMode: boolean, servePort: number): PatchOptions[] {
+  // 会话全文搜索索引覆盖（startup + 持久化）恒追加于栈尾，后写覆盖静态 insert 行。
+  const patches = [...DESKTOP_OVERLAY_PATCHES, sessionQueryIndexPatch()]
   if (!serveMode) {
     // 默认零端口模式：返回内置补丁栈（IPC 载波变体 + Web 传输层禁用）。
-    return DESKTOP_OVERLAY_PATCHES
+    return patches
   }
   // --serve 兼容模式：桌面补丁栈本身从未插入 dsh-web-app 的传输层行——
   // §3 只有 `{ id: 'webserver', disabled: true }` 这类 id 打点 patch，而目标条目
@@ -356,7 +383,7 @@ function buildPatches(serveMode: boolean, servePort: number): PatchOptions[] {
       { id: 'webserver', name: '@deepseek-ai/dsh-host-webserver', config: { host: '127.0.0.1', port: servePort } },
     ],
   }
-  return [...DESKTOP_OVERLAY_PATCHES, webserverInsert]
+  return [...patches, webserverInsert]
 }
 
 /**

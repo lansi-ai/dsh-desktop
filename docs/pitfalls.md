@@ -416,3 +416,15 @@
   1. 命令行/桥接层自带的失败日志与组件级降级是**两条独立路径**：组件 catch 只止住「未捕获异常」，止不住 infra 层的 per-request 打印。要消除噪声须**少发请求**，而非多 catch。
   2. 「被功能开关关闭的能力」是**稳定的持续状态**，应在首次探测后 latch，不要每次用户操作都去重复试探；判据用错误文案匹配是当前唯一可用信号，锁定态宁可误锁（少发请求）不可漏锁（刷屏）。
   3. 该部署下内容搜索**本就不该可用**，正确结局=本地名匹配 + 明确「仅名称匹配」提示，而不是假调用或持久报错。可后置判据再次验证：连「花哨能力」的失败也要有体面出口。
+
+## 坑 37：纯 Node 环境下 require `boot.js` 因 `electron.app` 为 undefined 而崩；verify 脚本与 `CliOptions`/载波行失配（均既有缺陷，开启搜索索引时暴露）
+
+- **现象**：改动 `src/desktop-host/boot.ts` 后跑 `node scripts/verify-serve-mode.cjs`，报 `TypeError: Cannot read properties of undefined (reading 'isPackaged') at runtimeRoot (dist/desktop-host/boot.js)`，模块加载即失败。
+- **根因**：`boot.ts` 顶层 `const RUNTIME_ROOT = app.isPackaged ? …` 在**纯 Node**（verify 脚本 `require('dist/desktop-host/boot.js')`，无 Electron 运行时）下 `electron.app` 为 `undefined`。M4-a1 引入该常量后 verify-serve-mode 一直失配、从未通过——是**既有测试基建缺陷**，与本轮开启搜索索引无关，但改 boot.ts 会触发。
+- **解法**：
+  1. `RUNTIME_ROOT` 改为惰性 `runtimeRoot()`，且在 `app === undefined` 时回退开发路径（Electron 运行时 `app.isPackaged` 恒可用）。
+  2. 修复 verify 脚本与现状的两处失配：① `parseArgv` 在 M4 新增 `--hidden/--select-data-dir` 后恒返回四字段 `{ serve, servePort, hidden, selectDataDir }`，旧断言只期望两字段；② 0.1.2 升级后传输层行已变——`connection`→`host-connection`（激活，IPC 载波背板，不再 disabled）、`client-runtime` 已删、`client-hmr/cordis-client-runner/cordis-host-runner` 仍 disabled。
+- **复盘要点**：
+  1. 顶层 `import { app } from 'electron'` 的对象只在 Electron 主进程才有值；**可被纯 Node require 的模块**（尤其被 `scripts/*.cjs` 测试/校验脚本加载的）不能在建模块时触碰 `app`/`BrowserWindow` 等 Electron 专属 API，须惰性取或判空。
+  2. 校验脚本的期望值要**随契约源头同步**：`parseArgv` 返回结构变了，`verify-serve-mode.cjs` 的 `deepEqual` 断言也要跟着改，否则每次 CI/冒烟都误报。
+  3. 这类「既有但从未跑过」的脚本，凡改动其依赖模块就会把潜伏失配引爆——改 boot.ts 前先跑一次该脚本探底，比事后逐一修快。
