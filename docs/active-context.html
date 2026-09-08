@@ -124,6 +124,7 @@
         <li class="task-item done"><span class="status-icon">[x]</span><span>M4-a1 electron-builder 基建 ✅；v0.1.1-alpha.1~alpha.3 Win/mac 安装包发布 ✅（打包链坑见 <code>docs/pitfalls.md</code>）</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span>M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>）→ alpha.4 → alpha.5（<code>scripts/upstream.cjs</code> 自动化首跑）→ rc.1（首次跨 next 线）；全部零破坏性变更，登记 <code>docs/upstream-migrations.md</code> C-1~C-4</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span>M4-d6 工具修正 ✅（2026-09-07）：<code>check</code> 判据源 npm dist-tags → <strong>GitHub releases</strong>（npm 降级为可安装校验，新增 pending 三态），修「连续 3 天漏检 0.1.3-alpha.1」，见坑 31 / ADR-005 第 6 条</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M6-P3 侧栏 workspaces ✅（2026-09-08 实机验收）</strong>：<code>@lansi-ai/dsh-desktop-workspaces</code> W1 五接管+picker 承重（坑 35）→ W2 派生层 → W3 Rows/视图选项 → W4 内容搜索 → W5 实机对照点；搜索索引开启 <code>openAt startup+$DSH_HOME 持久化</code>（坑 36 探测锁定 / 坑 37 app 未定义）；单测 16 项+图谱实测，见 <code>docs/plugin-inventory.md</code></span></li>
         <li class="task-item deferred"><span class="status-icon">⏸</span><span>M2-c 旧插件门禁置后（载体待确认，不阻塞）；R6/R7 技术债留 M5</span></li>
       </ul>
 
@@ -140,12 +141,8 @@
       <div class="phase-label active">M6 · 全量自绘 UI 🔥 主线</div>
       <ul class="task-list">
         <li class="task-item done"><span class="status-icon">[x]</span><span>P1 骨架 = M3-c ✅；sidebar 壳 <code>@lansi-ai/dsh-desktop-sidebar</code> ✅（2026-09-01 实机验证）；<code>@lansi-ai/dsh-desktop-session-export</code> ✅（2026-09-02）</span></li>
-        <li class="task-item in-progress"><span class="status-icon">[ ]</span><span><strong>P3 收尾 · 当前焦点 = <code>@lansi-ai/dsh-desktop-workspaces</code>（v1 全量复刻，用户决策）</strong>，摸底硬约束：</span></li>
-        <li class="task-item sub"><span class="status-icon">·</span><span><strong>替换件必须双注册全覆盖</strong>：WorkspaceBrowser → <code>sidebar.workspaces</code>（自有壳声明的洞）+ WorkspacePicker → <code>conversation.hero.workspace</code>（官方 ui-conversation 声明，P4 前不消失）</span></li>
-        <li class="task-item sub"><span class="status-icon">·</span><span>排除 ui-workspace 时<strong>接管两项全局贡献</strong>：<code>ctx.slots.provideRoot({hooks:{workspaces: workspaces.list}})</code> + <code>ctx.locale.register('workspace',{zh,en})</code>；其 UiWorkspaceService 为 apply 局部实例未注册 ctx 服务，排除不连坐</span></li>
-        <li class="task-item sub"><span class="status-icon">·</span><span>实现要点：viewing store = <code>createWorkspaceViewStore()</code>（dsh-client-store defineStore）；tree 派生纯函数 deriveGroups/Flat/Search + indexSubagentDescendants lineage；行状态 pendingInteraction 琥珀 &gt; running 蓝 &gt; completed 绿；Manual 拖拽 Host-durable（insertWorkspaceBefore/insertSessionBefore）；directoryFlow occupant = native directory-picker（Electron chooser 无改动继续工作）</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span>W1 插件骨架+store+locale+provideRoot+双注册空壳+boot-graph 排除 ui-workspace → W2 tree 派生层 → W3 Rows 行组件 → W4 Browser+Picker → W5 实机对照点验收口（每步原子提交）</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>P2 外壳小件</strong>：<code>@lansi-ai/dsh-desktop-brand</code>（sidebar.brand.mark + sidebar.brand.name 洞）+ 会话 header 重排评估（✅ 前置：标题栏 logo 复用 app-icon PNG 已落地，见 dogfood #14）</span></li>
+        <li class="task-item in-progress"><span class="status-icon">[ ]</span><span><strong>P2 外壳小件 · 当前焦点 = <code>@lansi-ai/dsh-desktop-brand</code>（sidebar.brand.mark + sidebar.brand.name 洞）</strong>，会话 header 重排评估（✅ 前置：标题栏 logo 复用 app-icon PNG 已落地，见 dogfood #14）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>P3 侧栏已全量完成 ✅（2026-09-08 实机验收）</strong>：workspaces W1–W5（含 picker 承重、派生层、行组件/视图选项、内容搜索 + 索引开启），见里程碑索引</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>P4 对话主区</strong>（最大单件）：ui-conversation/ui-renderer/ui-input-trigger/ui-attachment/ui-reference → 自研 dsh-desktop-conversation 族</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>P5 过程可视化</strong>：ui-tool/ui-subagent/ui-plan/ui-goal/ui-jobs/ui-skill/ui-workflow-run/ui-trajectory</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>P6 设置与底座</strong>：ui-settings 6 section + ui-theme/ui-locale/ui-model-selection/ui-permission-presets</span></li>
@@ -175,7 +172,7 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前焦点</strong>：M6-P3 workspaces W1（插件骨架 + store + locale + provideRoot + 双注册空壳 + boot-graph 排除 ui-workspace），随后 W2→W5。</p>
+      <p style="margin:0;"><strong>当前焦点</strong>：M6-P2 外壳小件 <code>@lansi-ai/dsh-desktop-brand</code>（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底。</p>
       <p style="margin:4px 0 0 0;"><strong>日常</strong>：dogfood 问题按 <code>docs/dogfood-issues.md</code> #N 直取；上游升级 <code>npm run upstream:auto</code>（每日 02:00 自动，<strong>判据源=GitHub releases</strong>；升级成功后按脚本打印的 <code>[TODO] 台账待人工同步</code> 清单收口）。当前上游 pending：待 <code>0.1.3-alpha.1</code> 上 npm 后先 <code>assess</code> 再人工适配，勿硬升。</p>
       <p style="margin:4px 0 0 0;"><strong>按需查阅台账</strong>：<code>docs/pitfalls.md</code>（坑 1~N 排障档案）· <code>docs/dogfood-issues.md</code>（dogfood 现场）· <code>docs/upstream-contracts.md</code>（拴合面速查 + 升级 SOP）· <code>docs/upstream-migrations.md</code>（升级台账 C 区）· <code>docs/11-risks.md</code>（风险全录）· <code>docs/adr/</code>（架构决策全文）。</p>
     </div>
