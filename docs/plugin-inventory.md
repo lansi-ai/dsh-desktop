@@ -20,7 +20,7 @@
 |---|---|---|
 | **P1 布局骨架** | root 槽位（三列布局 + titlebar 行） | ✅ 完成（= M3-c，2026-09-01 实机验证通过） |
 | **P2 外壳小件** | Session 导出（首件 ✅）→ brand 洞 → 会话 header 重排 | 🔄 1/3 |
-| **P3 侧栏自研** | 侧栏壳（✅ 实机通过）+ 会话浏览区（`ui-workspace` 替换，W1-W5） | 🔄 壳 ✅；**W1 五接管面 + picker 承重件 ✅；W2 tree 派生层 ✅；W3 Rows 行组件 + 视图选项 ✅**（2026-09-08，派生/行纯函数单测 15 项全过，**待实机点验**）→ W4 Browser 增强（内容搜索）/ W5 实机对照点验收口 |
+| **P3 侧栏自研** | 侧栏壳（✅ 实机通过）+ 会话浏览区（`ui-workspace` 替换，W1-W5） | 🔄 壳 ✅；**W1 五接管面 + picker 承重件 ✅；W2 tree 派生层 ✅；W3 Rows 行组件 + 视图选项 ✅；W4 Browser 内容搜索 ✅**（2026-09-08，派生/行/搜索纯函数单测 16 项全过，**待实机点验**）→ W5 实机对照点验收口 |
 | **P4 对话主区** | `ui-conversation` + `ui-renderer` + input/attachment/reference | ⬜ 未开始（最大单件） |
 | **P5 过程可视化** | tool/subagent/plan/goal/jobs/skill/workflow-run/trajectory | ⬜ 未开始 |
 | **P6 设置与底座** | settings 6 section + theme/locale/model-selection/permission-presets | ⬜ 未开始 |
@@ -54,7 +54,7 @@
 ### 自有化待办（按阶段）
 
 - **P2**：`dsh-desktop-brand`（sidebar.brand.mark/name 洞）、会话 header 重排评估（TRAE 式会话名 + 按钮组）
-- **P3**：`dsh-desktop-workspaces`（全量复刻 ui-workspace）——W1 五接管面 ✅ + **picker 承重件 ✅**（2026-09-08；坑 35：原「空壳」锁死全应用，已把选/加工作区提前到首批）→ **W2 tree 派生层 ✅**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘，内联进 bundle，export.derive 钩子 + node:test 单测 8 项，2026-09-08）→ **W3 Rows 行组件 + 视图选项 ✅**（组行/会话行 + 状态点优先级 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，单测 7 项追加，2026-09-08）→ **W4** Browser 增强（内容搜索；目录流收养已随 W1 通；分组折叠已随 W3）→ **W5** 实机对照点验收口
+- **P3**：`dsh-desktop-workspaces`（全量复刻 ui-workspace）——W1 五接管面 ✅ + **picker 承重件 ✅**（2026-09-08；坑 35：原「空壳」锁死全应用，已把选/加工作区提前到首批）→ **W2 tree 派生层 ✅**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘，内联进 bundle，export.derive 钩子 + node:test 单测 8 项，2026-09-08）→ **W3 Rows 行组件 + 视图选项 ✅**（组行/会话行 + 状态点优先级 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，单测 8 项追加，2026-09-08）→ **W4 Browser 增强 ✅**（内容搜索：wide 内联搜索槽 + narrow 搜索入口展开侧栏 + Host `session.search` 防抖 250ms + sanitizeSearchQuery 线缆护栏 + 本地/内容命中合并派生，单测追加 sanitizeSearchQuery，全局计 16 项通过，2026-09-08；目录流收养已随 W1 通；分组折叠/视图选项已随 W3）→ **W5** 实机对照点验收口
 - **P4-P6**：见上表（启动前需逐件摸底登记）
 
 ---
@@ -334,7 +334,7 @@
 | `@lansi-ai/dsh-desktop-titlebar` | `desktop-titlebar-client.js` | titlebar 行：品牌区（官方 FishLogo/BrandWordmark，坑 23）+ 折叠钮 + 中部拖拽区 + 窗控三钮；**v5：logo + 窗控四枚 + 折叠两枚全部支持主题槽位 `icons/titlebar-*.svg`**（状态对成对提供才启用，缺失回退内置，peekSvg 防首帧空窗）（inject: slots+layout+themeIcon） | ✅（2026-09-04 v5，待实机点验） |
 | `@lansi-ai/dsh-desktop-sidebar` | `desktop-sidebar-client.js` | 侧栏壳（M6-P3）：fold 状态机 + 新会话（经 **`ctx.get('uiWorkspace').startSession`**，坑 32 修复件——非 domain 服务）+ 4 子槽位声明（brand.mark/name、workspaces、settings），子槽位注册者无改动继续工作。**2026-09-07 注**：`sidebar.workspaces` 现由自研 `dsh-desktop-workspaces` 顶替（原为官方 ui-workspace）；`sidebar.settings` 仍为官方注册者 | ✅（2026-09-01 实机验证通过） |
 | `@lansi-ai/dsh-desktop-session-export` | `desktop-session-export-client.js` | Session 日志导出 UI（M6-P2 首件）：header 导出胶囊 + 结果弹层 + 下载 controller，文案修正桌面语义；host 半官方保留 | ✅（2026-09-02 实机验证通过） |
-| `@lansi-ai/dsh-desktop-workspaces` | `desktop-workspaces-client.js` | 工作区浏览区（M6-P3 W1 骨架）：顶替官方 `ui-workspace`，承接**五项接管面**——`uiWorkspace` 服务（六方法）+ `provideRoot(hooks.workspaces)` + `workspace` 字典 63 键 + 双注册（`sidebar.workspaces` / `conversation.hero.workspace` 各带 directoryFlow 子洞）+ 十三项动作注入面（薄转发官方 domain，数据面零新增）。store persist key 沿用 `dsh.workspace.view.v5`。**选/加工作区已可用**（官方 `WorkspacePickFlow` 等价内核：有工作区列菜单+底部固定「添加」，无工作区 open 即直抬系统目录选择器，收养失败落弹层可重试；侧栏 `addOnly` + 收养后 `startSession`）；**tree 派生层已完成（W2）**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘等纯函数内联进 bundle，`exports.derive` 钩子供 W3/W4 复用 + node:test 单测守护）；**Rows 行组件 + 视图选项已完成（W3）**（组行/会话行 + 状态点 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，纯函数 7 项单测追加）；内容搜索仍后置（W4） | 🔄 W1+picker+**W2 派生层+W3 Rows+视图选项**（2026-09-08，图谱实测 + 冒烟 40 项 + pickflow 行为 21 项 + 字典 diff + **派生/行单测 15 项** 全通过，**待实机点验**） |
+| `@lansi-ai/dsh-desktop-workspaces` | `desktop-workspaces-client.js` | 工作区浏览区（M6-P3 W1 骨架）：顶替官方 `ui-workspace`，承接**五项接管面**——`uiWorkspace` 服务（六方法）+ `provideRoot(hooks.workspaces)` + `workspace` 字典 63 键 + 双注册（`sidebar.workspaces` / `conversation.hero.workspace` 各带 directoryFlow 子洞）+ 十三项动作注入面（薄转发官方 domain，数据面零新增）。store persist key 沿用 `dsh.workspace.view.v5`。**选/加工作区已可用**（官方 `WorkspacePickFlow` 等价内核：有工作区列菜单+底部固定「添加」，无工作区 open 即直抬系统目录选择器，收养失败落弹层可重试；侧栏 `addOnly` + 收养后 `startSession`）；**tree 派生层已完成（W2）**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘等纯函数内联进 bundle，`exports.derive` 钩子供 W3/W4 复用 + node:test 单测守护）；**Rows 行组件 + 视图选项已完成（W3）**（组行/会话行 + 状态点 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，纯函数 8 项单测追加）；**内容搜索已完成（W4）**（wide 内联搜索槽 + narrow 搜索入口 + Host `session.search` 防抖 + sanitizeSearchQuery 线缆护栏 + 本地/内容命中合并派生，单测追加 sanitizeSearchQuery） | 🔄 W1+picker+**W2 派生层 + W3 Rows/视图选项 + W4 内容搜索**（2026-09-08，图谱实测 + 冒烟 40 项 + pickflow 行为 21 项 + 字典 diff + **派生/行/搜索单测 16 项** 全通过，**待实机点验**） |
 | `@lansi-ai/dsh-desktop-settings` | `desktop-settings-client.js` | 设置页「桌面」section（tray/通知/快捷键/自启 Toggle） | ✅ |
 | `@lansi-ai/dsh-desktop-theme` | `desktop-theme-client.js` | 设置页「外观」section，**由上至下四项一级设置项**：① 应用图标 ② 托盘图标 ③ 品牌 logo（三项 global，存 `userData/icons/` 全局单份、不随包切换）④ 图标包（卡片网格 + 新建包，其下二级=界面图标需求清单：默认折叠、按消费方插件分组卡、行内上传·替换）；槽位真源 = host `ICON_SLOTS`（D-23；坑 27/28/29/30） | ✅（2026-09-04 重构，待实机点验） |
 | `@lansi-ai/dsh-desktop-audit-viewer` | `desktop-audit-viewer-client.js` | 会话审计查看器 Tab | ✅ |

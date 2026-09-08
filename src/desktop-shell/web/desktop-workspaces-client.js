@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       IconPlusOutline16, IconFolderClose16, IconFolderOpen16, IconTriangleRightFill14,
       IconEditOutline16, IconTrashOutline16, IconEllipsisOutline16, IconBranchOutline16,
       IconArchiveOutline20, IconAlarmClockOutline16, IconPersonalizationOutline16,
+      IconSearchOutline16, IconCloseFill14,
     } = require('@deepseek-ai/dsh-client-ui-primitives')
 
     /** 本件顶替官方件，复用官方字典命名空间（官方包已互斥排除，无冲突）。 */
@@ -661,6 +662,121 @@ window.__ModuleLoader__.load({
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary)!important;
 }
+/* ── W4 内容搜索（对齐官方 Search 模块；section-header 内联搜索槽）── */
+.dsh-desktop-workspaces-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+}
+.dsh-desktop-workspaces-search-button,
+.dsh-desktop-workspaces-clear-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary)!important;
+  cursor: pointer;
+}
+.dsh-desktop-workspaces-search-button:hover,
+.dsh-desktop-workspaces-clear-button:hover {
+  background: var(--dsw-alias-interactive-bg-hover)!important;
+}
+.dsh-desktop-workspaces-search-input {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-primary)!important;
+  font-size: 12px;
+}
+.dsh-desktop-workspaces-search-expanded .dsh-desktop-workspaces-search-input {
+  display: inline-block;
+}
+.dsh-desktop-workspaces-search-input::placeholder {
+  color: var(--dsw-alias-label-tertiary)!important;
+}
+.dsh-desktop-workspaces-search-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 2px 0;
+}
+.dsh-desktop-workspaces-search-tree {
+  display: flex;
+  flex-direction: column;
+}
+.dsh-desktop-workspaces-search-result-row {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+.dsh-desktop-workspaces-search-result-row:hover,
+.dsh-desktop-workspaces-search-result-row.dsh-desktop-workspaces-selected {
+  background: var(--dsw-alias-interactive-bg-hover)!important;
+}
+.dsh-desktop-workspaces-search-result-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dsw-alias-label-primary)!important;
+}
+.dsh-desktop-workspaces-search-result-title {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsh-desktop-workspaces-search-result-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 20px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary)!important;
+}
+.dsh-desktop-workspaces-search-result-workspace {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.dsh-desktop-workspaces-search-result-snippet {
+  color: var(--dsw-alias-label-tertiary)!important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsh-desktop-workspaces-search-status,
+.dsh-desktop-workspaces-search-warning {
+  padding: 8px 2px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-quaternary)!important;
+}
+.dsh-desktop-workspaces-search-warning {
+  color: var(--dsw-alias-state-danger-primary)!important;
+}
 /* ── W3 行组件样式（逐字对齐官方 Rows 模块，类名换 dsh-desktop-workspaces-* 前缀）── */
 .dsh-desktop-workspaces-project-row,
 .dsh-desktop-workspaces-session-row {
@@ -1134,11 +1250,68 @@ window.__ModuleLoader__.load({
      * store/inject/locale 标准面 + 全局 session/workspace/permissions 钩子。
      *
      * 数据流：`useSessions`（会话清单）/`useWorkspaces`（工作区 + 归档集）/`useStore`（视图态）
-     * → 账户效应（blank 提升 + 账户键清理）→ `SessionTree`（组模式）/`FlatList`（单列表）。
-     * 视图选项（分组方式 + 排序方式）下拉仅 wide 模式展示；内容搜索富 UI 归 W4。
+     * → 账户效应（blank 提升 + 账户键清理）→ `SessionTree`（组模式）/`FlatList`（单列表）/
+     * `SearchResults`（搜索）三态分流。视图选项（分组方式 + 排序方式）下拉仅 wide 模式展示；
+     * 搜索（wide 内联搜索槽 + narrow 搜索入口）与 Host 内容搜索经防抖载波。
      */
-    function WorkspaceBrowser({ wide, expandSidebar, t, renderSlot, useWorkspaces, useDirectoryFlow, useStore, useHostInfo, useSessions, useSessionPendingInteraction, startSession, createWorkspace, open, renameSession, forkSession, renameWorkspace, deleteWorkspace, insertWorkspaceBefore, insertSessionBefore, archiveSession, actions }) {
+    function WorkspaceBrowser({ wide, expandSidebar, t, renderSlot, useWorkspaces, useDirectoryFlow, useStore, useHostInfo, useSessions, useSessionPendingInteraction, startSession, createWorkspace, open, renameSession, forkSession, renameWorkspace, deleteWorkspace, insertWorkspaceBefore, insertSessionBefore, archiveSession, searchSessions, searchResultLimit, actions }) {
       const [addOpen, setAddOpen] = useState(false)
+      const [query, setQuery] = useState('')
+      const [searchExpanded, setSearchExpanded] = useState(false)
+      const [remoteSearch, setRemoteSearch] = useState({ query: '', status: 'idle', items: [], hasMore: false })
+      const searchRoot = useRef(null)
+      const searchInput = useRef(null)
+      const [searchOnExpand, setSearchOnExpand] = useState(false)
+      const normalizedQuery = sanitizeSearchQuery(query).trim()
+      // 展开侧栏后的滑入完成后聚焦搜索框。
+      useEffect(() => {
+        if (wide && searchOnExpand) {
+          const timer = window.setTimeout(() => {
+            searchInput.current?.focus({ preventScroll: true })
+            setSearchOnExpand(false)
+          }, EXPAND_SLIDE_MS)
+          return () => { window.clearTimeout(timer) }
+        }
+      }, [wide, searchOnExpand])
+      // 搜索框展开时聚焦（首次滑入除外，由上行负责）。
+      useEffect(() => {
+        if (!wide || !searchExpanded || searchOnExpand) return
+        searchInput.current?.focus({ preventScroll: true })
+      }, [wide, searchExpanded, searchOnExpand])
+      // 点击搜索区外：收起搜索（有词则不收起，便于继续编辑）。
+      useEffect(() => {
+        if (!wide || !searchExpanded || searchOnExpand) return
+        const onClick = (event) => {
+          if (!(event.target instanceof globalThis.Node) || searchRoot.current?.contains(event.target) === true) return
+          searchInput.current?.blur()
+          if (normalizedQuery !== '') return
+          setSearchExpanded(false)
+        }
+        document.addEventListener('click', onClick)
+        return () => { document.removeEventListener('click', onClick) }
+      }, [normalizedQuery, wide, searchExpanded, searchOnExpand])
+      // 内容搜索防抖请求（query 为空复位，切换即 abort 旧请求）。
+      useEffect(() => {
+        if (normalizedQuery === '') {
+          setRemoteSearch({ query: '', status: 'idle', items: [], hasMore: false })
+          return
+        }
+        const controller = new AbortController()
+        setRemoteSearch({ query: normalizedQuery, status: 'loading', items: [], hasMore: false })
+        const timer = window.setTimeout(() => {
+          searchSessions(normalizedQuery, controller.signal).then((result) => {
+            if (controller.signal.aborted) return
+            setRemoteSearch({ query: normalizedQuery, status: 'ready', items: result.items, hasMore: result.hasMore })
+          }).catch(() => {
+            if (controller.signal.aborted) return
+            setRemoteSearch({ query: normalizedQuery, status: 'error', items: [], hasMore: false })
+          })
+        }, SEARCH_DEBOUNCE_MS)
+        return () => {
+          window.clearTimeout(timer)
+          controller.abort()
+        }
+      }, [normalizedQuery, searchSessions])
       const home = useHostInfo((info) => info.home)
       const workspaces = useWorkspaces((state) => state.items)
       const workspacePhase = useWorkspaces((state) => state.phase)
@@ -1266,7 +1439,52 @@ window.__ModuleLoader__.load({
         'data-wide': wide ? '1' : '0',
       },
         h('div', { className: 'dsh-desktop-workspaces-header' },
-          h('span', { className: 'dsh-desktop-workspaces-section-title' }, groupBy === 'flat' ? t('section.sessions') : t('section.workspaces')),
+          wide && !searchExpanded && h('span', { className: 'dsh-desktop-workspaces-section-title' }, groupBy === 'flat' ? t('section.sessions') : t('section.workspaces')),
+          wide && h('div', {
+            ref: searchRoot,
+            className: `dsh-desktop-workspaces-search${searchExpanded ? ' dsh-desktop-workspaces-search-expanded' : ''}`,
+            onClick: () => {
+              setAddOpen(false)
+              setSearchExpanded(true)
+              searchInput.current?.focus()
+            },
+          },
+            h('button', {
+              type: 'button',
+              className: 'dsh-desktop-workspaces-search-button',
+              'aria-label': t('search.sessions.aria'),
+              'aria-expanded': searchExpanded,
+              onClick: () => {
+                setAddOpen(false)
+                setSearchExpanded(true)
+              },
+            }, h(IconSearchOutline16, { size: searchExpanded ? 11 : 14 })),
+            h('input', {
+              ref: searchInput,
+              className: 'dsh-desktop-workspaces-search-input',
+              type: 'text',
+              placeholder: t('search.placeholder'),
+              maxLength: SEARCH_QUERY_MAX_CODE_UNITS,
+              value: query,
+              tabIndex: searchExpanded ? 0 : -1,
+              onChange: (e) => { setQuery(sanitizeSearchQuery(e.currentTarget.value)) },
+              onKeyDown: (e) => {
+                if (e.key !== 'Escape') return
+                setQuery('')
+                setSearchExpanded(false)
+              },
+            }),
+            searchExpanded && h('button', {
+              type: 'button',
+              className: 'dsh-desktop-workspaces-clear-button',
+              'aria-label': t('search.clear'),
+              onClick: (e) => {
+                e.stopPropagation()
+                setQuery('')
+                setSearchExpanded(false)
+              },
+            }, h(IconCloseFill14, {})),
+          ),
           h('div', { className: 'dsh-desktop-workspaces-header-actions' },
             wide && h(ViewOptionsMenu, {
               groupBy,
@@ -1287,24 +1505,48 @@ window.__ModuleLoader__.load({
             }, h(IconPlusOutline16, { size: 14 })),
           ),
         ),
+        !wide && h('div', { className: 'dsh-desktop-workspaces-search-row' },
+          h('button', {
+            type: 'button',
+            className: 'dsh-desktop-workspaces-search-button',
+            'aria-label': t('search.sessions.aria'),
+            onClick: () => {
+              setSearchExpanded(true)
+              setSearchOnExpand(true)
+              expandSidebar()
+            },
+          }, h(IconSearchOutline16, { size: 16 })),
+        ),
         h('div', { className: 'dsh-desktop-workspaces-list-area' },
-          groupBy === 'flat'
-            ? h(FlatList, {
+          normalizedQuery !== ''
+            ? h(SearchResults, {
                 useSessions,
                 useSessionPendingInteraction,
                 open,
-                forkSession,
-                onSessionRename,
-                onSessionArchive,
+                workspaces,
                 archivedSessionIds,
-                orderBy,
-                sessionOrderByAccount,
-                sessionUpdatedAtByAccount,
-                syncSessionOrderAccount: actions.syncSessionOrderAccount,
-                setSessionOrder: actions.setSessionOrder,
+                query: normalizedQuery,
+                remote: remoteSearch,
+                resultLimit: searchResultLimit,
                 t,
               })
-            : h(SessionTree, {
+            : groupBy === 'flat'
+              ? h(FlatList, {
+                  useSessions,
+                  useSessionPendingInteraction,
+                  open,
+                  forkSession,
+                  onSessionRename,
+                  onSessionArchive,
+                  archivedSessionIds,
+                  orderBy,
+                  sessionOrderByAccount,
+                  sessionUpdatedAtByAccount,
+                  syncSessionOrderAccount: actions.syncSessionOrderAccount,
+                  setSessionOrder: actions.setSessionOrder,
+                  t,
+                })
+              : h(SessionTree, {
                 useSessions,
                 useSessionPendingInteraction,
                 workspaces,
@@ -1447,6 +1689,23 @@ window.__ModuleLoader__.load({
     const FLAT_SESSION_ORDER_KEY = '__flat_session_order__'
     /** 折叠组默认保留的普通会话行数（不含暂定「新会话」行）。 */
     const COLLAPSED_SESSION_LIMIT = 5
+    /** 侧栏搜展开的滑入动画时长（ms，与搜索框 focus 时序对齐官方）。 */
+    const EXPAND_SLIDE_MS = 300
+    /** 距最近一次按键后向 Host 发起内容搜索的防抖（ms）。 */
+    const SEARCH_DEBOUNCE_MS = 250
+    /** `session.search` 线缆上限，按 JS UTF-16 码元计（对齐官方）。 */
+    const SEARCH_QUERY_MAX_CODE_UNITS = 500
+
+    /** 把可控输入 / RPC 载荷约束在 session.search 线缆契约内（去 NUL + 截断至码元上限）。 */
+    function sanitizeSearchQuery(value) {
+      const withoutNul = value.replaceAll('\0', '')
+      if (withoutNul.length <= SEARCH_QUERY_MAX_CODE_UNITS) return withoutNul
+      let end = SEARCH_QUERY_MAX_CODE_UNITS
+      const last = withoutNul.charCodeAt(end - 1)
+      const next = withoutNul.charCodeAt(end)
+      if (last >= 55296 && last <= 56319 && next >= 56320 && next <= 57343) end--
+      return withoutNul.slice(0, end)
+    }
 
     /** Windows 盘符路径判定（内联自官方 `dsh-util-workspace-path`，供 home 缩略用）。 */
     function isWindowsStylePath(p) {
@@ -1809,6 +2068,80 @@ window.__ModuleLoader__.load({
         copyLabel: t('copy'),
         copiedLabel: t('hover.copied'),
       })
+    }
+
+    /**
+     * 搜索结果行：主状态点 + 标题 + 活动定时任务，次行工作区归属 + 命中摘录。
+     */
+    function SearchResultItem({ result, currentId, onOpen, t }) {
+      const selected = result.id === currentId
+      const statuses = sessionStatuses(result, t)
+      const primaryStatus = statuses[0]
+      return h('button', {
+        type: 'button',
+        className: `dsh-desktop-workspaces-search-result-row${selected ? ' dsh-desktop-workspaces-selected' : ''}`,
+        role: 'treeitem',
+        'aria-selected': selected,
+        onClick: () => { onOpen(result.id) },
+      },
+        h('span', { className: 'dsh-desktop-workspaces-search-result-heading' },
+          h('span', { className: 'dsh-desktop-workspaces-slot' },
+            (primaryStatus.state !== 'done' || result.completed) && h(SessionStatusDots, { statuses }),
+          ),
+          h('span', { className: 'dsh-desktop-workspaces-search-result-title' }, result.title),
+          result.hasActiveSchedule && h(ActiveScheduleIndicator, { t, search: true }),
+        ),
+        h('span', { className: 'dsh-desktop-workspaces-search-result-meta' },
+          h('span', { className: 'dsh-desktop-workspaces-search-result-workspace' }, result.workspace || t('group.ungrouped')),
+          result.snippet !== undefined && h('span', { className: 'dsh-desktop-workspaces-search-result-snippet' }, result.snippet),
+        ),
+      )
+    }
+
+    /**
+     * 搜索主体：本地元数据命中（标题/工作区）与 Host 内容命中经 deriveSearchResults 合并去重，
+     * 逐条渲染 SearchResultItem，并呈现 loading / error / hasMore 状态。
+     */
+    function SearchResults({ useSessions, useSessionPendingInteraction, open, workspaces, archivedSessionIds, query, remote, resultLimit, t }) {
+      const list = useSessions((s) => s)
+      const pendingInteractions = useSessionPendingInteraction((s) => s)
+      const currentRemote = remote.query === query ? remote : {
+        query,
+        status: 'loading',
+        items: [],
+        hasMore: false,
+      }
+      const results = useMemo(() => deriveSearchResults(list, workspaces, query, archivedSessionIds, pendingInteractions, currentRemote, resultLimit), [
+        list,
+        workspaces,
+        query,
+        archivedSessionIds,
+        pendingInteractions,
+        currentRemote,
+        resultLimit,
+      ])
+      const pending = currentRemote.status === 'loading'
+      const failed = currentRemote.status === 'error'
+      return h('div', {
+        className: 'dsh-desktop-workspaces-tree-body dsh-desktop-workspaces-wide',
+      },
+        h('div', { className: 'dsh-desktop-workspaces-list' },
+          h('div', { className: 'dsh-desktop-workspaces-search-tree', role: 'tree', 'aria-label': t('search.results.aria') },
+            results.items.map((result) => h(SearchResultItem, {
+              key: result.id,
+              result,
+              currentId: list.current,
+              onOpen: open,
+              t,
+            })),
+          ),
+          pending && h('div', { className: 'dsh-desktop-workspaces-search-status', role: 'status' }, t('search.pending')),
+          failed && h('div', { className: 'dsh-desktop-workspaces-search-warning', role: 'status' }, t('search.unavailable')),
+          !pending && results.items.length === 0 && h('div', { className: 'dsh-desktop-workspaces-empty' }, t('search.noMatches')),
+          results.hasMore && h('div', { className: 'dsh-desktop-workspaces-search-status' }, t('search.hasMore', { n: resultLimit })),
+        ),
+        h('span', { className: 'dsh-desktop-workspaces-fade' }),
+      )
     }
 
     /**
@@ -2215,8 +2548,8 @@ window.__ModuleLoader__.load({
       workspaceLabel,
       workspaceTitleOf,
       byRecency,
-      // W3：行组件层纯函数（排序账户对齐 / 折叠切片 / home 缩略 / 状态点集），
-      // 供 W3 行单测与 W4 Browser 渲染复用。
+      // W3/W4：行组件层与搜索纯函数（排序账户对齐 / 折叠切片 / home 缩略 / 状态点集 /
+      // sanitizeSearchQuery），供单测与 W4 Browser 渲染复用。
       isWindowsStylePath,
       abbreviateHomePath,
       toggled,
@@ -2225,6 +2558,7 @@ window.__ModuleLoader__.load({
       compareSessionRecency,
       nextSessionOrderAccount,
       sessionStatuses,
+      sanitizeSearchQuery,
     }
 
     exports.apply = (ctx) => {

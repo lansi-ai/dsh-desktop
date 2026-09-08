@@ -184,3 +184,18 @@ test('sessionStatuses：pending 琥珀优先于 running 蓝，completed 绿最�
   // 非法 pending 值应抛出（防止伪状态进入渲染）
   assert.throws(() => derive.sessionStatuses({ runningSubagentCount: 0, pendingInteraction: 'fraud', running: false, completed: false }, T))
 })
+
+test('sanitizeSearchQuery：去 NUL + 截断至码元上限，代理对切不断', () => {
+  // 去 NUL
+  assert.equal(derive.sanitizeSearchQuery('ab\0c\0d'), 'abcd')
+  // 短输入原样返回
+  assert.equal(derive.sanitizeSearchQuery('搜索 query'), '搜索 query')
+  // 超长（>500 码元）截断至 500
+  const long = 'x'.repeat(600)
+  assert.equal(derive.sanitizeSearchQuery(long).length, 500)
+
+  // 代理对（如 emoji）不从中腰切断：填入 498 个 BMP + 1 个两码元 emoji = 500 码元整
+  const at = derive.sanitizeSearchQuery('a'.repeat(498) + '😀')
+  assert.equal(at.length, 500)
+  assert.equal(at.endsWith('\uFFFD'), false, '不应以替换符结尾')
+})
