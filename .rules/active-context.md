@@ -92,7 +92,7 @@ alwaysApply: true
   - **排障手册**：`docs/pitfalls.md`（M1 攻坚第 2 批实战踩坑记录，含 8 类坑 + 排障方法论）——后续会话排障时**先查阅该文档**再动手
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **最近收口（2026-09-08）**：M4-b 应用自动更新·三通道已并入 main（rebase 后线性 4 提交：`feat(updater)` → `feat(settings)`×2 → `build(updater)`）；**M4-a2 R10 协议安全白名单完成**（参数强校验 + 三态授权 + 热唤起缺口修复，单测 13 项 + 冷/热双路实机验收通过，待提交）。M4 剩余 = a3 零依赖实机 · c 离线 e2e · e 门禁；主线焦点仍在 M6 P2 外壳小件。
+- **最近收口（2026-09-08）**：M4-b 应用自动更新·三通道 + **M4-a2 R10 协议安全白名单**（参数强校验 + 三态授权 + 热唤起缺口修复，单测 13 项 + 冷/热双路实机验收）均并入 main（共 4 提交：`feat(updater)` 链 → `feat(protocol)` → `docs(board)` → `fix(build)` 打包链路修复/坑 38-40 登记）；主工作区 16:31 重打包成功（`DSH Forge-0.1.1-alpha.3`，setup 哈希 `bd2fb14a...745de5`）。**M4-a3 首轮实机验证进行中**：首轮疑装到 9月2日旧包（`release/` 新旧混放、同版本号 `DSH Desktop-*` vs `DSH Forge-*` 极易拿错），待用新包复验。M4 剩余 = a3 复验 · c 离线 e2e · e 门禁；主线焦点仍在 M6 P2 外壳小件。
 - **当前正在处理**：步骤 7 攻坚第 2 批（**已完成，实机验收通过**，2026-08-26）。官方 UI 成功渲染进入 + 工作区选择 + 日常对话全流程打通；期间按 D-9/10/11/12 连环修复（client-connection 预载注册、自动扫描图谱、Electron 目录选择器、toFetchHandler RPC 入口）；typecheck/lint/build + 双验证脚本全绿。
 - **下一攻坚目标**：步骤 7 剩余项 —— (1) 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层）；(2) `docs/active-context.html` 看板同步落盘 + 里程碑提交。
 - **关键阻塞项**：（已解除）官方 UI 对话全链路（IPC 载波 + 自动扫描图谱 + 工作区 + 会话）已通。剩余待办为第三方 web 插件装载（desktop-compat 层）+ 看板落盘。
