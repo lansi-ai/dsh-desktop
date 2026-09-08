@@ -56,7 +56,7 @@ alwaysApply: true
   - [x] 图标接入：main.ts `loadAppIcon`/windowManager `getAppIconPath`、desktop-tray `loadTrayIcon` 均经 `getActiveIconPath(kind, dark)` 解析（回退链：主题色版 → 另一色版 → 内置 web 默认）
   - [x] preload `desktopBridge.iconTheme` 白名单 API；设置页 UI `web/desktop-theme-client.js`（`@lansi-ai/dsh-desktop-theme`，「图标主题」卡片选择器含图标预览 +「颜色主题」独立占位）
   - [x] **壳层 UI 图标主题化扩展**（同日）：主题包 `icons/` 目录（titlebar-logo.svg + ui-overrides.json）；`dsh-ui://` 协议新增 `/theme/<id|current>/icons/<file>` 资源路由（白名单+越界校验，current 动态映射激活主题）；标题栏品牌 logo 接入主题（default 保持官方鲸鱼，切换经 `theme.icon-change` 下行事件即时刷新）；新增 `@lansi-ai/dsh-desktop-ui-icons` 覆盖层插件（官方 UI 内部内联 SVG 经 ui-overrides.json 映射 + MutationObserver 替换，空表零开销——官方 dist 升级需重新登记 path 特征）
-- [x] **M4-b 应用自动更新·三通道（stable/rc/off）**（2026-09-08 完成，typecheck/lint/build/test 全绿 + 桩验证 59 项）
+- [x] **M4-b 应用自动更新·三通道（stable/rc/off）**（2026-09-08 完成，typecheck/lint/build/test 全绿 + 桩验证 59 项 + **实机验收通过**：关于页渠道回显「预发布」、自动检查开关持久化到 settings-file，见 `docs/pitfalls.md` 坑 0 沙箱限制）
   - [x] 渠道模型 `src/desktop-host/auto-updater.ts`：`UpdaterChannel = 'stable' | 'rc' | 'off'` —— stable 走默认 `latest.yml`（`autoUpdater.channel = null`）/ rc 走 `channel='rc'` → `latest-rc.yml` / off 完全关闭（不初始化、不订阅事件、静默检查与手动 `check()` 均 no-op）；`isDisabled() = !app.isPackaged || channel === 'off'` 保证 dev 保持停用
   - [x] 运行时切换：`getChannel` / `setChannel` / `getAutoCheck` / `setAutoCheck` —— off↔on 即时生效（切 on 补初始化 + 立即查一次；切 off 撤未触发的延迟定时器）；rc↔stable 仅切 feed，结果于下次检查或用户手动「检查更新」生效（头注释已按此实际语义修正）
   - [x] 设置持久化：settings `desktop` 命名空间新增 `updaterChannel`（默认 stable）/ `updaterAutoCheck`（默认 true），沿用 `settings.register(NS)` → scope → settings-file 链路；**值域为字符串**，故写入统一 `'true'/'false'`、读取侧同时接受真布尔与字符串（否则 `'false'` 会被当 truthy 误开自动检查）
