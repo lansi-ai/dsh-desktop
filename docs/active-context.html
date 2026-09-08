@@ -150,10 +150,11 @@
       </ul>
 
       <div class="phase-divider"></div>
-      <div class="phase-label pending">M4 · 分发与更新 ⏸️ 延后（重启先做 a2）</div>
+      <div class="phase-label pending">M4 · 分发与更新 ⏸️ 延后（b ✅；重启先做 a2）</div>
       <ul class="task-list">
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>M4-a2 R10 协议安全白名单</strong>（分发前必补）：dsh:// 来源校验 + 参数 zod 强校验（<code>src/types/desktop.ts|protocol.ts</code> + <code>src/desktop-host/dsh-protocol.ts</code>）</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span>M4-a3 零依赖实机验证 · M4-b 自动更新（latest.yml + stable/rc/off 三通道）· M4-c 离线 e2e · M4-e 门禁（≥3 人安装即用 + SHA256SUMS 外部可验证）</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-b 应用自动更新·三通道 ✅（2026-09-08）</strong>：<code>auto-updater.ts</code> 增 <code>UpdaterChannel=stable|rc|off</code>（stable→latest.yml / rc→<code>channel='rc'</code>→latest-rc.yml / off 全关，静默与手动 check 均 no-op）+ 运行时 <code>getChannel/setChannel/getAutoCheck/setAutoCheck</code>（off↔on 即时补/撤检查）；settings <code>desktop</code> 命名空间持久化；<code>desktop.updater.*</code> 桥扩展；UI 归位<strong>关于页</strong>（渠道三态分段 + 自动检查开关，off 联动置灰）</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span>M4-a3 零依赖实机验证 · M4-c 离线 e2e · M4-e 门禁（≥3 人安装即用 + SHA256SUMS 外部可验证）</span></li>
       </ul>
     </div>
 

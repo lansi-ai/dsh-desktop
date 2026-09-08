@@ -56,6 +56,14 @@ alwaysApply: true
   - [x] 图标接入：main.ts `loadAppIcon`/windowManager `getAppIconPath`、desktop-tray `loadTrayIcon` 均经 `getActiveIconPath(kind, dark)` 解析（回退链：主题色版 → 另一色版 → 内置 web 默认）
   - [x] preload `desktopBridge.iconTheme` 白名单 API；设置页 UI `web/desktop-theme-client.js`（`@lansi-ai/dsh-desktop-theme`，「图标主题」卡片选择器含图标预览 +「颜色主题」独立占位）
   - [x] **壳层 UI 图标主题化扩展**（同日）：主题包 `icons/` 目录（titlebar-logo.svg + ui-overrides.json）；`dsh-ui://` 协议新增 `/theme/<id|current>/icons/<file>` 资源路由（白名单+越界校验，current 动态映射激活主题）；标题栏品牌 logo 接入主题（default 保持官方鲸鱼，切换经 `theme.icon-change` 下行事件即时刷新）；新增 `@lansi-ai/dsh-desktop-ui-icons` 覆盖层插件（官方 UI 内部内联 SVG 经 ui-overrides.json 映射 + MutationObserver 替换，空表零开销——官方 dist 升级需重新登记 path 特征）
+- [x] **M4-b 应用自动更新·三通道（stable/rc/off）**（2026-09-08 完成，typecheck/lint/build/test 全绿 + 桩验证 59 项）
+  - [x] 渠道模型 `src/desktop-host/auto-updater.ts`：`UpdaterChannel = 'stable' | 'rc' | 'off'` —— stable 走默认 `latest.yml`（`autoUpdater.channel = null`）/ rc 走 `channel='rc'` → `latest-rc.yml` / off 完全关闭（不初始化、不订阅事件、静默检查与手动 `check()` 均 no-op）；`isDisabled() = !app.isPackaged || channel === 'off'` 保证 dev 保持停用
+  - [x] 运行时切换：`getChannel` / `setChannel` / `getAutoCheck` / `setAutoCheck` —— off↔on 即时生效（切 on 补初始化 + 立即查一次；切 off 撤未触发的延迟定时器）；rc↔stable 仅切 feed，结果于下次检查或用户手动「检查更新」生效（头注释已按此实际语义修正）
+  - [x] 设置持久化：settings `desktop` 命名空间新增 `updaterChannel`（默认 stable）/ `updaterAutoCheck`（默认 true），沿用 `settings.register(NS)` → scope → settings-file 链路；**值域为字符串**，故写入统一 `'true'/'false'`、读取侧同时接受真布尔与字符串（否则 `'false'` 会被当 truthy 误开自动检查）
+  - [x] 装配与桥：`main.ts` 启动读设置传入 `createAutoUpdater`（渠道过三态白名单校验）；`desktop.updater.*` 扩展 `getChannel/setChannel/getAutoCheck/setAutoCheck`（入参非法返回 `{ ok:false, message }`）；`preload.ts` `DesktopUpdater` 接口同步
+  - [x] UI 归位于**关于页** `web/desktop-about-client.js`：新增「更新渠道」三态分段按钮 + 「自动检查更新」开关；off 时开关与「检查更新」联动置灰、状态文案转「已关闭自动更新」；主进程拒绝时回滚选中态并显示其 message；配置真源单一在主进程（插件不依赖 `ctx.settings`，桌面设置页不留重复入口）
+  - [x] 发布面：`electron-builder.yml` 登记三通道与 GitHub Releases 更新描述符的对应关系（rc 版打 pre-release 即被 `channel='rc'` 自动匹配）
+  - [x] 验证方式（沙箱内无法代跑 Electron GUI，见坑 0）：桩替换 `electron`/`electron-updater` 驱动编译产物做状态机断言 31 项 + 最小 React 桩执行关于页 bundle 断言 28 项，全过
 
 ## 03. 关键决策与架构遗留 (Key Decisions & Context)
 - **已做出的关键技术决策**：
@@ -78,6 +86,7 @@ alwaysApply: true
   - **排障手册**：`docs/pitfalls.md`（M1 攻坚第 2 批实战踩坑记录，含 8 类坑 + 排障方法论）——后续会话排障时**先查阅该文档**再动手
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
+- **最近收口（2026-09-08）**：M4-b 应用自动更新·三通道已并入 main（rebase 后线性 4 提交：`feat(updater)` → `feat(settings)`×2 → `build(updater)`）。M4 剩余 = a2 R10 协议安全白名单（分发前必补）· a3 零依赖实机 · c 离线 e2e · e 门禁；主线焦点仍在 M6 P2 外壳小件。
 - **当前正在处理**：步骤 7 攻坚第 2 批（**已完成，实机验收通过**，2026-08-26）。官方 UI 成功渲染进入 + 工作区选择 + 日常对话全流程打通；期间按 D-9/10/11/12 连环修复（client-connection 预载注册、自动扫描图谱、Electron 目录选择器、toFetchHandler RPC 入口）；typecheck/lint/build + 双验证脚本全绿。
 - **下一攻坚目标**：步骤 7 剩余项 —— (1) 第三方 web 插件（webServer 路由 + 槽位 + 同源 fetch 模式）无改动装载验证（需 desktop-compat 兼容层）；(2) `docs/active-context.html` 看板同步落盘 + 里程碑提交。
 - **关键阻塞项**：（已解除）官方 UI 对话全链路（IPC 载波 + 自动扫描图谱 + 工作区 + 会话）已通。剩余待办为第三方 web 插件装载（desktop-compat 层）+ 看板落盘。
