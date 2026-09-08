@@ -3,7 +3,8 @@
  *
  * 复刻官方 `dsh-client-ui-sidebar` 的壳能力并接管 `sidebar` 槽位：
  *   - fold 折叠状态机（宽列 ↔ 56px rail，折叠动画播完再切 rail 内容）；
- *   - 新会话按钮（`ctx.workspaces.startSession`，复用-or-新建 workspace 会话语义）；
+ *   - 新会话按钮（`ctx.get('uiWorkspace').startSession`，坑 32：UI 动作取自 ui-* 服务、
+ *     非 framework domain 服务；复用-or-新建 workspace 会话语义）；
  *   - 折叠切换按钮（`ctx.layout.toggleSidebar`，走桌面布局插件 LayoutController）；
  *   - 声明官方同款子槽位（brand.mark / brand.name / workspaces / settings）——
  *     官方 `ui-workspace`（会话树）与 `ui-settings`（设置入口）

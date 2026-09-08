@@ -67,6 +67,14 @@ const CLIENT_EXCLUDE_IDS = new Set([
   // 等槽位抛 "already has a registration"。General 六行/插件与 Agent 预设分区/引导步骤
   // 等官方注册者经 slot 账本零改动继续工作。V1 未复刻连接指示器/文档 action/onboarding。
   '@deepseek-ai/dsh-client-ui-settings-general',
+  // M6-P3 工作区浏览区自研：@lansi-ai/dsh-desktop-workspaces 顶替官方 ui-workspace。
+  // ⚠ 排除连坐面（摸底 2026-09-07 修正看板原判断）：官方 UiWorkspaceService 构造走
+  //   super(ctx, "uiWorkspace")，cordis Service 基类即 reflect.provide 注册且随 fiber 卸载
+  //   注销（@deepseek-ai/cordis/src/service.ts:57）→ 排除该包 = uiWorkspace 服务消失，
+  //   硬 inject 它的 dsh-desktop-sidebar / ui-conversation / ui-directory-picker-native /
+  //   ui-agent-preset 四者永久 PENDING 且不报错（坑 15）。故自研件必须自己 provide 同名服务。
+  // 仅排除 client 半；host 半 lib/index.js 本就是空 apply 且 boot.ts 未插该行，host 侧无连坐。
+  '@deepseek-ai/dsh-client-ui-workspace',
 ])
 
 // ── 内部状态 ─────────────────────────────────────────────────────────
@@ -390,6 +398,12 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // M6 外壳小件：Session 日志导出自有化（替换官方 client 半，文案修正桌面语义；
     // host 半 session-log-download 行保留提供 /export 命令 + /api/session.export 路由）
     { id: '@lansi-ai/dsh-desktop-session-export', path: resolveLocalWebBundle('desktop-session-export-client.js'), inject: [], immediately: true },
+    // M6-P3 工作区浏览区自研（顶替官方 ui-workspace，见 CLIENT_EXCLUDE_IDS 连坐说明）：
+    // 五项接管面 = uiWorkspace 服务 + provideRoot(hooks.workspaces) + locale 'workspace'
+    // + 双注册（sidebar.workspaces / conversation.hero.workspace 各带 directoryFlow 子洞）
+    // + 十三项动作注入面（全部薄转发官方 domain，数据面零新增）。服务等待在 bundle 内
+    // exports.inject 声明，图谱 entry.inject 仅信息性包名边故恒 []（坑 15 口径）。
+    { id: '@lansi-ai/dsh-desktop-workspaces', path: resolveLocalWebBundle('desktop-workspaces-client.js'), inject: [], immediately: true },
     ...(extraBundles ?? []),
   ]
 

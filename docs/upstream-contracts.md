@@ -30,6 +30,7 @@
 | ~~`apiProxy`~~ | ~~`api-gateway`~~ | ~~@deepseek-ai/dsh-host-apiproxy~~ **已删除**（0.1.2） |
 | `directoryPicker` | （无条目，prepare 钩子注入） | 本项目 ElectronDirectoryPicker（坑 6） |
 | `desktop` / `webServer` / `desktopStartup` | （无条目，prepare 钩子注入） | 本项目 desktop-api / compat-webserver（坑 9） |
+| `uiWorkspace` | `@deepseek-ai/dsh-client-ui-workspace`（client 半 apply 内 `new …Service(ctx,"uiWorkspace")`）→ **2026-09-07 起由本项目 `@lansi-ai/dsh-desktop-workspaces` 提供** | ⚠ **修正既往结论**：该服务**确实注册在 ctx 上**——cordis `Service` 基类构造即 `ctx.reflect.provide(name, self)`，且「owning fiber 卸载时自动注销」（`@deepseek-ai/cordis/src/service.ts:57`）。故**排除 ui-workspace = 服务消失**，硬 inject 它的 `dsh-desktop-sidebar`/`ui-conversation`/`ui-directory-picker-native`/`ui-agent-preset` 四者永久 PENDING 且**不报错**（坑 15）。六方法契约见 §7.1 该行 |
 
 ## 3. cordis-plugin-include 补丁语义（坑 16 核心）
 
@@ -85,6 +86,7 @@
 | `@lansi-ai/dsh-desktop-cmdpalette`（禁用壳） | 官方运行时导航、`ctx.sessions`/`workspaces` | 🟢 低 | 禁用壳下无功能风险；仅作入口隐藏，恢复时才核查 |
 | `@lansi-ai/dsh-desktop-audit-viewer`（desktop-audit-viewer-client.js） | 审计 Tab 槽位、`ctx.desktop` | 🟡 中 | 审计槽位是否变；ctx.desktop 聚合服务是否仍供桌面能力 |
 | `@lansi-ai/dsh-desktop-session-export`（desktop-session-export-client.js，2026-09-02 M6 外壳小件） | 官方槽位 `conversation.session.header.utilities`（ui-conversation 声明）；官方 host 半 `session-log-download` 行（boot.ts §1，/export 命令 + `/api/session.export` ZIP 路由）；`@deepseek-ai/dsh-client-ui-primitives`（Modal/Button，守卫 require）；`command/executed` 事件 | 🟡 中 | 槽位名是否变；host 半路由/命令契约是否变；primitives Modal/Button 签名是否变 |
+| `@lansi-ai/dsh-desktop-workspaces`（desktop-workspaces-client.js，2026-09-07 M6-P3 W1 骨架） | **顶替官方 `dsh-client-ui-workspace`（整体互斥排除，非仅占洞）**，故须承接其**全部**对外契约，共五项接管面：① **provide `uiWorkspace` 服务**——六方法契约 `connectWorkspace/startSession/archiveSession/pickDirectory/listDirectory/createDirectory`（官方 `types/client/navigation.d.ts`）+ `DirectoryBrowseError` + `watchNavigation` 首启导航策略；② `slots.provideRoot({hooks:{workspaces: workspaces.list}})` = 全局标准 prop `useWorkspaces` **唯一来源**；③ `locale.register('workspace', {zh,en})` **63 键**（zh 为键集真源、en 全量对齐，已与官方逐字 diff 通过）；④ 双注册 `sidebar.workspaces`（自有侧栏壳声明的洞）+ `conversation.hero.workspace`（官方 ui-conversation 声明，P4 前不消失），各带 `*.directoryFlow` 子洞（single/root，native picker 占洞处）；⑤ `browserInjected` 十三项动作面（薄转发 `sessions.*`/`workspaces.*` domain，数据面零新增）。另 `defineStore` persist key 沿用官方 **`dsh.workspace.view.v5`**（用户既有视图偏好天然继承） | 🔴 高 | ① 官方 `UiWorkspace` 六方法签名/语义是否变（`connectWorkspace` 的「复用空白会话-or-新建」判据：blank + cwd 相等 + 在 sessionIds 内 + 未归档）；② `provideRoot` hooks 面与 `useWorkspaces` 快照形状 `{items, archivedSessionIds, phase, error}`；③ `workspace` 字典键集增减（升级后重跑 diff）；④ 两洞名与 directoryFlow 子洞 kind/scope；owner props `EmptyWorkspaceOwnerProps{open,anchorRef,selectedId,onPick,onClose}` 与 `{wide,expandSidebar}`；⑤ `sessions.searchResultLimit`（现 20）与 `search` 的 `{ok,value}` 信封；`workspaces.insertBefore`/`insertSessionBefore` 持久语义；⑥ 若排除清单被回退（官方包恢复装载）→ 本件与官方**双注册冲突**抛 "already has a registration" |
 
 ### 7.2 Host 半（主进程模块，M2 项目内形态）
 
@@ -103,7 +105,7 @@
 | 项 | 依赖官方 | 风险 | 升级核查要点 |
 |---|---|---|---|
 | `boot-graph.ts` `LAYOUT_SKELETON_CSS` | 官方 `html,body,#root{height:100%}`、`#root` 挂载点 | 🔴 高 | 官方 #root 尺寸/挂载规则是否变；我们要的 `position:fixed` 锚定是否仍能赢（坑 19） |
-| `boot-graph.ts` `CLIENT_EXCLUDE_IDS` | 官方被排除包（ui-layout/ui-sidebar/directory-picker-browse） | 🟡 中 | 升级是否新增互斥包；排除清单是否需更新 |
+| `boot-graph.ts` `CLIENT_EXCLUDE_IDS` | 官方被排除包（2026-09-07 现状 8 项）：`ui-layout` / `ui-sidebar` / `ui-directory-picker-browse` / `dsh-client-hmr` / `dsh-cordis-client-runner` / `dsh-client-ui-cordis` / `dsh-session-log-export`（仅 client 半） / `ui-settings-general` / **`ui-workspace`（M6-P3 W1，本表 §7.1 末行五项接管面）** | 🔴 高 | 升级是否新增互斥包；排除清单是否需更新；**逐条确认被排除包对外提供的服务/全局贡献是否已由自有件接管**（ui-workspace 的 `uiWorkspace` 服务即此类隐性连坐，见 §2 该行）；同文件多处编辑须串行 + dist 产物 grep 反查（坑 18） |
 | `dsh-ui-protocol.ts` `injectBootManifest` | 官方 index.html 结构（`</head>` 注入点） | 🟡 中 | 官方 index.html 挂载结构是否变（若自建根容器须此处插入） |
 
 ### 7.4 升级逐条核查 SOP（M4-d 必执行）
