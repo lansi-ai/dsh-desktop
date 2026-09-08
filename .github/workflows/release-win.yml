@@ -1,0 +1,87 @@
+# Windows 发布工作流：GitHub Actions windows runner 构建 NSIS 安装包 + 便携包，
+# 上传到 package.json version 对应的 v{version} Release（三通道描述符 latest.yml 一并上传）。
+# 触发：push v* tag（按 tag 代码构建）；或 workflow_dispatch（为已有 tag 的 Release 追加 Win 产物）。
+# 与 release-mac.yml 平行：mac 走 macos runner，win 走 windows runner，产物汇入同一 v{version} Release。
+# Release 由 mac/win 任一 workflow 幂等创建（gh release create 已存在则忽略），互不阻塞。
+name: release-win
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-win
+  cancel-in-progress: false
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\electron\Cache
+          key: electron-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck & lint
+        run: |
+          npm run typecheck
+          npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Package (NSIS + portable, x64)
+        run: npx electron-builder --win --publish never
+
+      - name: Get version
+        id: version
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> $env:GITHUB_OUTPUT
+
+      - name: Ensure release exists (idempotent)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: powershell
+        run: |
+          $tag = "${{ steps.version.outputs.tag }}"
+          $prerelease = if ($tag -match '-[a-zA-Z]+\.') { '--prerelease' } else { '' }
+          gh release create $tag --title $tag `
+            --notes "Created automatically by release-win workflow." `
+            $prerelease --repo "$env:GITHUB_REPOSITORY" 2>$null; exit 0
+
+      - name: Generate SHA256SUMS
+        shell: powershell
+        run: |
+          $out = @()
+          Get-ChildItem release -Filter *.exe | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+            $out += "$hash  $($_.Name)"
+          }
+          $out | Set-Content -Encoding ascii release/SHA256SUMS
+
+      - name: Upload Windows artifacts to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.version.outputs.tag }}" `
+            release/*setup.exe release/*portable.exe release/*.blockmap release/latest.yml `
+            release/SHA256SUMS --clobber --repo "$env:GITHUB_REPOSITORY"
+        shell: powershell
