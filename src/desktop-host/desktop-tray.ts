@@ -136,7 +136,12 @@ export function refreshTrayMenu(): void {
  */
 export function installDesktopTray(options: DesktopTrayOptions): () => void {
   const { getWindow, desktop } = options
-  const trayEnabled = (): boolean => desktop.readConfig<boolean>('trayEnabled') !== false
+  // settings `desktop` 命名空间值域为字符串（Schema.dict(any, string)），故托盘开关
+  // 读取需同时接受真布尔与 'true'/'false'；未设置回退 true（默认开启驻留）。
+  const trayEnabled = (): boolean => {
+    const v = desktop.readConfig<unknown>('trayEnabled')
+    return v === undefined ? true : v === true || v === 'true'
+  }
   updaterControl = options.updater ?? null
 
   // ── 关窗驻留：拦截 close → 隐藏（未标记退出且 trayEnabled）──────────────

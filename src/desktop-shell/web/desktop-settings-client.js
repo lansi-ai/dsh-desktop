@@ -86,34 +86,30 @@ window.__ModuleLoader__.load({
       }, '\u684c\u9762\u8bbe\u7f6e')
     }
 
-    /** 读取 desktop 配置值。 */
+    /** 读取 desktop 配置值。
+     *  renderer 侧 settings 领域服务为 `ctx.settingsScope`（dsh-client-ui-settings 的
+     *  SettingsScopeBinder），经 `bind({ namespace })` 取命名空间 scope；读 `getSnapshot().value`、
+     *  写 `set(field, value)`。此前误用 Host 侧 `ctx.get('settings').register()` —— 该服务
+     *  在 renderer 不存在，导致开关从未持久化（仅改本地 state，重启回弹默认）。
+     */
     function readConfig(ctx, key, defaultValue) {
       try {
-        const settings = ctx?.get?.('settings')
-        if (settings?.register) {
-          const Schema = require('@deepseek-ai/schemastery')?.default
-          if (Schema) {
-            const scope = settings.register(DESKTOP_NS, Schema.dict(Schema.any(), Schema.string()))
-            const stored = scope?.get?.()
-            if (stored?.[key] !== undefined) return stored[key]
-          }
-        }
-      } catch { /* settings 未就绪 */ }
+        const binder = ctx?.get?.('settingsScope')
+        const scope = binder?.bind?.({ namespace: DESKTOP_NS })
+        const snapshot = scope?.getSnapshot?.()
+        const stored = snapshot?.value
+        if (stored?.[key] !== undefined) return stored[key]
+      } catch { /* settingsScope 未就绪 */ }
       return defaultValue
     }
 
-    /** 写入 desktop 配置值。 */
+    /** 写入 desktop 配置值（client scope.set 持久化到 Host settings-file；值域为字符串）。 */
     function writeConfig(ctx, key, value) {
       try {
-        const settings = ctx?.get?.('settings')
-        if (settings?.register) {
-          const Schema = require('@deepseek-ai/schemastery')?.default
-          if (Schema) {
-            const scope = settings.register(DESKTOP_NS, Schema.dict(Schema.any(), Schema.string()))
-            scope?.set?.(key, String(value))
-          }
-        }
-      } catch { /* settings 未就绪 */ }
+        const binder = ctx?.get?.('settingsScope')
+        const scope = binder?.bind?.({ namespace: DESKTOP_NS })
+        scope?.set?.(key, String(value))
+      } catch { /* settingsScope 未就绪 */ }
     }
 
     /** Toggle 开关行（复用通用设置的行视觉）。 */
