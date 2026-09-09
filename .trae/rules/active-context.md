@@ -45,7 +45,7 @@ alwaysApply: true
 
 ### M4 · 分发与更新（⏸️ 剩余项延后）
 - ✅ M4-a2 R10 协议安全白名单（dsh:// 来源校验 + zod 强校验）· ✅ M4-b 三通道稳定自动更新（stable/rc/off + 运行时切换，v0.1.1-alpha.4 链路验证）· M4-a3 零依赖实机验证 🔄（首轮已验，待新包复验）
-- ✅ **发版脚本 + 坑 41 根治（2026-09-09）**：`npm run release -- <version> [--local] [--clean] [--push]`（预检→门禁→bump→commit/tag→push 一条链，push 以 `ls-remote` 回验避坑 44）+ `scripts/align-release-assets.cjs` 产物名对齐 latest.yml path（本地与 CI 共用，win/mac workflow 已插入该步）
+- ✅ **发版脚本 + 坑 41 根治（2026-09-09）**：`npm run release -- <version> [--local] [--clean] [--push]`（预检→门禁→bump→commit/tag→push 一条链，push 以 `ls-remote` 回验避坑 44）+ `scripts/align-release-assets.cjs` 产物名对齐 latest.yml path（本地与 CI 共用，win/mac workflow 已插入该步）；用法见 `docs/10-development.md` §9 + README「发版（维护者）」
 - [ ] M4-c 离线 e2e · M4-e 门禁（≥3 人安装即用 + SHA256SUMS 外部可验证）
 
 ## 03. 活跃决策与风险（一行索引；全文找 git 历史 / `docs/adr/`）

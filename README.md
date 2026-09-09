@@ -62,7 +62,7 @@
 | [`docs/07-desktop-shell.md`](docs/07-desktop-shell.md) | 桌面外壳设计：主进程装配（`boot()`）、IPC 桥协议、官方 dist 装载、窗口管理、打包分发、自动更新 |
 | [`docs/08-security.md`](docs/08-security.md) | 安全与信任模型：无端口、renderer 隔离、权限、签名、外链白名单 |
 | [`docs/09-roadmap.md`](docs/09-roadmap.md) | 里程碑 M1–M6 与任务拆解、验收标准 |
-| [`docs/10-development.md`](docs/10-development.md) | 开发环境、构建链路、调试、测试、与上游同步 |
+| [`docs/10-development.md`](docs/10-development.md) | 开发环境、构建链路、调试、测试、与上游同步、**发版流程（§9）** |
 | [`docs/11-risks.md`](docs/11-risks.md) | 风险登记与控制措施 |
 | [`docs/12-references.md`](docs/12-references.md) | 全部依据：本地源码路径 + 官方/社区 URL 引用 + 现有插件 API 面盘点 |
 | [`docs/plugin-inventory.md`](docs/plugin-inventory.md) | **插件清单与自有化进度**：Host/Client 两侧完整插件树、桌面自有插件（`@lansi-ai/dsh-*`）、互斥排除清单、全量自绘（M6）逐阶段进度 |
@@ -82,6 +82,16 @@
 5. **红线**：默认**零 HTTP 端口**；一切与官方 API 的耦合点（`AbstractApiClient.doFetch`、`BootSeams.loadBundle`、
    `webServer` 路由、bundle patch）都收敛在少数可替换文件，随上游 rc 版本钉死。
 6. **UI 差异化（二期可选）**：见 [`13-ui-design.md`](docs/13-ui-design.md) 与 [ADR-006](docs/adr/adr-006-custom-ui.md)——本轮明确不纳入主线。
+
+## 发版（维护者）
+
+一条命令完成 门禁 → 版本号 → commit/tag →（可选）本地打包与推送，脚本为 `scripts/release.cjs`：
+
+```powershell
+npm run release -- <version> [--local] [--push]
+```
+
+完整选项、前置条件与 CI 衔接见 [`docs/10-development.md`](docs/10-development.md) §9 发版流程。
 
 ## 目录规划（未来实现期）
 

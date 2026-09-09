@@ -48,7 +48,7 @@ dsh --help 等价物：startup args: --serve={port} | --user-data-dir | --no-ret
 
 ## 5. 与上游同步节奏
 
-- 每 rc：跑 `scripts/sync-upstream.sh <tag>`（拉子模块→diff 耦合面文件→更新基线常量→迁移登记表）
+- 每 rc：`npm run upstream:check` 判上游新版（判据源 = GitHub releases），`node scripts/upstream.cjs assess <version>` 评估拴合面破坏性，判定 safe 才 `npm run upstream:auto`（自动 bump + install + typecheck/lint/build + 迁移登记；台账仍需人工同步，见 `workflow.md` 场景 D）
 - 强制门禁：耦合面文件的 diff 必须人工 review 后合入；`dsh--version` 基线校验进 CI
 - 破坏性变更登记：`docs/adr/adr-005.md` 挂的表 + `docs/11-risks.md` 更新
 
@@ -72,3 +72,42 @@ dsh --help 等价物：startup args: --serve={port} | --user-data-dir | --no-ret
 - 客户端包禁止 import 宿主运行时（只 type-import /client 子路径）；跨包 value 协作走服务
 - 错误用开放 code 字符串 + zod schema（对齐 `RpcErrorDetailsMap` 思路）
 - 文档即成品的一部分：改动必须同步本文档集与 ADR
+
+## 9. 发版流程（release 脚本）
+
+一条命令完成「门禁 → 版本号 → commit/tag →（可选）打包与推送」，实现于 `scripts/release.cjs`（npm 入口 `npm run release`）。
+
+```powershell
+# ① 演练：只打印将执行的命令，零写入
+npm run release -- 0.1.1-alpha.6 --dry-run
+
+# ② 本地发版：跑门禁 + bump + commit/tag，打印待推命令（不推）
+npm run release -- 0.1.1-alpha.6
+
+# ③ 完整发版：本地出 Windows 包并推送，触发 CI 双平台构建
+npm run release -- 0.1.1-alpha.6 --local --push
+```
+
+> `--` 是必需的（npm 参数透传分隔符）。亦可直接调用 `node scripts/release.cjs <version> [选项]`。
+
+### 9.1 选项
+
+| 选项 | 作用 |
+| :--- | :--- |
+| `<version>` | 必填；合法语义化版本，且必须**高于当前版本** |
+| `--local` | 本地打包（`npm run dist` → 产物名对齐 → 生成 SHA256SUMS） |
+| `--clean` | 打包前清理 `release/` 中非目标版本的旧产物（需配合 `--local`） |
+| `--push` | 真实推送 `main` 与 `v<version>` tag，并 `ls-remote` 回验（坑 44） |
+| `--skip-gates` | 跳过 typecheck/lint/test/build 门禁（仅调试用） |
+| `--dry-run` | 只打印将执行的命令，不写文件 / 不提交 / 不打包 |
+
+### 9.2 前置条件（不满足即中止）
+
+- 工作区干净、当前分支为 `main`、`v<version>` tag 本地与远程均不存在、不落后 `origin/main`（允许领先——未推的功能提交会随发版一并推送）
+- `--local` 涉及 `npm run dist`，**沙箱内必失败**，需授权沙箱外运行（见坑 0 / 38 / 42）
+
+### 9.3 与 CI 的衔接
+
+- 推送 tag 后由 `.github/workflows/release-win.yml` / `release-mac.yml` 在云端构建双平台产物并上传至 `v<version>` Release（版本号含预发布段时自动打 pre-release）
+- 两个 workflow 上传前均调用 `scripts/align-release-assets.cjs`，把产物名对齐 `latest.yml` 的 `path`（坑 41 根治，防自动更新 404）
+- 发布后核验：匿名 `HEAD https://github.com/lansi-ai/dsh-forge/releases/download/<tag>/<latest.yml 的 path>` 应返回 200（**勿带 Authorization**，公开端点带 token 反被 401）
