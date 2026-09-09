@@ -334,6 +334,9 @@ function main() {
   }
   commitAndTag();
   push();
+  if (!opts.local) {
+    log('提示：未指定 --local，本次未生成本地安装包（release/ 无本版产物）；需要本地包请下次加 --local');
+  }
   log('✓ 发版流程完成');
 }
 
