@@ -27,6 +27,7 @@ alwaysApply: true
 - 规则目录收敛 ✅（2026-09-09）：规则唯一来源 = `.trae/rules/`（6 文件，含 `rtk-usage.md`）并入 git 跟踪（`.gitignore` 加例外），陈旧副本 `.rules/` 已删（历史留 git）
 - **M6-P3 侧栏 workspaces ✅（2026-09-08 实机验收）**：`@lansi-ai/dsh-desktop-workspaces` W1 五接管+picker 承重（坑 35）→ W2 派生层 → W3 Rows/视图选项 → W4 内容搜索 → W5 实机对照点；搜索索引开启 `openAt startup+$DSH_HOME 持久化`（坑 36 探测锁定 / 坑 37 app 未定义）；单测 16 项+图谱实测，见 `docs/plugin-inventory.md`
 - **官网站点 ✅（2026-09-09）**：`website/` VitePress 中文站点（首页 Landing + 用户指南 8 页：安装/快速上手/工作区/桌面能力/设置/更新/FAQ/下载）→ GitHub Pages 项目页 `https://lansi-ai.github.io/dsh-forge/`；`npm run docs:dev|build|preview`；CI `deploy-pages.yml`
+- **品牌 logo 自有化 ✅（2026-09-09）**：应用图标（= 标题栏品牌 logo / 窗口 / 任务栏 / 安装包）改用自有金标（`scripts/process-logo.cjs` 从根 `logo.png` 抽透明通道，`npm run logo`）；官网导航/首页/favicon 同步；托盘图标仍为官方鲸鱼
 - ⏸️ M2-c 旧插件门禁置后（载体待确认，不阻塞）；R6 技术债留 M5
 
 ### M3-b4 · dogfood 门禁（🔄 进行中）
@@ -50,7 +51,7 @@ alwaysApply: true
 - [ ] M4-c 离线 e2e · M4-e 门禁（≥3 人安装即用 + SHA256SUMS 外部可验证）
 
 ## 03. 活跃决策与风险（一行索引；全文找 git 历史 / `docs/adr/`）
-- **活跃决策**：D-18 布局接管 root 槽位 · D-19 scope=`@lansi-ai/dsh-*` · D-20 全量自绘 · D-21 骨架宿主化（`--dsd-*` 外观契约）· D-22 启动即时响应 · D-23 图标资产 global（`userData/icons/`）/pack（包内 `icons/`）分层 · **D-24 用户数据跟随 `$DSH_HOME`、设备数据（指针/Chromium 缓存/审计）留 userData（ADR-008）**
+- **活跃决策**：D-18 布局接管 root 槽位 · D-19 scope=`@lansi-ai/dsh-*` · D-20 全量自绘 · D-21 骨架宿主化（`--dsd-*` 外观契约）· D-22 启动即时响应 · D-23 图标资产 global（`userData/icons/`）/pack（包内 `icons/`）分层 · **D-24 用户数据跟随 `$DSH_HOME`、设备数据（指针/Chromium 缓存/审计）留 userData（ADR-008）** · **D-25 品牌 logo 自有化（2026-09-09）**：应用图标（标题栏品牌 logo/窗口/任务栏/安装包）为自有金标（`logo.png` → `scripts/process-logo.cjs`），托盘图标保留官方标识
 - **基座决策**：D-1 主进程内嵌 Cordis Host · D-2 IPC fetch 载波零端口 · D-5 roster/manifest 覆盖不改 dist · D-6 `ctx.webServer` 等价面 · D-8 第三方经 `buildThirdPartyBundleDecl` 装载（详见 `docs/adr/`）
 - **铁律**：绝不改官方代码；官方未自有化处只走适配器；官方 `#root` 保留原生自适应，只用 padding/圆角垫层（坑 20）；自绘样式一律 important 化（坑 19）
 - **风险 open**：R6 `!!js` 不求值 · R9 多窗口内存（M5 验）；R10 协议安全已收口（M4-a2 白名单+降级，2026-09-08）· 原「R7 `.runtime` 硬编码」已由 ADR-008 收口；全录见 `docs/11-risks.md`
