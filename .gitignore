@@ -28,7 +28,10 @@ npm-debug.log*
 # IDE
 .idea/
 .vscode/
-.trae/
+# .trae：IDE 注入的规则必须入库（.trae/rules 是规则唯一来源），其余内容照旧忽略
+.trae/*
+!.trae/rules/
+!.trae/rules/**
 *.swp
 
 # 图标源图（tray/app 图标由 scripts/process-icon.cjs 从项目根 lansi.jpg 生成，源感不入库）

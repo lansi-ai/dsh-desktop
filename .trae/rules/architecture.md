@@ -8,9 +8,9 @@ alwaysApply: true
 
 ## 01. 目录映射与文件放置规则
 - `src/desktop-shell/`：Electron 应用外壳（`main.ts` 入口、BrowserWindow 创建、`dsh-ui://` 协议注册、单例锁、崩溃 relaunch）。禁止写业务逻辑与 Host 装配。
-- `src/desktop-host/`：宿主装配（`boot()` desktop profile）、`desktop-runtime`（roster/manifest 供给 `__DSH_BOOT__`）、IPC 桥宿主端（unary 表分发 + respond 回填 + 帧路由 per-window）。
-- `src/desktop-compat/`：旧插件兼容（`ctx.desktopRoutes` 等价面、preload fetch 拦截白名单、零端口 bundle 服务）。
-- `src/desktop-plugins/`：桌面能力 host 插件（desktop-tray / desktop-hotkey / desktop-notify / desktop-settings / desktop-restart 等），一律以插件包形态（`cordis.patch.yml` + `dsh.client` 声明）存在。
+- `src/desktop-host/`：宿主装配（`boot()` desktop profile）、`desktop-runtime`（roster/manifest 供给 `__DSH_BOOT__`）、IPC 桥宿主端（unary 表分发 + respond 回填 + 帧路由 per-window）、**桌面能力模块**（`desktop-api.ts` 提供 `ctx.desktop` 聚合、`desktop-tray.ts` / `desktop-notify.ts`，经 boot() prepare 注入——M2 当前阶段以**项目内模块**存在，插件包化后再迁出）。
+- `src/desktop-compat/`：旧插件兼容（`ctx.webServer` 等价面 `compat-webserver.ts`、preload fetch 拦截白名单、零端口 bundle 服务）。
+- `src/desktop-plugins/`：桌面能力 host 插件（desktop-tray / desktop-hotkey / desktop-notify / desktop-settings / desktop-restart 等），**插件包形态**（`cordis.patch.yml` + `dsh.client` 声明）——M2 暂不在此放文件，留待能力插件包化阶段启用。
 - `src/preload/`：`contextBridge` 白名单 API（`desktopBridge`：rpc/respond/onFrame/http/runtime 等）。
 - `src/types/`：IPC 契约（`zod` Schema）、DTO、`dsh:*` channel 常量、`AppError` 码表——唯一类型源头，renderer/preload/host 三方共享。
 - `src/plugins/`：补充的可 patch 侧插件（如 bundle patch 承载）。

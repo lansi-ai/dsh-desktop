@@ -8,7 +8,7 @@ alwaysApply: true
 
 ## 01. 核心技术栈与环境约束
 - **基础 Runtime 与语言版本**：Node.js >= 20.0.0 / npm >= 10；TypeScript `strict` 全程（主进程 + preload + host 插件 + renderer）。
-- **核心框架与依赖**：Electron（主进程内嵌 Cordis Host，基线 `dsh-v0.1.0-rc.8`）；`dsh-app-boot` 装配；`zod` 做协议校验；**npm 单包工程**（沙箱环境限制 pnpm store 写入，依赖统一项目内 `node_modules` 安装）。
+- **核心框架与依赖**：Electron（主进程内嵌 Cordis Host，基线 `dsh-v0.1.2-alpha.3`，2026-09-01 M4-d3 由 rc.8 直升）；`dsh-app-boot` 装配；`zod` 做协议校验；**npm 单包工程**（沙箱环境限制 pnpm store 写入，依赖统一项目内 `node_modules` 安装）。
 - **配置与环境隔离**：API 密钥、Token、模型凭据一律经 profile/环境变量注入，禁止写死在源码；`.env` 不提交；开发/测试/生产三态隔离。
 
 ## 02. 代码风格与语法规范

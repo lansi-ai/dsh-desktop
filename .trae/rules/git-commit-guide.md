@@ -69,3 +69,49 @@ git commit -m "docs(board): 完成步骤 4 IPC 载波四件套，更新任务看
 git add docs/upstream-migrations.md package.json
 git commit -m "build(upstream): 同步 dsh-v0.1.0-rc.8 拴合面 diff 迁移登记"
 ```
+
+## 04. 多窗口并行开发规范（branch + worktree）
+
+### 1. 总原则
+同时开发多个功能（多窗口/多 IDE）时，**严禁直接在基线（主）分支上改**。一条功能线 = 一个分支 + 一个独立工作目录，物理隔离、互不干扰，且不污染稳定基线。
+
+### 2. 基线约定
+- 基线分支（`main`/`dev`）只收**已完成并通过验收的合入**；半成品/中间态一律不进基线。
+- 一条功能线合并回基线后，才从基线拉下一阶段新线，避免多线交叉污染基线。
+
+### 3. 核心机制：`git worktree`
+同一仓库同一目录只能 checkout 一个分支，多窗口共用会互相覆盖。用 `git worktree` 为每条功能线生成**独立目录 + 独立分支**：
+
+```bash
+# 每功能一线一目录
+git worktree add ./dsh-workspaces -b feat/workspaces
+git worktree add ./dsh-p2-brand  -b feat/brand
+git worktree add ./dsh-dogfood   -b fix/dogfood-issues
+
+# 完成后清理（合并回基线并验证后）
+git worktree remove ./dsh-workspaces
+git branch -d feat/workspaces
+```
+
+### 4. 分支命名
+`<type>/<module>-<topic>`（type 复用提交类型）：`feat/workspaces`、`fix/dogfood-issues`、`chore/upstream-rc2`。命名与 scope 语义一致，便于按模块检索。
+
+### 5. 并行度与文件域约束
+- **同时并行 ≤ 3 条**；过多则 merge 冲突与心智负担陡增。
+- 各功能线尽量**改不同文件域**；若两条并行线都要改同一批核心文件，改为**串行**。
+
+### 6. 冲突敏感文件（并行红线，禁止进功能分支）
+以下"共享改动"文件**只在基线更新**，功能分支不重复改，避免并行冲突与看板被多线改写：
+- `src/types/`（IPC 契约 / zod / DTO）：三方共享唯一源头；破坏性变更须先串行对齐再并行。
+- `.trae/rules/active-context.md` + `docs/active-context.html`：看板为唯一跟踪，单独收口，功能线不碰。
+- `.trae/rules/*.md` 与 `docs/adr/`：规则演进（场景 A~D）只在基线做，不混入功能线。
+
+### 7. 完成收口协议（每条功能线）
+1. 功能分支内**原子提交**（遵守 02 节颗粒度）。
+2. `git checkout <基线>` → `git merge <feat-branch>`（先 rebase 到最新基线避免冲突）。
+3. 从基线清理：`git worktree remove` + `git branch -d`。
+4. **看板收口、合并后回归在基线做**，不散落在功能分支。
+
+### 8. 与既有契约衔接
+- 原子提交 / 契约破坏性变更 `!` 标注 / 上游升级 SOP：均在**功能分支内**遵守。
+- 看板双落盘（MD+HTML）：仅在**基线合并后**执行，避免并行分支各自更新看板造成冲突。

@@ -26,7 +26,7 @@
 
 ## AI 驱动开发声明
 
-本项目（含 `docs/` 设计文档、`.rules/` 工程规则、`src/` 代码、`scripts/` 验证脚本）**全程由 AI 驱动编写**，
+本项目（含 `docs/` 设计文档、`.trae/rules/` 工程规则、`src/` 代码、`scripts/` 验证脚本）**全程由 AI 驱动编写**，
 迭代过程基于 `.trae/rules/workflow.md` 的协作 SOP 与 `docs/pitfalls.md` 的实战踩坑记录进行。
 开发中遵循以下原则：
 
