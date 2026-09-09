@@ -20,7 +20,7 @@ alwaysApply: true
 - M1 桌面骨架 ✅ · M2 桌面能力插件化 ✅ · M3 代码侧 ✅（2026-08-25~26）
 - M3-c 布局/标题栏/骨架宿主化 ✅（= M6-P1，2026-09-01 实机验证）
 - M3-a4 命令面板 + M3-a5 多窗口验证 ⏸️ 用户决策挂起（Ctrl+K 已隐藏；恢复 = revert `desktop-cmdpalette-client.js` 禁用壳）
-- M4-a1 electron-builder 基建 ✅；v0.1.1-alpha.1~alpha.3 Win/mac 安装包发布 ✅；**v0.1.1-alpha.4 发布 ✅（2026-09-08 · CI win+mac 双平台自动构建并上传 GitHub Releases pre-release；坑 41：资产名对齐 latest.yml path 后自动更新链路匿名 HEAD 200 验证）**（打包链坑见 `docs/pitfalls.md`）
+- M4-a1 electron-builder 基建 ✅；v0.1.1-alpha.1~alpha.3 Win/mac 安装包发布 ✅；**v0.1.1-alpha.4 发布 ✅（2026-09-08 · CI win+mac 双平台自动构建并上传 GitHub Releases pre-release；坑 41：资产名对齐 latest.yml path 后自动更新链路匿名 HEAD 200 验证）**；**v0.1.1-alpha.5 发布（2026-09-09 · 首载 M4-a4 数据目录分层/DSH Forge 命名/规则收敛，tag 推 CI 双平台构建）**（打包链坑见 `docs/pitfalls.md`）
 - M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 `docs/m4-d3-012-alpha3-migration-plan.md`）→ alpha.4 → alpha.5（`scripts/upstream.cjs` 自动化首跑）→ rc.1（首次跨 next 线）；全部零破坏性变更，登记 `docs/upstream-migrations.md` C-1~C-4
 - M4-d6 工具修正 ✅（2026-09-07）：`check` 判据源 npm dist-tags → **GitHub releases**（npm 降级为可安装校验，新增 pending 三态），修「连续 3 天漏检 0.1.3-alpha.1」，见坑 31 / ADR-005 第 6 条
 - **M4-a4 数据目录分层 ✅（2026-09-09 · ADR-008）**：sessions/storages/themes/icons/window-state 归位 `$DSH_HOME`（幂等迁移，失败保持原位）+ 应用命名统一 `DSH Forge`（旧设备目录/旧注册表键自动迁移）+ 卸载删除路径安全校验 + `--data-dir` 与注册表种子；typecheck/lint/29 单测/build 全绿 + **实机验证通过（2026-09-09）**
