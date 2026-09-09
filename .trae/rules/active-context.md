@@ -34,6 +34,7 @@ alwaysApply: true
 - [ ] 全量回归（M1+M2+M3 全链）+ `netstat` 零监听再验证 + 崩溃恢复/多窗口组合测试（多窗口仅验「不崩不干扰」）
 - [ ] **待实机点验（2026-09-04 批次）**：外观 section V2（#8）· 图标需求清单+新建包（#9）· 图标光学归一（#10）· 标题栏图标主题化（#11）· 全局图标分层 D-23（#12）· 工作区图标槽位 4 项（搜索/视图选项/新建/文件夹两态；`ICON_SLOTS` 增 match 官方 path 特征，上传自动并写包内 ui-overrides.json，ui-icons 覆盖层升级 themeIcon 内联上色 + img 兜底）
 - [ ] 上游 0.1.2 系列实机冒烟随 dogfood 合并观察（重点：session 域重构后对话流/历史分页/审计无回归；rc.1 首次跨线验 UI 发行物装载与 roster 装配）
+- [x] **#15 安装版无法聊天 ✅（2026-09-09 · 坑 45）**：根锚点 cordis.yml 移入 asar（copy-web 生成 `dist/cordis.yml` + boot 打包分支改 `app.getAppPath()/dist/cordis.yml`），win-unpacked 实机验证预设 4 个无 broken + `session/prompt` 通 + 会话落盘；**待发 alpha.6 方可到达存量安装版**
 - 问题登记 `docs/dogfood-issues.md`（跨会话移交锚点，新会话按 #N 直取）；排障 `$env:DSH_VERBOSE='1'`
 
 ### M6 · 全量自绘 UI（🔥 主线）

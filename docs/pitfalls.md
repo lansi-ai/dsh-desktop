@@ -494,3 +494,16 @@
   1. 「fatal + 退出码非 0」不等于操作未发生——**先看失败发生在哪一步**（凭据持久化 vs 数据传输）。
   2. 远端状态用 `git ls-remote` 判，别信本地 remote-tracking ref（它可能已被本地更新）。
   3. 与坑 42 同族：沙箱拦的是工作区外的运行期写入，这类报错一律先看输出尾部 `TRAE Sandbox Error` 指向哪个路径。
+
+## 坑 45：打包版根锚点 cordis.yml 落在 userData → agent-presets 健康检查向上找不到 node_modules，安装版无法聊天（dev/start 正常）
+
+- **现象**：安装版（v0.1.1-alpha.5）发消息即失败，`npm run dev` / `npm run start` 一切正常。CLI/日志报 `agent-presets: preset 'standard' failed to mount: 23 rows name plugins that cannot be resolved`（23 行插件全部"无法解析"），客户端侧表现为 `session/prompt failed: connection: invalid server-response failure (gateway/internal)`。asar 内 26 个关键插件包经 `@electron/asar.listPackage` 验证**全部存在**——不是打包丢文件。
+- **根因**：三层链条叠加：
+  1. `dsh-app-boot` 的 `boot()` 将 `ctx.baseUrl` 设为 **configPath 所在目录**（`lib/index.js:1495`）；Cordis `Include` constructor 同样改写 `ctx.baseUrl = dirname(配置文件)`（`cordis-plugin-include/lib/index.js:138`）。
+  2. `dsh-agent-presets` 的健康检查 `packageInstalled(name, base)`（`lib/invariant.js:247`）从 `harnessBase`（= `ctx.baseUrl`）**逐级向上查找 `node_modules/<pkg>/package.json`**，任一级命中即通过——纯磁盘 `existsSync`，与 import 解析无关。
+  3. dsh-desktop 的根锚点 `createRootConfig()` 写在 `runtimeRoot()/cordis.yml`：开发模式 = 项目内 `.runtime\`（向上一级命中项目 `node_modules` ✓）；**打包模式 = `userData\.runtime\`（AppData 下，向上到盘符都没有 node_modules ✗）** → 23 行全部判死 → 预设 mount 失败 → 会话无法建立。`bareModuleBaseUrl`（指向 asar 内 node_modules）只救 `Include` 的 `internal.import` 裸包名解析——所以安装版宿主装配、插件 import 全部成功，唯独这个磁盘检查挂掉，极具迷惑性。
+- **解法**：根锚点必须位于 asar 内——构建期由 `scripts/copy-web.cjs` 生成 `dist/cordis.yml`（内容 `[]`，随既有 `files: dist/**/*` 进 asar）；`boot.ts` 的 `createRootConfig()` 打包分支改用 `join(app.getAppPath(), 'dist', 'cordis.yml')`。此时 `ctx.baseUrl = <app.asar>/dist/`，向上第一级命中 `<app.asar>/node_modules`（Electron 主进程 fs 对 asar 路径的 `existsSync` 生效）。asar 只读无碍：`Include` 对已存在文件只读不写（`checkAccess` 失败仅标记 readonly）；`_writeFile` 只在编辑 API 被调用时触发。开发模式行为不变。
+- **复盘要点**：
+  1. 「同一份代码 dev 正常、打包版挂」的路径类差异，先画**每个 base/anchor 的解析链**（`ctx.baseUrl`、`__dirname`、`cwd`、`DSH_HOME`）在两种模式下的值，再对差异点。
+  2. 上游包的"健康检查/不变量"用的是**字面磁盘查找**而非 import 解析——两条链路（import vs existsSync）可能基于不同 base，修好一条不代表另一条通。
+  3. `userData`（AppData）是**孤岛目录**：任何依赖"向上找 node_modules"的上游逻辑都不能以它为锚；asar 内路径反而是 Electron patched fs 下合法的查找起点。

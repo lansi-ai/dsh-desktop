@@ -218,3 +218,14 @@
   3. `make-theme-assets.cjs`：停用 `titlebar-logo.svg` 生成；源码与 dist 各 3 个旧 `.svg` 资源已删
 - 副作用：设置页「外观」不再有独立的「标题栏品牌 logo」上传项 —— 标题栏 logo 跟随应用图标槽位（app-icon-light/dark），换应用图标即同步标题栏
 
+### #15 · 打包版（v0.1.1-alpha.5）无法聊天：根锚点 cordis.yml 落 userData 致 agent-presets 全挂（dev/start 正常；早期误判为凭据缺失）
+
+- 环境：打包版（v0.1.1-alpha.5 安装包，本机 alpha.4 → alpha.5 链），home = `C:\Users\Administrator\.dsh`；对照 dev（home = `E:\Projects\DSHPath`）正常
+- 第一现场（2026-09-09 取证）：`~/.dsh` 无 `sessions/` 目录、`storages/workspace.json` 两个工作区 `sessionIds` 均空（从未成功开启会话）；`~/.dsh/.credentials.yaml`（161B）仅含 `client-connection/browser-session` grant，**缺 `refs.DEEPSEEK_API_KEY`**；dev 同名文件（223B）含该 ref
+- 第二现场（2026-09-09 深挖，用户补配凭据后仍失败）：日志报 `agent-presets: preset 'standard' failed to mount: 23 rows name plugins that cannot be resolved`，客户端侧 `session/prompt failed: invalid server-response failure (gateway/internal)`；asar 内 26 个关键插件包验证全部存在——非打包丢文件
+- 真根因（坑 45）：`boot()` 把 `ctx.baseUrl` 设为根锚点 cordis.yml 所在目录；`dsh-agent-presets` 的 `packageInstalled` 从该目录**向上查找 node_modules/<pkg>**。dev 锚点在项目内 `.runtime\`（向上命中项目 node_modules ✓）；打包锚点在 `userData\.runtime\`（AppData 孤岛，永远找不到 ✗）→ 23 行预设插件全部判死 → mount 失败 → 会话无法建立。凭据缺失（第一现场）是伴生问题而非阻断根因
+- 次要发现：本机设备目录更名迁移未生效（`dsh-desktop` 仍在、`DSH Forge` 全新创建，疑升级时旧实例占用锁）；注册表种子（旧键 `DSH Desktop\DataDir`）成功救回 home 选择；alpha.4 的 `storages/workspace.json` 搁浅旧 `.runtime`（用户已手动重注册工作区，实际影响小）
+- 修复（2026-09-09）：`scripts/copy-web.cjs` 构建期生成 `dist/cordis.yml`（随 `dist/**/*` 进 asar）+ `boot.ts` `createRootConfig()` 打包分支改用 `join(app.getAppPath(), 'dist', 'cordis.yml')`（baseUrl = `<app.asar>/dist/`，向上一级命中 asar 内 node_modules；Electron 主进程 fs 的 existsSync 支持 asar 路径）。dev 行为不变。typecheck/lint/build 全绿
+- 遗留待决策：① 无凭据时聊天报错的用户引导（是否立项）；② `migrateRuntimeDataIntoHome` 增加旧 userData runtime 源兜底（更名失败场景 storages 不搁浅）；③ 修复需发 v0.1.1-alpha.6 才能到达存量安装版用户
+- 状态：**fixed（代码侧 2026-09-09，坑 45）**——待 win-unpacked 实机验证聊天链路后收口
+
