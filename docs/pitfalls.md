@@ -8,7 +8,7 @@
 
 - **现象**：`npm run dev` 启动即报
   `TRAE Sandbox Error: Not allow operate files: ...\SogouPY\LOG\IME\electron_*.log`，且 `Start-Process` 拉独立 PowerShell 报 `0x800700e8 (ERROR_NO_TOKEN)`。
-  同类实例（2026-09-01，版本号显示任务验证启动时）：报 `Not allow operate files: ...\Tencent\WeType\MM_TIP_*.xlog, ...\spool\drivers\color\sRGB Color Space Profile.icm`——**微信输入法（WeType）写自家 `.xlog` + Chromium 读系统色彩配置也各自触发同一拦截**。
+  同类实例（2026-09-01，版本号显示任务验证启动时）：报 `Not allow operate files: ...\Tencent\WeType\MM_TIP_*.xlog, ...\spool\drivers\color\sRGB Color Space Profile.icm`——**微信输入法（WeType）写自家 `.xlog` + Chromium 读系统色彩配置也各自触发同一拦截**。第三形态（2026-09-09，见坑 42）：拦**运行时数据目录** `E:\Projects\DSHPath` 的 `.credentials.yaml.lock` / `search-query.sqlite-shm`，表现为主进程先打印完装配日志再退出、报 `loader entries failed to apply`——**错误头像代码坑，根因在输出尾部**。
 - **根因**：搜狗/微信输入法注入到 Electron 进程，启动时写自家 IME 日志，被 TRAE 沙箱拦截；Chromium 渲染时读取 Windows 系统色彩配置（`sRGB Color Space Profile.icm`）同样被拦（非输入法场景也可能触发）；沙箱内 `Start-Process` 无创建新 GUI 进程的 Windows 令牌。
 - **解法**：Electron 是 GUI 应用，必须在**系统 PowerShell（沙箱外）**运行 `npm run dev`；日志经终端输出或重定向 `npm run dev *> app.log 2>&1` 后读取。构建/编译（`npm run build`）在沙箱内正常，仅**运行时**被拦。
 - **复盘**：沙箱内无法代跑 Electron GUI，只能让用户外部运行并贴日志；诊断数据靠加临时日志 + 用户回传。拦截文件可能来自多套输入法（搜狗/微信）或系统色彩配置，任一触发即启动退出——先看报错尾部第一个被拦路径判定来源。
@@ -350,6 +350,7 @@
 25. **依赖安装「退出码 0」不等于环境就绪**：靠 postinstall 拉二进制的包（electron / playwright / esbuild / better-sqlite3 等）npm 会吞掉其失败，缺口延后到运行期由 CLI 自愈补装才暴露——报错点与失败点分离。install 后先 `Test-Path` 落地物（`electron/dist/electron.exe`、`path.txt`）再谈运行；多 worktree 同 commit 时优先复用主工作区重资产（拷 `dist` 或 junction `node_modules`），不要默认全量重来（坑 34）。
 26. **分阶段替换 UI 的「可后置」判据 = 是否唯一交互入口，不是视觉复杂度**：把某个槽位实现成 `return null` 是合法渲染、静态门禁全绿，却可能锁死整条下游链（本例 picker ⇒ 无 session ⇒ 官方输入框判 `inert` 置灰）。唯一入口类控件必须与服务接管同批落地；验收要顺依赖链看到最终用户动作，别只看本槽位是否渲染（坑 35）。
 27. **用 `vm` 沙箱单测浏览器 bundle 时，`deepStrictEqual` 对跨 realm 对象必误报**：`node:assert/strict` 的 `deepEqual` 会把 vm realm 的对象与宿主 realm 的字面量判「same structure but not reference-equal」，连空数组 `[]` 都不放过（Array/对象原型主 realm 不同）。解法：断言别用 deepEqual 比较跨 realm 数组/对象——改投影为基本值逐字段 `assert.equal(arr.length, n)` + `arr[i].field === x`。仅当 bundle 导出的是**基本值**时方可整体深比（W2 派生层单测教训，`test/workspace-tree.test.cjs`）。
+28. **沙箱内跑 Electron（启动/打包）先看输出尾部，不要先看错误头**：拦截是环境坑但会以业务错误形态出现（`loader entries failed to apply` / 打包中途卡死），真正的根因永远在最后一行 `TRAE Sandbox Error: hit restricted` 的「被拒路径」里。被拒路径落在工作区外（数据目录 `$DSH_HOME`、IME 日志、系统色彩配置、`AppData` 缓存）→ 直接授权沙箱外运行或加白名单放行，**改代码是空转**（坑 0 / 38 / 42）。
 
 ## 结论
 
@@ -461,3 +462,25 @@
   1. 凡 CI 手动上传 electron-builder 产物（非 `--publish always`），必须核对 `latest.yml` 的 `path` 与实际上传资产名逐字节一致，否则平台自动更新是"假功能"。
   2. 验证手段：下载 `latest.yml` 读 `path`，再匿名 `HEAD https://github.com/{o}/{r}/releases/download/{tag}/{path}` 应 200；**验证不可带 Authorization header**（公开下载端点带 token 反被 401，曾误判）。
   3. artifactName 里的 `${productName}` 含空格，是这场错位的源头——要么 workflow 显式重命名对齐 path，要么后续把 artifactName 改为无歧义 `${name}-...`（等于 package.json name）。
+
+## 坑 42：沙箱拦「数据目录」写入 → 宿主报 `loader entries failed to apply`（环境坑，伪装成代码坑）
+
+- **现象**：沙箱内 `npm start` 启动，闪屏与插件清单日志全部正常打印（52 个插件、Host 就绪、载波/窗口装配一路 ✔），随后进程退出码 1，报
+  `AggregateError: loader entries failed to apply`（`at EntryGroup.update ... cordis-plugin-loader`，`[errors]: [Array]` 细节被 console 折叠成 Array 不可读）；**只有翻到输出最末尾**才看到真正的根因
+  `TRAE Sandbox Error: hit restricted / Not allow operate files: C:\Users\Administrator\AppData\LocalLow\Tencent\WeType\MM_TIP_*.xlog, C:\Windows\system32\spool\drivers\color\sRGB Color Space Profile.icm, E:\Projects\DSHPath\.credentials.yaml.lock, E:\Projects\DSHPath\search\session-query.sqlite-shm`。
+- **根因**：沙箱默认只放行工作区（`E:\Projects\DSH\desktop`），而**运行时数据目录在工作区外**（`E:\Projects\DSHPath` = `$DSH_HOME`）：`desktop-credentials` 的 watch 要写 `.credentials.yaml.lock`、session-query 搜索索引要写 `*.sqlite-shm`，双双被拒 → 对应 host 插件 `apply` 抛错 → Cordis loader 聚合为 `loader entries failed to apply`。即「业务错误壳（loader 装载失败）包着环境错误（沙箱拦截）」，与坑 0（拦 IME 日志/系统色彩配置）、坑 38（拦 electron-builder 缓存）同族。
+- **解法**：改为**沙箱外运行**（命令授权「在沙箱外运行」）后同一份代码零改动即正常启动（窗口 2 就绪、`dsh-ui://app/index.html` 加载完成、会话预热 13/13）；长期方案 = Settings → Permission & Approval → Custom Configuration 放行数据目录 `E:\Projects\DSHPath\`（一次放行，凭据 watch 与搜索索引都不再被拦）。启动命令口径：`dist/` 已是最新 → `npm start`；源码有改动 → `npm run dev`（build + electron）。
+- **复盘要点**：
+  1. **报错分层看**：Cordis 的 `loader entries failed to apply` / `AggregateError` 是**聚合错误壳**，细节被折叠，直接据此查插件代码必空转；先看进程输出**尾部**是否 `TRAE Sandbox Error`，被拒路径决定「环境坑 or 代码坑」。
+  2. **数据目录在工作区外 = 沙箱内必失败**：凭据 watch（`.lock`）、sqlite 索引（`-shm`）这类运行期落盘是启动必经路径，凡涉及它们一律沙箱外跑，别改代码。
+  3. 启动日志里「前半段全绿、后半段退出」的形态，往往是启动链路后段某个插件 apply 失败被聚合，**不要按「启动时序」猜测**，优先定位第一个真实异常。
+
+## 坑 43：同一文件并发编辑互相覆盖（工具使用坑，伪装成「代码没生效」）
+
+- **现象**：一轮里对**同一个文件**发起多条编辑，工具回执全部显示成功（还带 diff），但 `tsc` 报 `Cannot find name 'resolveUserDataRoot'`、`Property 'dataDir' does not exist on type 'CliOptions'`、`'migrateLegacyUserDataSync' is declared but its value is never read` 这类「导入缺失 / 字段不存在 / 声明未使用」错误；回读文件发现只有**部分**改动落地。
+- **根因**：编辑工具是「读快照 → 替换 → 写回」。同一文件的两条编辑并发执行时，第二条拿到的快照不含第一条的结果，写回即把第一条回滚掉。
+- **解法**：**同一文件的多个改动串行执行**（一条消息只发该文件的一条编辑），不同文件可并行；改完以 `typecheck` 与 grep 复核为准，**不以工具回执的 diff 为准**。
+- **复盘要点**：
+  1. 回执 diff 只证明「这次替换算出了结果」，不证明「文件最终态包含它」——同文件并发写会互相吞。
+  2. 批量改代码后先跑 `typecheck`；错误集中在「导入缺失 / 字段不存在」时，优先怀疑编辑被覆盖，而不是类型真写错了。
+  3. 改名/跨文件重构（import + 使用点 + 配置三处齐动）最容易踩：一文件一消息，改完 grep 关键符号复核。
