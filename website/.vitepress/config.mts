@@ -22,7 +22,7 @@ export default defineConfig({
   lastUpdated: true,
   sitemap: { hostname: SITE },
   head: [
-    ['link', { rel: 'icon', type: 'image/png', href: `${BASE}logo-light.png` }],
+    ['link', { rel: 'icon', type: 'image/png', href: `${BASE}favicon.png` }],
     ['meta', { name: 'theme-color', content: '#d97706' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'DSH Forge' }],
@@ -30,7 +30,7 @@ export default defineConfig({
     ['meta', { property: 'og:url', content: SITE }],
   ],
   themeConfig: {
-    logo: '/logo-light.png',
+    logo: '/logo.png',
     siteTitle: 'DSH Forge',
 
     nav: [

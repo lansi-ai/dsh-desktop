@@ -6,7 +6,7 @@ hero:
   text: 把桌面操作系统锻造成 DeepSeek Harness 的可插拔能力层
   tagline: 一包安装即用 · 零 HTTP 端口 · 与官方 Web 同内核、同数据目录
   image:
-    src: /logo-light.png
+    src: /logo.png
     alt: DSH Forge
   actions:
     - theme: brand

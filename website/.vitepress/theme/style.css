@@ -2,7 +2,7 @@
  * DSH Forge 官网主题样式
  *
  * 品牌色取「锻炉」暖琥珀，与产品名 Forge（锻炉）呼应；
- * 深浅色各自成对，深色模式下自动切换白色 logo（VitePress 默认不换图）。
+ * 品牌 logo 为透明底金标（scripts/process-logo.cjs 生成），深浅色通用，无需换图。
  */
 
 :root {
@@ -25,12 +25,6 @@
 
   --vp-home-hero-name-background: linear-gradient(120deg, #fbbf24 15%, #f97316 85%);
   --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(251, 191, 36, 0.24), rgba(249, 115, 22, 0.18));
-}
-
-/* 深色模式换白色 logo：浅色图为黑鲸（适合浅底），深色图为白鲸（适合深底） */
-.dark .VPNavBarTitle .logo,
-.dark .VPHomeHero .image-src {
-  content: url('/logo-dark.png');
 }
 
 /* 首页特性卡片：轻微悬浮反馈，突出「可锻造」的质感 */
