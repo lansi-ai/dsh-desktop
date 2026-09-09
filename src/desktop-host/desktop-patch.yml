@@ -79,6 +79,8 @@
     - id: session-persistence-jsonl
       name: '@deepseek-ai/dsh-session-persistence-jsonl'
       config:
+        # 运行期由 boot.ts userDataRoot() 解析为 $DSH_HOME/sessions（与官方语义同义）；
+        # 此处仅为 roster 提取与文档占位，YAML 不参与运行期装配。
         root: !!js dshHomePath('sessions')
 
     - id: attachment-local
@@ -434,6 +436,7 @@
     - id: storage-json
       name: '@deepseek-ai/dsh-storage-json'
       config:
+        # 运行期由 boot.ts userDataRoot() 解析为 $DSH_HOME/storages；此处为文档占位。
         root: !!js dshHomePath('storages')
 
     - id: storage-domain

@@ -39,6 +39,7 @@ import { dirname, join, basename, normalize, sep } from 'node:path'
 import { app, dialog } from 'electron'
 
 import { log } from './log.js'
+import { resolveUserDataRoot } from './desktop-home-paths.js'
 import { registerMethod, unregisterMethod } from './bridge.js'
 import {
   iconThemeSetSchema,
@@ -288,9 +289,14 @@ function resolveThemesRoot(): string {
   return join(__dirname, '..', 'resources', 'themes')
 }
 
-/** 用户主题根目录（userData/themes；上传图标/自定义包落盘处，可写）。 */
+/**
+ * 用户主题根目录（`$DSH_HOME/themes`）：上传图标/自定义包落盘处，可写。
+ *
+ * 跟随首启选定的 harness home（换机/迁移随 home 一起走）；DSH_HOME 未就绪时
+ * 回退设备 userData，保证纯 Node 场景不写意外位置。
+ */
 function resolveUserThemesRoot(): string {
-  return join(app.getPath('userData'), 'themes')
+  return join(resolveUserDataRoot(app.getPath('userData')), 'themes')
 }
 
 /** 用户主题目录下指定 ID 的包路径（可写；新建包与内置包克隆的唯一落盘处）。 */
@@ -317,11 +323,11 @@ function resolveWritableThemeDir(themeId: string): string {
 }
 
 /**
- * 全局图标目录（userData/icons）：`scope='global'` 槽位（应用图标、托盘图标）
- * 的唯一落盘处 —— 与图标包解耦，只有一份，切换图标包不影响。
+ * 全局图标目录（`$DSH_HOME/icons`）：`scope='global'` 槽位（应用图标、托盘图标）
+ * 的唯一落盘处 —— 与图标包解耦，只有一份，切换图标包不影响。跟随 harness home。
  */
 function resolveGlobalIconsDir(): string {
-  return join(app.getPath('userData'), 'icons')
+  return join(resolveUserDataRoot(app.getPath('userData')), 'icons')
 }
 
 /**

@@ -66,6 +66,21 @@ export function dshHomePath(...segments: string[]): string {
 }
 
 /**
+ * 解析桌面侧用户资产根（`sessions` / `storages` / `themes` / `icons` 等自有落点）。
+ *
+ * 语义与官方 `dshHomePath()` 同源：`$DSH_HOME` 就绪时直接返回该 home；未就绪
+ * （纯 Node 环境、单元测试、自定义 patches 场景）回退调用方给定的设备目录，
+ * 避免 R7 式的硬编码在打包态写进只读 asar，也避免把数据甩到 cwd。
+ * @param fallback - `$DSH_HOME` 未就绪时的回退目录（通常为运行时数据根）。
+ * @returns 用户资产根绝对路径。
+ */
+export function resolveUserDataRoot(fallback: string): string {
+  const fromEnv = process.env[DSH_HOME_ENV]
+  if (fromEnv !== undefined && fromEnv.trim().length > 0) return resolve(expandHomePath(fromEnv))
+  return fallback
+}
+
+/**
  * 以符号形描述解析后的 harness home（永不回传机器绝对路径）：
  * 默认 home 标注 `~/.dsh`，其余标注 `$DSH_HOME`。
  */

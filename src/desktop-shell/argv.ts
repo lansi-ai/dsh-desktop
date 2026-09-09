@@ -23,6 +23,11 @@ export interface CliOptions {
    * 强制弹出首启数据目录窗口（已有选择时预选当前目录，迁移源 = 当前在用目录）。
    */
   selectDataDir: boolean
+  /**
+   * 显式指定数据目录（--data-dir=<path>，M4 · 企业静默部署）。
+   * 优先级最高：覆盖注册表预置与已持久化选择，启动即生效并写回持久化与注册表。
+   */
+  dataDir?: string
 }
 
 /** --serve 默认端口：Loopback 范围高位，避免与常用服务冲突。 */
@@ -45,6 +50,7 @@ export function parseArgv(argv: string[] = process.argv): CliOptions {
   let servePort = DEFAULT_SERVE_PORT
   let hidden = false
   let selectDataDir = false
+  let dataDir: string | undefined
   let i = 0
   while (i < rest.length) {
     const arg = rest[i]
@@ -52,6 +58,15 @@ export function parseArgv(argv: string[] = process.argv): CliOptions {
       hidden = true
     } else if (arg === '--select-data-dir') {
       selectDataDir = true
+    } else if (arg === '--data-dir') {
+      const next = rest[i + 1]
+      if (next !== undefined && !next.startsWith('--') && next.trim().length > 0) {
+        dataDir = next
+        i += 1
+      }
+    } else if (arg.startsWith('--data-dir=')) {
+      const value = arg.slice('--data-dir='.length)
+      if (value.trim().length > 0) dataDir = value
     } else if (arg === '--serve') {
       serve = true
       const next = rest[i + 1]
@@ -72,5 +87,5 @@ export function parseArgv(argv: string[] = process.argv): CliOptions {
     }
     i += 1
   }
-  return { serve, servePort, hidden, selectDataDir }
+  return { serve, servePort, hidden, selectDataDir, ...(dataDir !== undefined ? { dataDir } : {}) }
 }

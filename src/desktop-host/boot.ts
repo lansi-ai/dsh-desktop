@@ -17,6 +17,7 @@ import { join } from 'node:path'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { app } from 'electron'
 import { log } from './log.js'
+import { resolveUserDataRoot } from './desktop-home-paths.js'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'resolution-mode': 'import' }
 
 // 运行时数据根目录（M4-a1·打包路径适配）：
@@ -24,13 +25,24 @@ import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'r
 // （asar 只读不可写，R7 硬编码路径的打包态收口；完整可配置化留 M5）。
 // 惰性求值：顶层求值会在纯 Node 环境（verify-serve-mode.cjs require）下因
 // electron.app 为 undefined 而崩（坑 37）。
-function runtimeRoot(): string {
+export function runtimeRoot(): string {
   // 纯 Node 环境（verify-serve-mode.cjs require 本模块）下 electron.app 为
   // undefined：回退开发路径；Electron 运行时 app 必存在（isPackaged 区分 dev/packaged）。
   if (app !== undefined && app.isPackaged) {
     return join(app.getPath('userData'), '.runtime')
   }
   return join(__dirname, '..', '..', '.runtime')
+}
+
+/**
+ * 桌面侧用户数据根（`sessions` / `storages` 等自有落点的父目录）。
+ *
+ * 归位后跟随首启选定的 harness home（`$DSH_HOME`），与官方 `dshHomePath()`
+ * 语义一致；仅在 DSH_HOME 未就绪（测试 / 纯 Node / 自定义 patches）时回退
+ * 运行时数据根，R7 硬编码至此收口。
+ */
+function userDataRoot(): string {
+  return resolveUserDataRoot(join(runtimeRoot(), 'user-data'))
 }
 
 /** boot 启动选项（含 Step 6 --serve 兼容模式）。 */
@@ -136,9 +148,9 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       // 在下方 prepare 钩子注入（存储位置跟随首启选定的 harness home / DSH_HOME）。
       // 基类构造即 ctx.provide('credentials')，官方消费者 inject ['credentials'] 零改动。
       { id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai' },
-      // session-persistence-jsonl: !!js dshHomePath('sessions') → 使用运行时数据根下的 sessions 目录
-      // 开发模式：userData 在 main.ts 中重定向至 .runtime/user-data；打包模式：RUNTIME_ROOT（系统 userData）
-      { id: 'session-persistence-jsonl', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(runtimeRoot(), 'user-data', 'sessions') } },
+      // session-persistence-jsonl: 会话记录跟随 $DSH_HOME（与官方 dshHomePath('sessions')
+      // 同义）；未就绪时回退运行时数据根（R7 兜底，见 userDataRoot()）。
+      { id: 'session-persistence-jsonl', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(userDataRoot(), 'sessions') } },
       { id: 'attachment-local', name: '@deepseek-ai/dsh-attachment-local' },
       // 会话全文搜索（opt-in）：静态 insert 仅保证插件行存在；config 由
       // buildPatches() 动态覆盖为 openAt 'startup' + $DSH_HOME/search/ 持久化索引。
@@ -289,8 +301,8 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   // 历史补丁条目（getIpcCarrierPatchEntries）已废弃，见 manifest.ts。
 
   // ── §4 桌面特定条目（storage + agent-presets）────────────────────────────
-  // storage-json: root 用项目 .runtime/user-data/storages（R7：dshHomePath 服务可用前
-  // 以硬编码路径兜底，待服务就绪后切回 !!js dshHomePath('storages') 语义）。
+  // storage-json: workspace 域数据跟随 $DSH_HOME（与官方 dshHomePath('storages') 同义）；
+  // 未就绪时回退运行时数据根（R7 硬编码已收口，见 userDataRoot()）。
   // 链条：storage(提供 ctx.storage) → storage-json(注册 json backend 服务) →
   //        storage-domain(提供 ctx.storageDomain) → workspace(提供 ctx.workspaceRegistry)
   //        → host-apiproxy(提供 ctx.apiProxy + events.mux/host)。
@@ -302,7 +314,7 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   {
     insert: [
       { id: 'storage', name: '@deepseek-ai/dsh-storage' },
-      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(runtimeRoot(), 'user-data', 'storages') } },
+      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(userDataRoot(), 'storages') } },
       { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
       // roots 指向仓库随附的裁剪预设（仅用已装插件，避免缺依赖导致 mount 失败）。
       {

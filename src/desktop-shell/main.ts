@@ -2,6 +2,8 @@ import { app, BrowserWindow, nativeImage, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { registerDshUiProtocol, registerDshUiScheme } from './dsh-ui-protocol'
 import { parseArgv } from './argv'
+import { migrateLegacyUserDataSync, migrateRuntimeDataIntoHome } from './data-migration'
+import { resolveUserDataRoot } from '../desktop-host/desktop-home-paths.js'
 import { registerIpcBridge, cleanupWindowState, removeIpcHandlers, registerWindowManagerMethods } from '../desktop-host/bridge.js'
 import type { WindowManager } from '../desktop-host/window-manager.js'
 import { createWindowManager, attachWindowMaximizedStateBroadcast } from '../desktop-host/window-manager.js'
@@ -46,6 +48,10 @@ import type { TypertGateway } from '@deepseek-ai/dsh-api-gateway' with { 'resolu
 if (!app.isPackaged) {
   app.setPath('userData', join(__dirname, '..', '..', '.runtime', 'user-data'))
 }
+
+// 设备目录更名迁移（dsh-desktop → DSH Forge）：必须在 any app 事件前完成，
+// 否则 Chromium 已在旧路径建好 profile，造成「数据在旧、缓存在新」的裂脑。
+migrateLegacyUserDataSync()
 
 // 解析启动参数（Step 6·--serve 兼容模式 / 零端口红线切换）。
 // Electron 把命令行参数挂在 app.commandLine，argv[1] 是 script 路径，
@@ -313,7 +319,7 @@ async function bootstrap(): Promise<void> {
     // 安装生成），此时 Windows 任务栏会回退显示宿主 exe（electron.exe）的
     // Electron 图标、忽略窗口图标；dev 不设 AUMID 可让任务栏直接用窗口图标
     // （harness logo 黑白双版）。代价仅 dev 态系统通知显示为 Electron 归属，可接受。
-    if (app.isPackaged) app.setAppUserModelId('deepseek-harness.desktop')
+    if (app.isPackaged) app.setAppUserModelId('deepseek-harness.forge')
     if (process.platform === 'darwin') app.dock?.setIcon(loadAppIcon())
 
     // 0.5 数据目录决策（M4 · 首启选择用户数据存储位置）：必须在闪屏/Host boot 前
@@ -321,7 +327,13 @@ async function bootstrap(): Promise<void> {
     // 设置即全覆盖。首启弹自绘窗口让用户选定（含旧数据迁移），静默启动用默认目录。
     log.phase('数据目录')
     const { ensureDataHome } = await import('./data-home.js')
-    await ensureDataHome({ silent: launchOptions.hidden, selectDataDir: launchOptions.selectDataDir })
+    const dataHome = await ensureDataHome({
+      silent: launchOptions.hidden,
+      selectDataDir: launchOptions.selectDataDir,
+      dataDir: launchOptions.dataDir,
+    })
+    // 用户数据归位（sessions/storages/themes/icons/window-state）：幂等，失败保持原位。
+    await migrateRuntimeDataIntoHome(dataHome.home)
 
     // 0.55 闪屏前同步应用主题偏好：theme-sync 要等 host 装配后才读 ui-theme.preference
     // （settings.describe RPC），闪屏创建早于它。此处直接从 <home>/settings.yaml 读偏好
@@ -540,7 +552,8 @@ async function bootstrap(): Promise<void> {
     void rewarmPersistedSessions(callApi)
 
     // 7.5. 初始化窗口管理器（M3·多窗口基建 + 持久化）
-    const windowStateFilePath = join(app.getPath('userData'), 'window-state.json')
+    // 窗口布局属用户数据（换机后布局一致），落 $DSH_HOME；DSH_HOME 未就绪回退 userData。
+    const windowStateFilePath = join(resolveUserDataRoot(app.getPath('userData')), 'window-state.json')
     windowManager = createWindowManager({
       getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
       getAppIconPath: () => getActiveIconPath('app', nativeTheme.shouldUseDarkColors),
