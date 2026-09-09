@@ -168,7 +168,7 @@
     <div class="card">
       <h2>💡 活跃决策与风险（一行索引；全文找 git 历史 / docs/adr/）</h2>
       <ul>
-        <li><strong>活跃决策</strong>：D-18 布局接管 root 槽位 · D-19 scope=<code>@lansi-ai/dsh-*</code> · D-20 全量自绘 · D-21 骨架宿主化（<code>--dsd-*</code> 外观契约）· D-22 启动即时响应 · D-23 图标资产 global（<code>userData/icons/</code>）/pack（包内 <code>icons/</code>）分层 · <strong>D-24 用户数据跟随 <code>$DSH_HOME</code>、设备数据（指针/Chromium 缓存/审计）留 userData（ADR-008）</strong> · <strong>D-25 品牌 logo 自有化（2026-09-09）</strong>：应用图标（标题栏品牌 logo/窗口/任务栏/安装包）与托盘图标均为自有金标（<code>logo.png</code> → <code>scripts/process-logo.cjs</code>）</li>
+        <li><strong>活跃决策</strong>：D-18 布局接管 root 槽位 · D-19 scope=<code>@lansi-ai/dsh-*</code> · D-20 全量自绘 · D-21 骨架宿主化（<code>--dsd-*</code> 外观契约）· D-22 启动即时响应 · D-23 图标资产 global（<code>userData/icons/</code>）/pack（包内 <code>icons/</code>）分层 · <strong>D-24 用户数据跟随 <code>$DSH_HOME</code>、设备数据（指针/Chromium 缓存/审计）留 userData（ADR-008）</strong> · <strong>D-25 品牌 logo 自有化（2026-09-09）</strong>：应用图标（标题栏品牌 logo/窗口/任务栏/安装包）与托盘图标均为自有金标（<code>logo.png</code> → <code>scripts/process-logo.cjs</code>；托盘为圆角实底 + 放大金标，保 16px 可辨识）</li>
         <li><strong>基座决策</strong>：D-1 主进程内嵌 Cordis Host · D-2 IPC fetch 载波零端口 · D-5 roster/manifest 覆盖不改 dist · D-6 <code>ctx.webServer</code> 等价面 · D-8 第三方经 <code>buildThirdPartyBundleDecl</code> 装载（详见 <code>docs/adr/</code>）</li>
         <li><strong>铁律</strong>：绝不改官方代码；官方未自有化处只走适配器；官方 <code>#root</code> 保留原生自适应，只用 padding/圆角垫层（坑 20）；自绘样式一律 important 化（坑 19）</li>
         <li><strong>风险 open</strong>：R6 <code>!!js</code> 不求值 · R9 多窗口内存（M5 验）；R10 协议安全已收口（M4-a2 白名单+降级，2026-09-08）· 原「R7 <code>.runtime</code> 硬编码」已由 ADR-008 收口；全录见 <code>docs/11-risks.md</code></li>
