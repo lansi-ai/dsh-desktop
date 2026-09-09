@@ -67,6 +67,9 @@ jobs:
             --notes "Created automatically by release-win workflow." `
             $prerelease --repo "$env:GITHUB_REPOSITORY" 2>$null; exit 0
 
+      - name: Align artifact names to latest.yml path (坑 41)
+        run: node scripts/align-release-assets.cjs
+
       - name: Generate SHA256SUMS
         shell: powershell
         run: |

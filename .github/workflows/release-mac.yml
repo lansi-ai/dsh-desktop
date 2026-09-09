@@ -75,6 +75,9 @@ jobs:
             release/*.dmg release/*.zip release/*.blockmap release/latest-mac.yml \
             --clobber --repo "$GITHUB_REPOSITORY"
 
+      - name: Align artifact names to latest-mac.yml path (坑 41)
+        run: node scripts/align-release-assets.cjs
+
       - name: Generate SHA256SUMS-mac
         run: |
           cd release
