@@ -9,9 +9,10 @@
  *
  *   站点    website/public/logo.png（导航/首页）· website/public/favicon.png
  *   应用    src/desktop-shell/web/app-icon-{light,dark}.png（内置回退，标题栏品牌 logo 复用）
- *           resources/themes/default/app-icon-{light,dark}.png（默认图标包副本）
+ *           src/desktop-shell/web/tray-icon-{light,dark}.png（系统托盘）
+ *           resources/themes/default/{app,tray}-icon-{light,dark}.png（默认图标包副本）
  *
- * 浅色底变体（app-icon-light）整体压暗：金色在纯白背景上对比度不足，压深以保可读。
+ * 浅色底变体（*-light）整体压暗：金色在纯白背景上对比度不足，压深以保可读。
  * 用法：node scripts/process-logo.cjs
  */
 
@@ -22,8 +23,9 @@ const sharp = require('sharp');
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE = path.join(ROOT, 'logo.png');
 
-/** 输出尺寸（app-icon 槽位声明 512；favicon 取 128 由浏览器自行缩放）。 */
+/** 输出尺寸（app-icon 槽位声明 512、tray-icon 64；favicon 取 128 由浏览器自行缩放）。 */
 const SIZE = 512;
+const TRAY_SIZE = 64;
 const FAVICON_SIZE = 128;
 /** 亮度阈值（0~255）：≤LO 全透明，≥HI 全不透明。源图深底≈26，金标≈160~222。 */
 const LUMA_LOW = 60;
@@ -98,8 +100,12 @@ async function main() {
     ['website/public/favicon.png', FAVICON_SIZE, 1],
     ['src/desktop-shell/web/app-icon-dark.png', SIZE, 1],
     ['src/desktop-shell/web/app-icon-light.png', SIZE, LIGHT_FACTOR],
+    ['src/desktop-shell/web/tray-icon-dark.png', TRAY_SIZE, 1],
+    ['src/desktop-shell/web/tray-icon-light.png', TRAY_SIZE, LIGHT_FACTOR],
     ['resources/themes/default/app-icon-dark.png', SIZE, 1],
     ['resources/themes/default/app-icon-light.png', SIZE, LIGHT_FACTOR],
+    ['resources/themes/default/tray-icon-dark.png', TRAY_SIZE, 1],
+    ['resources/themes/default/tray-icon-light.png', TRAY_SIZE, LIGHT_FACTOR],
   ];
   for (const [relativePath, size, factor] of outputs) {
     await render(mark, size, factor, relativePath);

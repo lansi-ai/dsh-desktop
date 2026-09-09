@@ -82,15 +82,15 @@ async function main() {
     // 浅色态/深色态两版图标源
     const svgLight = theme.source === 'official' ? officialSvg.replaceAll(LIGHT_FILL, theme.light) : theme.build(theme.light)
     const svgDark = theme.source === 'official' ? officialSvg.replaceAll(LIGHT_FILL, theme.dark) : theme.build(theme.dark)
-    // 默认包的应用图标自 2026-09-09 起为**自有品牌 logo**（由 scripts/process-logo.cjs
-    // 从项目根 logo.png 生成），本脚本不再覆盖它，避免重跑把品牌 logo 悄悄改回官方鲸鱼；
-    // 其余主题包与托盘图标仍按本表生成。
+    // 默认包的应用图标与托盘图标自 2026-09-09 起为**自有品牌 logo**（由 scripts/process-logo.cjs
+    // 从项目根 logo.png 生成），本脚本不再覆盖它们，避免重跑把品牌 logo 悄悄改回官方鲸鱼；
+    // 其余主题包仍按本表生成。
     if (theme.id !== 'default') {
       await renderIcon(svgLight, path.join(themeDir, 'app-icon-light.png'), 512)
       await renderIcon(svgDark, path.join(themeDir, 'app-icon-dark.png'), 512)
+      await renderIcon(svgLight, path.join(themeDir, 'tray-icon-light.png'), 64)
+      await renderIcon(svgDark, path.join(themeDir, 'tray-icon-dark.png'), 64)
     }
-    await renderIcon(svgLight, path.join(themeDir, 'tray-icon-light.png'), 64)
-    await renderIcon(svgDark, path.join(themeDir, 'tray-icon-dark.png'), 64)
     // 壳层 UI 图标（renderer 经 dsh-ui://app/theme/<id|current>/icons/<file> 直读）：
     // 标题栏品牌 logo 自 M6 起复用 app-icon PNG，不再单独生成 titlebar-logo.svg。
     // 官方 UI 内部小图标（设置/文件夹等）经 ui-overrides.json 映射替换

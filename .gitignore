@@ -39,7 +39,7 @@ npm-debug.log*
 !.trae/rules/**
 *.swp
 
-# 图标源图（tray/app 图标由 scripts/process-icon.cjs 从项目根 lansi.jpg 生成，源感不入库）
+# 历史图标源图（tray/app 图标自 2026-09-09 起由 scripts/process-logo.cjs 从 logo.png 生成）
 /lansi.jpg
 # 品牌 logo 源图（透明底产物由 scripts/process-logo.cjs 生成，源图不入库）
 /logo.png
