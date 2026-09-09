@@ -20,7 +20,10 @@
     "icons": "node scripts/make-icons.cjs",
     "upstream:check": "node scripts/upstream.cjs check",
     "upstream:auto": "node scripts/upstream.cjs auto",
-    "release": "node scripts/release.cjs"
+    "release": "node scripts/release.cjs",
+    "docs:dev": "vitepress dev website",
+    "docs:build": "vitepress build website",
+    "docs:preview": "vitepress preview website"
   },
   "license": "MIT",
   "devDependencies": {
@@ -32,7 +35,8 @@
     "jimp": "^0.22.12",
     "sharp": "^0.35.4",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.68.0"
+    "typescript-eslint": "^8.68.0",
+    "vitepress": "^1.6.4"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "^4.0.2",

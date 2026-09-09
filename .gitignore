@@ -13,6 +13,11 @@ release/
 # 本地预下载的 electron-builder 工具集（icons 转换工具，绕开沙箱/网络受限环境）
 .tools/
 
+# 官网站点构建产物与缓存（VitePress，源在 website/）
+website/.vitepress/dist/
+website/.vitepress/cache/
+website/.vitepress/.temp/
+
 # 环境与密钥
 .env
 .env.*
