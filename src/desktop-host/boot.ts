@@ -14,7 +14,7 @@
  */
 
 import { join } from 'node:path'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { app } from 'electron'
 import { log } from './log.js'
 import { resolveUserDataRoot } from './desktop-home-paths.js'
@@ -333,10 +333,29 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
 /**
  * 生成空 cordis.yml 根配置文件（`[]`）。
  * Loader 需要真实文件路径作为 Include 根锚点，所有实际配置由 overlay patches 覆盖。
- * 文件写入 .runtime/ 临时目录（随仓库可清理，不污染 src/dist）。
+ * 开发模式：写入项目内 .runtime/（随仓库可清理，向上可命中项目 node_modules）。
+ * 打包模式：使用构建期生成的 asar 内 dist/cordis.yml（见函数内注释，坑 45）。
  * @returns cordis.yml 的绝对路径。
  */
 function createRootConfig(): string {
+  // 打包模式：锚点必须位于 asar 内（构建期由 scripts/copy-web.cjs 生成 dist/cordis.yml）。
+  // 根因：boot() 将 ctx.baseUrl 设为 configPath 所在目录，dsh-agent-presets 的
+  // packageInstalled 以该目录为起点向上查找 node_modules/<pkg>/package.json——
+  // 锚点若留在 userData/.runtime（AppData 下），向上永远找不到 node_modules，
+  // 安装版 standard 预设 23 行全部报 "cannot be resolved"（npm run dev/start 正常
+  // 是因为 .runtime 在项目内、向上可命中项目 node_modules；bareModuleBaseUrl 只
+  // 救 Include 的 import 解析，救不了这个磁盘检查）。锚点进 asar 后
+  // baseUrl=<app.asar>/dist/，向上一级命中 asar 内 node_modules（Electron 主进程
+  // fs 对 asar 路径的 existsSync 生效）；asar 只读无碍——Include 对已存在文件
+  // 只读不写（checkAccess 失败仅标记 readonly）。
+  if (app !== undefined && app.isPackaged) {
+    const packagedConfigPath = join(app.getAppPath(), 'dist', 'cordis.yml')
+    if (existsSync(packagedConfigPath)) return packagedConfigPath
+    log.error(
+      `[dsh-boot] 打包模式缺少 dist/cordis.yml 根锚点（${packagedConfigPath}），` +
+        '回退 userData/.runtime——agent 预设健康检查将全部失败（请重新构建，确认 scripts/copy-web.cjs 已运行）',
+    )
+  }
   const root = runtimeRoot()
   mkdirSync(root, { recursive: true })
   const configPath = join(root, 'cordis.yml')

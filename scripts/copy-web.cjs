@@ -30,3 +30,13 @@ if (fs.existsSync(resourcesSrc)) {
   copyDirRecursive(resourcesSrc, resourcesDst)
   console.log('[build] 已复制 resources/ 静态资源到 dist/resources/')
 }
+
+// 打包版根锚点 cordis.yml：boot() 将 ctx.baseUrl 设为 configPath 所在目录，
+// dsh-agent-presets 的 packageInstalled 以该目录为起点向上查找 node_modules/<pkg>。
+// 锚点随 dist/**/* 进 asar 后，baseUrl=<app.asar>/dist/，向上一级即命中 asar 内
+// node_modules（Electron 主进程 fs 对 asar 路径的 existsSync 生效）。asar 只读
+// 无碍：Include 对已存在文件只读不写。dev 模式不读本文件（仍用项目内 .runtime/
+// 锚点，向上可命中项目 node_modules）。
+const cordisRootConfig = path.join(__dirname, '..', 'dist', 'cordis.yml')
+fs.writeFileSync(cordisRootConfig, '# dsh-desktop profile root — 所有配置由 desktop-patch.yml overlay 补丁覆盖。\n[]\n')
+console.log('[build] 已生成 dist/cordis.yml（打包版根锚点）')
