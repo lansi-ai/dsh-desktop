@@ -7,6 +7,8 @@
 > 自绘 Desktop UI（[`docs/13-ui-design.md`](docs/13-ui-design.md)、[ADR-006](docs/adr/adr-006-custom-ui.md)）**暂缓为二期可选**，
 > 本轮不纳入主线。下文「定位/判定/路线」均以「官方 UI 复用 + 内嵌宿主 + IPC 载波」为默认方案。
 
+> **官方网站**：<https://lansi-ai.github.io/dsh-forge/> —— 源在 `website/`（VitePress），本地预览 `npm run docs:dev`，构建 `npm run docs:build`。
+
 ## 名称与含义：DSH Forge
 
 项目的公开产品名是 **DSH Forge**（`dsh-desktop` 为工程代号）。Forge 意为「锻炉」，直接回应本项目的一句话定位——**把桌面操作系统锻造成 DeepSeek Harness 的可插拔能力层**：

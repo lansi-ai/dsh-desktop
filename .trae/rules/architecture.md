@@ -14,6 +14,7 @@ alwaysApply: true
 - `src/preload/`：`contextBridge` 白名单 API（`desktopBridge`：rpc/respond/onFrame/http/runtime 等）。
 - `src/types/`：IPC 契约（`zod` Schema）、DTO、`dsh:*` channel 常量、`AppError` 码表——唯一类型源头，renderer/preload/host 三方共享。
 - `src/plugins/`：补充的可 patch 侧插件（如 bundle patch 承载）。
+- `website/`：**官方站点（VitePress）**——源为 `website/*.md` + `website/.vitepress/`（配置与主题），静态资源在 `website/public/`，构建产物 `website/.vitepress/dist/`（已 gitignore，勿与应用的 `dist/` 混淆）。托管 GitHub Pages 项目页；**站点代码不得被 `src/` 引用**，两者零依赖耦合。
 - **放置铁律**：创建任何新文件前核对上述目录；禁止在 `src/` 根目录放置游离业务逻辑；插件边界不得绕开 `ctx.desktop.*` 直连 Electron API。
 
 ## 02. 架构分层与数据流向
