@@ -26,7 +26,7 @@ alwaysApply: true
 - **M4-a4 数据目录分层 ✅（2026-09-09 · ADR-008）**：sessions/storages/themes/icons/window-state 归位 `$DSH_HOME`（幂等迁移，失败保持原位）+ 应用命名统一 `DSH Forge`（旧设备目录/旧注册表键自动迁移）+ 卸载删除路径安全校验 + `--data-dir` 与注册表种子；typecheck/lint/29 单测/build 全绿 + **实机验证通过（2026-09-09）**
 - 规则目录收敛 ✅（2026-09-09）：规则唯一来源 = `.trae/rules/`（6 文件，含 `rtk-usage.md`）并入 git 跟踪（`.gitignore` 加例外），陈旧副本 `.rules/` 已删（历史留 git）
 - **M6-P3 侧栏 workspaces ✅（2026-09-08 实机验收）**：`@lansi-ai/dsh-desktop-workspaces` W1 五接管+picker 承重（坑 35）→ W2 派生层 → W3 Rows/视图选项 → W4 内容搜索 → W5 实机对照点；搜索索引开启 `openAt startup+$DSH_HOME 持久化`（坑 36 探测锁定 / 坑 37 app 未定义）；单测 16 项+图谱实测，见 `docs/plugin-inventory.md`
-- **官网站点 ✅（2026-09-09）**：`website/` VitePress 中文站点（首页 Landing + 用户指南 8 页：安装/快速上手/工作区/桌面能力/设置/更新/FAQ/下载）→ GitHub Pages 项目页 `https://lansi-ai.github.io/dsh-forge/`；`npm run docs:dev|build|preview`；CI `deploy-pages.yml`
+- **官网站点 ✅（2026-09-09）**：`website/` VitePress 中文站点（首页 Landing + 用户指南 8 页：安装/快速上手/工作区/桌面能力/设置/更新/FAQ/下载）→ GitHub Pages 项目页 **已上线 `https://lansi-ai.github.io/dsh-forge/`**（Pages Source=GitHub Actions；首页与 `/guide/quickstart` 实测可达，cleanUrls/侧栏/上下篇/编辑此页均正常）；`npm run docs:dev|build|preview`；CI `deploy-pages.yml`
 - **品牌 logo 自有化 ✅（2026-09-09）**：应用图标（= 标题栏品牌 logo / 窗口 / 任务栏 / 安装包）与托盘图标改用自有金标（`scripts/process-logo.cjs` 从根 `logo.png` 抽透明通道，`npm run logo`，共 10 个产物）；官网导航/首页/favicon 同步
 - ⏸️ M2-c 旧插件门禁置后（载体待确认，不阻塞）；R6 技术债留 M5
 
@@ -60,7 +60,6 @@ alwaysApply: true
 ## 04. 下一步即时行动 (Next Immediate Actions)
 - **当前焦点**：M6-P2 外壳小件 `@lansi-ai/dsh-desktop-brand`（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底
 - **数据面（2026-09-09 已收口）**：ADR-008 数据根分层落地——用户数据跟随 `$DSH_HOME`、设备目录只剩指针+Chromium 缓存+审计；实机验证通过（首启选目录、会话落 home、重启历史可读、旧 `dsh-desktop` 目录自动更名）
-- **待手动（官网上线）**：GitHub 仓库 Settings → Pages → Source 选「GitHub Actions」；之后 push `website/**` 即自动部署 `https://lansi-ai.github.io/dsh-forge/`
 - dogfood 问题按 `docs/dogfood-issues.md` #N 直取；上游升级 `npm run upstream:auto`（每日 02:00 自动，**判据源=GitHub releases**；升级成功后按脚本打印的 `[TODO] 台账待人工同步` 清单收口）。当前上游 pending：待 `0.1.3-alpha.1` 上 npm 后先 `assess` 再人工适配，勿硬升
 - **按需查阅台账**：`docs/pitfalls.md`（坑 1~N 排障档案）· `docs/dogfood-issues.md`（dogfood 现场）· `docs/upstream-contracts.md`（拴合面速查 + 升级 SOP）· `docs/upstream-migrations.md`（升级台账 C 区）· `docs/11-risks.md`（风险全录）· `docs/adr/`（架构决策全文）
 - ⚠️ **环境红线（省 token 用）**：`npm start` / `npm run dev` / `npm run dist` 在**沙箱内必失败**——运行时数据目录 `E:\Projects\DSHPath`（凭据 `.lock` / 搜索索引 `-shm`）与 `AppData` 缓存在工作区外；表现可能是业务错误壳（如 `loader entries failed to apply`），**先看输出尾部 `TRAE Sandbox Error` 再动手**，直接授权沙箱外运行即可；`git push` 报 `unable to write credential store` 属伪失败（推送已完成，坑 44）。见坑 0 / 38 / 42 / 44
