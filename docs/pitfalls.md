@@ -484,3 +484,13 @@
   1. 回执 diff 只证明「这次替换算出了结果」，不证明「文件最终态包含它」——同文件并发写会互相吞。
   2. 批量改代码后先跑 `typecheck`；错误集中在「导入缺失 / 字段不存在」时，优先怀疑编辑被覆盖，而不是类型真写错了。
   3. 改名/跨文件重构（import + 使用点 + 配置三处齐动）最容易踩：一文件一消息，改完 grep 关键符号复核。
+
+## 坑 44：沙箱拦 git 凭据库 → push 报 fatal 但实际已成功（环境坑，伪失败）
+
+- **现象**：沙箱内 `git push` 退出码 1，输出 `fatal: unable to write credential store: Permission denied` + `Everything up-to-date` + `TRAE Sandbox Error: hit restricted / Not allow operate files: C:\Users\Administrator\.git-credentials.lock`；而 `rtk git status` 显示 `main...origin/main` 且**无 ahead 计数**，看起来像「没推上去」。
+- **根因**：推送本身用已缓存凭据成功完成，随后 git 想把凭据写回 `~/.git-credentials`（需 `~/.git-credentials.lock`）被沙箱拦截——**失败发生在数据传输之后**，只影响「下次是否还要输凭据」，不影响本次推送。
+- **解法**：不要据 fatal 判定失败，用远端真值核对：`git rev-parse main` 与 `git ls-remote origin refs/heads/main` 的 SHA 一致即成功（本例两边均为 `f1d6aa2d…`）。要消除报错则放行 `C:\Users\Administrator\.git-credentials.lock`（或整个 `~/.git-credentials*`）。
+- **复盘要点**：
+  1. 「fatal + 退出码非 0」不等于操作未发生——**先看失败发生在哪一步**（凭据持久化 vs 数据传输）。
+  2. 远端状态用 `git ls-remote` 判，别信本地 remote-tracking ref（它可能已被本地更新）。
+  3. 与坑 42 同族：沙箱拦的是工作区外的运行期写入，这类报错一律先看输出尾部 `TRAE Sandbox Error` 指向哪个路径。
