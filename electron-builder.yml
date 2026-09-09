@@ -34,7 +34,7 @@ asarUnpack:
 publish:
   provider: github
   owner: lansi-ai
-  repo: dsh-desktop
+  repo: dsh-forge
 # dsh:// 协议声明：mac 写入 Info.plist CFBundleURLTypes（Windows 仍由运行时 setAsDefaultProtocolClient 注册）
 protocols:
   - name: DSH Protocol

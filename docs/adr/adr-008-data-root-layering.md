@@ -59,7 +59,7 @@ M4 引入「首启选择用户数据存储位置」（`data-home.ts`，`$DSH_HOM
 
 - 正面：卸载选「删除数据」真正删干净；换机只需拷 home 一个目录；会话不再落在 `%APPDATA%`（Roaming）被域漫游同步；R7 硬编码实质收口；命名与安装目录一致。
 - 负面：首启窗口的「迁移旧数据」现在会搬走全部用户数据，数据量大时耗时更长（无进度提示）。
-- 遗留：便携包仍写 `%APPDATA%`（未处理 `PORTABLE_EXECUTABLE_DIR`，真便携模式待定）；`@lansi-ai/dsh-desktop-*` 包名、`src/desktop-*` 目录名、GitHub repo 名 `dsh-desktop` 未改（影响面大，另议）。
+- 遗留：便携包仍写 `%APPDATA%`（未处理 `PORTABLE_EXECUTABLE_DIR`，真便携模式待定）；`@lansi-ai/dsh-desktop-*` 包名、`src/desktop-*` 目录名未改（影响面大，另议）；GitHub repo 名已改 `dsh-desktop → dsh-forge`（2026-09-09，`electron-builder.yml` publish.repo 与本地 remote 同步）。
 
 ## 验证
 
