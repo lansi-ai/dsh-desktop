@@ -263,6 +263,7 @@
 - 验证结果（2026-09-10 · win-unpacked 实机）：审计落 `checking` / `error` 各 3 条（含 `channel`，零 `downloading`）；真因捕获 = **`net::ERR_CONNECTION_RESET`**（栈含 `SimpleURLLoaderWrapper` → 实证走 Chromium 网络栈、系统代理生效）；关于页成功显示该原文；`checking` 记录中无 `error` 字段（证明重置生效）
 - 附带发现（未修，登记待办）：阻断环境下手动检查**挂起约 24 秒**（12:49:33 → 12:49:57）期间 UI 仅「检查中…」，无进度反馈
 - 修复（本次）：updater 关键相位落 `audit.jsonl`（`downloading` 进度帧拦截）+ 关于页 error 相位显示 `status.error` 原文 + `checking` 时重置 `error` 与堆栈
+- 端到端收口（2026-09-10 · 用户确认）：**检查更新链路实测通过** —— 安装版 alpha.7 → 自更新至 alpha.8 → 再自更新至 alpha.9（检查更新 / 自动下载 / 重启安装 / 新版运行全通；`latest.yml` 匿名 HEAD 200、注册表版本号随升级更新）；剩余 ①②（渠道命名 / 国内直连可达性）转看板「更新链待决策」继续跟踪
 
 ### #19 · 从托盘点「检查更新」后客户端没有任何结果反馈
 
