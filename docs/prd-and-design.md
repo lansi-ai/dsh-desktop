@@ -1,10 +1,10 @@
 # PRD 与技术设计方案 (prd-and-design.md)
 
-> 由 `start-project` 阶段 1 头脑风暴 Sign-off 之作（2026-08-25）汇总落盘。详细证据链见 `docs/01-research.md` ~ `docs/13-ui-design.md` 与 `docs/adr/`（本仓库设计基线，已从 `plugins/dsh-desktop/docs/` 迁入）。
+> 由 `start-project` 阶段 1 头脑风暴 Sign-off 之作（2026-08-25）汇总落盘。详细证据链见 `docs/01-research.md` ~ `docs/13-ui-design.md` 与 `docs/adr/`（本仓库设计基线，已从 `plugins/dsh-forge/docs/` 迁入）。
 
 ## 1. 业务背景与产品定位
 
-**dsh-desktop**：面向个人的 DeepSeek Harness 桌面客户端——本质是「把桌面操作系统变成了 Harness 的可插拔能力层」。
+**dsh-forge**：面向个人的 DeepSeek Harness 桌面客户端——本质是「把桌面操作系统变成了 Harness 的可插拔能力层」。
 
 - **不是**：网页套壳（不依赖外置浏览器与外部 HTTP 端口，宿主内嵌、零端口）。
 - **是**：与官方同内核（同一 Cordis Host 插件树、同一会话/轨迹/沙箱语义）的桌面应用，桌面特有能力全部通过官方插件机制注入。
@@ -42,7 +42,7 @@
 1. **官方 Electron 插槽**：`docs/subsystems/web-server.md` 原文「Electron loads dist over file:// and carries fetch over an IPC bridge」，与 `AbstractApiClient` 子类表（`IPC bridge subclass | an Electron shell | 只换 doFetch`）逐字对应。
 2. **载波替换唯一通路（A3 澄清）**：「只换 doFetch」是抽象层说法；实际
    `WebApiClient` 下行走 WebSocket（`openMux`/`openHost` 已覆写），且官方 dist 硬编码 `new WebApiClient()`。
-   桌面换载波 = desktop profile 的 roster/manifest（`__DSH_BOOT__` 由 desktop-runtime 供给）把
+   桌面换载波 = desktop profile 的 roster/manifest（`__DSH_BOOT__` 由 forge-runtime 供给）把
    `connection`/`client-runtime` patch 行为 **IPC 载波变体**（覆写 `doFetch` + `openMux` + `openHost` + rpc 四件套），**不改官方 dist**。
 3. **审批链路已就绪（R3 解除）**：基线源码 `respond` 已完整实现（pending 表 + `approval/requested` 稳定 rpcId 帧 + 重复应答 `not-pending`，配套 `api-proxy-approval.spec.ts`）。
 4. **旧插件现行 API**：`dsh-terminal` UI 主用 `POST /terminal/stream`（SSE），`POST /terminal/run` 为 legacy 一次性接口——兼容面需覆盖两条路由。

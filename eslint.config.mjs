@@ -28,7 +28,7 @@ const NODE_GLOBALS = {
   crypto: 'readonly',
 }
 
-/** 浏览器渲染器全局（src/desktop-shell/web/*.js）。 */
+/** 浏览器渲染器全局（src/forge-shell/web/*.js）。 */
 const BROWSER_GLOBALS = {
   window: 'readonly',
   document: 'readonly',
@@ -83,7 +83,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/desktop-shell/web/**/*.js'],
+    files: ['src/forge-shell/web/**/*.js'],
     languageOptions: { globals: BROWSER_GLOBALS },
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],

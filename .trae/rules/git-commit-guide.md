@@ -1,5 +1,5 @@
 ---
-description: Git 约定式提交规范与颗粒度控制（dsh-desktop）
+description: Git 约定式提交规范与颗粒度控制（dsh-forge）
 globs: "*"
 alwaysApply: true
 ---
@@ -54,7 +54,7 @@ alwaysApply: true
 
 ### 场景 A：日常增量 Task 提交
 ```bash
-git add src/types/ipc-schema.ts src/desktop-host/bridge/respond.ts
+git add src/types/ipc-schema.ts src/forge-host/bridge/respond.ts
 git commit -m "feat(carrier): 实现 respond 回填与 pending 表分发"
 ```
 

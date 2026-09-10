@@ -1,5 +1,5 @@
 /**
- * dsh-desktop 共享类型出口（Step 4·IPC 载波四件套）。
+ * dsh-forge 共享类型出口（Step 4·IPC 载波四件套）。
  *
  * 集中导出 zod 契约、通道常量、AppError 错误码表，供宿主端桥、preload 脚本、
  * manifest 覆盖等模块复用。

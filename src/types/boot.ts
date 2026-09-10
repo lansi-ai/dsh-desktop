@@ -1,5 +1,5 @@
 /**
- * `__DSH_BOOT__` web 启动图谱 zod 契约（dsh-desktop · 0.1.2 迁移）。
+ * `__DSH_BOOT__` web 启动图谱 zod 契约（dsh-forge · 0.1.2 迁移）。
  *
  * 官方 wire 单一来源：host 侧 `dsh-client-modules` node 半区块扫描 `dsh.client` 声明后
  * 即产出该形状（对照其 `WebBootEntry` / `WebBootGraph` / `WebBootBatch`）。桌面以方案 A

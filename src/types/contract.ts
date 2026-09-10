@@ -1,5 +1,5 @@
 /**
- * IPC 信封 zod 契约（dsh-desktop Step 4·IPC 载波四件套）。
+ * IPC 信封 zod 契约（dsh-forge Step 4·IPC 载波四件套）。
  *
  * 设计对齐官方 `api/rpc.ts` 的 fullForm 语义：
  * - RpcRequest  = 上行 client-request（method + params + rpcId）

@@ -17,7 +17,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 
-const BUNDLE = path.join(__dirname, '..', 'src', 'desktop-shell', 'web', 'desktop-workspaces-client.js')
+const BUNDLE = path.join(__dirname, '..', 'src', 'forge-shell', 'web', 'forge-workspaces-client.js')
 
 /** 抓取 bundle 导出的派生纯函数注册表。 */
 function loadDerive() {

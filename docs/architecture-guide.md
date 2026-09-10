@@ -28,7 +28,7 @@
    └─ preload 安全边界            —— desktopBridge 白名单
 ③ IPC 载波带（中部窄条）         —— 双向箭头 + 8 通道名悬浮卡片
 ④ 主进程层（浅绿容器）           —— 内嵌 Cordis Host
-   ├─ 左列：desktop-shell 外壳
+   ├─ 左列：forge-shell 外壳
    ├─ 中列：插件树（视觉核心）     —— ctx 根 → 三组插件域（Agent / 工具沙箱 / 载波聚合）
    ├─ 右列：bridge + 桌面能力
    └─ 底部：userData 持久化条（圆柱图标 ×3）
@@ -65,20 +65,20 @@
 
 | 图中元素 | 源码位置 |
 |---|---|
-| __DSH_BOOT__ 图谱卡片 | `src/desktop-host/boot-graph.ts`（generateBootGraph / generateFullBootScript） |
+| __DSH_BOOT__ 图谱卡片 | `src/forge-host/boot-graph.ts`（generateBootGraph / generateFullBootScript） |
 | 官方 ui-\* 扫描 | 同上 `scanClientPackages()`（读 `dsh.client` 声明） |
-| ipc-connection chip | `src/desktop-shell/web/ipc-connection.js` |
-| desktop-settings / panel / audit-viewer / cmdpalette chips | `src/desktop-shell/web/desktop-*-client.js` |
-| preload 安全边界 | `src/desktop-shell/preload.ts` |
+| ipc-connection chip | `src/forge-shell/web/ipc-connection.js` |
+| forge-settings / panel / audit-viewer / cmdpalette chips | `src/forge-shell/web/forge-*-client.js` |
+| preload 安全边界 | `src/forge-shell/preload.ts` |
 | IPC 通道卡片 | `src/types/channels.ts`（IPC_CHANNELS 8 通道） |
-| overlay patches 装配说明 | `src/desktop-host/boot.ts`（§1–§4 四段补丁） |
+| overlay patches 装配说明 | `src/forge-host/boot.ts`（§1–§4 四段补丁） |
 | 插件树三组 | `boot.ts` DESKTOP_OVERLAY_PATCHES §1 insert 数组（按域分组呈现） |
 | api-gateway / typert-gateway | `@deepseek-ai/dsh-host-apiproxy` / `dsh-api-gateway`（经 main.ts callApi 消费） |
-| ctx.desktop 聚合 | `src/desktop-host/desktop-api.ts` |
-| webServer compat | `src/desktop-host/compat-webserver.ts` |
-| bridge 右列 | `src/desktop-host/bridge.ts` + `desktop-*.ts` 各能力模块 |
-| dsh:// 协议 | `src/desktop-host/dsh-protocol.ts` |
-| session-rewarm | `src/desktop-host/session-rewarm.ts` |
+| ctx.desktop 聚合 | `src/forge-host/forge-api.ts` |
+| webServer compat | `src/forge-host/compat-webserver.ts` |
+| bridge 右列 | `src/forge-host/bridge.ts` + `forge-*.ts` 各能力模块 |
+| dsh:// 协议 | `src/forge-host/dsh-protocol.ts` |
+| session-rewarm | `src/forge-host/session-rewarm.ts` |
 | 持久化条 | `userData/audit.jsonl`、`window-state.json`、`RUNTIME_ROOT`（boot.ts） |
 | 三条数据流卡片 | 对应 `docs/14-implementation-map.md` §5.1 / §7.3 / §7.1 详细文字版 |
 
@@ -101,7 +101,7 @@
 - **Client 侧 7 个分组**：模块系统核心 / 布局与导航 / 对话主区 / Agent 过程可视化 / 设置页 / 其他 UI 域 / 互斥与排除。
 - **桌面注入**：Client 半 6 个（@lansi-ai/dsh-\*）+ Host 半 11 个模块。
 - **状态图例**：已装载（绿）/ 已禁用（灰虚线）/ 被排除（红，directory-picker-browse）/ 预载注册（橙，client-connection D-9）。
-- **维护真源**：Host 树 = `src/desktop-host/boot.ts` §1+§4 insert 数组；Client 图谱 = `src/desktop-host/boot-graph.ts` scanClientPackages()；本页为派生视图，架构变更时需同步更新。
+- **维护真源**：Host 树 = `src/forge-host/boot.ts` §1+§4 insert 数组；Client 图谱 = `src/forge-host/boot-graph.ts` scanClientPackages()；本页为派生视图，架构变更时需同步更新。
 
 ## 8. 已知限制
 

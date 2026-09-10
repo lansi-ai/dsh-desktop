@@ -1,6 +1,6 @@
 # ADR-003 · 传输载波：IPC fetch 桥（零 HTTP 端口）
 
-状态：**已接受**（2026-08）· 关联：[`04-architecture.md §5.1`](../04-architecture.md)、[`07-desktop-shell.md §3`](../07-desktop-shell.md)、风险 R3
+状态：**已接受**（2026-08）· 关联：[`04-architecture.md §5.1`](../04-architecture.md)、[`07-forge-shell.md §3`](../07-forge-shell.md)、风险 R3
 
 ## 背景
 renderer ↔ Host 之间怎么传：HTTP（同官方 Web）/ 进程内 fetch / 自定义 IPC。

@@ -1,5 +1,5 @@
 /**
- * AppError 错误码表（dsh-desktop Step 4·IPC 载波四件套）。
+ * AppError 错误码表（dsh-forge Step 4·IPC 载波四件套）。
  *
  * 错误码分层：
  *   1xxx  — 通用/系统错误

@@ -23,9 +23,9 @@ function readClientConnectionSrc() {
   return fs.readFileSync(p, 'utf8')
 }
 
-/** 读取我们的 ipc-connection bundle 文本（src/desktop-shell/web/）。 */
+/** 读取我们的 ipc-connection bundle 文本（src/forge-shell/web/）。 */
 function readIpcConnectionSrc() {
-  const p = path.join(root, 'src', 'desktop-shell', 'web', 'ipc-connection.js')
+  const p = path.join(root, 'src', 'forge-shell', 'web', 'ipc-connection.js')
   assert.ok(fs.existsSync(p), `ipc-connection bundle 缺失: ${p}`)
   return fs.readFileSync(p, 'utf8')
 }

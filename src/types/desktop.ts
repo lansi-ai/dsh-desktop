@@ -1,5 +1,5 @@
 /**
- * dsh-desktop 桌面域契约（M2·地基 desktop-host-core / desktop-api）。
+ * dsh-forge 桌面域契约（M2·地基 forge-host-core / forge-api）。
  *
  * 唯一类型源头：`ctx.desktop` 服务的 zod Schema、审计事件、下行桌面事件、
  * 桌面配置读写，均由本文件推导，renderer/preload/host 三方共享。
@@ -7,7 +7,7 @@
  * 职责边界（对齐 05-host-plugins.md §3 core 子集）：
  * - `desktop/action` 审计：`onAction`(订阅) / `emitAction`(触发+审计) / `log`(仅审计)
  * - 下行桌面事件：`sendDesktopEvent` → preload `onDesktopEvent`（`desktop:event` 通道）
- * - 桌面配置：`readConfig` / `writeConfig`（内存后端，持久化留给 desktop-client-settings）
+ * - 桌面配置：`readConfig` / `writeConfig`（内存后端，持久化留给 forge-client-settings）
  */
 
 import { z } from 'zod'
@@ -283,7 +283,7 @@ export const themeSummarySchema = themeManifestSchema.extend({
 })
 
 /**
- * 图标槽位（系统/自研插件消费的主题图标需求，注册表真源在 desktop-theme.ts）。
+ * 图标槽位（系统/自研插件消费的主题图标需求，注册表真源在 forge-theme.ts）。
  *
  * 设置页「外观」据此展示**需求清单**（要哪些图标、规范文件名、期望落盘位置、
  * 缺失时回退到什么），而非罗列包内已有文件；上传按槽位驱动，目标文件名与落盘
@@ -297,7 +297,7 @@ export const iconSlotSchema = z.object({
   label: z.string().min(1),
   /** 消费方分组（用途域，如「应用与托盘」「标题栏」「设置面板」）。 */
   group: z.string().min(1),
-  /** 消费方插件/模块标识（设置页据此明确「这个图标位由谁取用」，如 @lansi-ai/dsh-desktop-titlebar）。 */
+  /** 消费方插件/模块标识（设置页据此明确「这个图标位由谁取用」，如 @lansi-ai/dsh-forge-titlebar）。 */
   plugin: z.string().min(1),
   /**
    * 归属范围：
@@ -318,7 +318,7 @@ export const iconSlotSchema = z.object({
    * 官方 UI 覆盖映射（可选，仅官方 bundle 内联 SVG 槽位使用）：官方 svg 首个
    * path 的 d 前缀特征，多条=同一图标覆盖多个官方变体（如文件夹收起/展开两态）。
    * 上传该槽位时主进程自动把 { match, icon, size } 规则并进包内
-   * icons/ui-overrides.json，运行期由 @lansi-ai/dsh-desktop-ui-icons 覆盖层做
+   * icons/ui-overrides.json，运行期由 @lansi-ai/dsh-forge-ui-icons 覆盖层做
    * DOM 替换（官方 dist 零改动；官方升级改变 path 特征时需重新登记）。
    */
   match: z.array(z.string().min(1)).optional(),

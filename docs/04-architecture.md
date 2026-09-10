@@ -6,7 +6,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│  dsh-desktop（Electron）                                             │
+│  dsh-forge（Electron）                                             │
 │                                                                     │
 │  ┌─ 主进程（Node, 唯一 Node 宿主）───────────────────────────────────┐ │
 │  │  Cordis Host（dsh-app-boot.boot() 装配 desktop profile）          │ │
@@ -20,7 +20,7 @@
 │  ├─ 主窗口 × N（renderer：官方 Web UI dist 经 dsh-ui:///file://）     │ │
 │  │        └─ client 插件 bundle 经零端口 bundle 服务（官方机制）       │ │
 │  ├─ Tray / 全局热键 / 通知（宿主插件驱动，非壳层脚标）                  │ │
-│  └─ 更新器 / 崩溃恢复 / 协议注册（desktop-updates / desktop-recovery） │ │
+│  └─ 更新器 / 崩溃恢复 / 协议注册（forge-updates / forge-recovery） │ │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -41,18 +41,18 @@ bundle/                       # desktop bundle（npm 包，dsh.bundle.patch）
 ├─ cordis.patch.yml           # desktop profile 的增删改行
 └─ package.json               # "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
 packages/
-├─ desktop-api/               # 共享类型与 schema：IPC 信封、ctx.desktop 接口、desktopRoutes、config schema（零依赖）
-├─ desktop-host-core/         # ctx.desktop 服务注册器 + 桌面事件（desktop/action 等）+ 审计
-├─ desktop-host-tray/         # 托盘 host 插件
-├─ desktop-host-shortcuts/    # 全局热键 host 插件
-├─ desktop-host-notifications# 系统通知 host 插件
-├─ desktop-host-clipboard/    # 剪贴板 host 插件（写需 approval，读白名单）
-├─ desktop-host-protocol/     # dsh:// URL 协议 host 插件
-├─ desktop-host-restart/      # 宿主重启/崩溃自愈 host 插件
-├─ desktop-host-updater/      # 自动更新 host 插件
-├─ desktop-host-compat/       # 兼容层：desktopRoutes（webServer 等价面）、零端口 bundle 服务
-├─ desktop-client-*           # 官方 UI 槽位注入（见 06）
-└─ desktop-utils/             # 共享小工具
+├─ forge-api/               # 共享类型与 schema：IPC 信封、ctx.desktop 接口、desktopRoutes、config schema（零依赖）
+├─ forge-host-core/         # ctx.desktop 服务注册器 + 桌面事件（desktop/action 等）+ 审计
+├─ forge-host-tray/         # 托盘 host 插件
+├─ forge-host-shortcuts/    # 全局热键 host 插件
+├─ forge-host-notifications# 系统通知 host 插件
+├─ forge-host-clipboard/    # 剪贴板 host 插件（写需 approval，读白名单）
+├─ forge-host-protocol/     # dsh:// URL 协议 host 插件
+├─ forge-host-restart/      # 宿主重启/崩溃自愈 host 插件
+├─ forge-host-updater/      # 自动更新 host 插件
+├─ forge-host-compat/       # 兼容层：desktopRoutes（webServer 等价面）、零端口 bundle 服务
+├─ forge-client-*           # 官方 UI 槽位注入（见 06）
+└─ forge-utils/             # 共享小工具
 scripts/                      # build-dist / build-shell / sign / make-update / sync-upstream
 ```
 
@@ -71,7 +71,7 @@ scripts/                      # build-dist / build-shell / sign / make-update / 
 
 ## 4. 与官方三层模型的映射
 
-| 官方层 | Web 应用 | dsh-desktop | 差异 |
+| 官方层 | Web 应用 | dsh-forge | 差异 |
 | --- | --- | --- | --- |
 | Front 层 | `dsh-host-apiproxy`（fetch/ 抽象 + api/ 定义） | 同左，进程内 | 无 |
 | Assembly 层 | apps/cli 的 web.ts（composeProfile + boot + webStartup 服务） | shell/main.ts（startHost + desktop 服务 + IPC 桥） | 装配模块是我们的 |
@@ -92,7 +92,7 @@ scripts/                      # build-dist / build-shell / sign / make-update / 
 | 协议 | 用途 |
 | --- | --- |
 | `dsh-ui://` | 加载官方 UI dist（`file://` 的替代；协议可控性/行为更稳） |
-| `dsh-ui://plugins/<id>/client.js?rev=` | 等价官方 `/plugins/<id>/client.js` 的零端口 bundle 路由（desktop-host-compat 供给） |
+| `dsh-ui://plugins/<id>/client.js?rev=` | 等价官方 `/plugins/<id>/client.js` 的零端口 bundle 路由（forge-host-compat 供给） |
 | `dsh://…` | 外部唤起（`dsh://open?session=<id>`、`dsh://ask?q=…`） |
 
 > M1 spike 需验证：`dsh-ui://plugins/...` 方案 vs `BootSeams.loadBundle` 覆写方案，择优后固化（二选一）。
@@ -118,11 +118,11 @@ interface DesktopRoutes {      // webServer 等价面（ADR-007）
 ### 5.4 配置面（desktop profile 的 patch 行，示意）
 ```yaml
 - insert:
-    - id: desktop-core        name: '@lansi-ai/dsh-desktop-host-core'
-    - id: desktop-tray        name: '@lansi-ai/dsh-desktop-host-tray'
-    - id: desktop-shortcuts   name: '@lansi-ai/dsh-desktop-host-shortcuts'
-    - id: desktop-compat      name: '@lansi-ai/dsh-desktop-host-compat'   # desktopRoutes + 零端口 bundle 服务
-    - id: desktop-runtime     name: '@lansi-ai/dsh-desktop-host-runtime'  # IPC 桥宿主端+dist 资产供给
+    - id: forge-core        name: '@lansi-ai/dsh-forge-host-core'
+    - id: forge-tray        name: '@lansi-ai/dsh-forge-host-tray'
+    - id: forge-shortcuts   name: '@lansi-ai/dsh-forge-host-shortcuts'
+    - id: forge-compat      name: '@lansi-ai/dsh-forge-host-compat'   # desktopRoutes + 零端口 bundle 服务
+    - id: forge-runtime     name: '@lansi-ai/dsh-forge-host-runtime'  # IPC 桥宿主端+dist 资产供给
 - id: webserver
   disabled: true
 - id: web-runtime

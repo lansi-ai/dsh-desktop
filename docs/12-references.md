@@ -61,7 +61,7 @@
 ## E. 环境事实（本机）
 
 - GUI 地址：`http://127.0.0.1:3081`（本环境 web profile 配置值；官方默认 3080）
-- 工作区：`E:\Projects\DSH\plugins\`（本插件项目 `dsh-desktop/` 所在）；上游源码 `E:\Projects\DSH\_harness-src\`
+- 工作区：`E:\Projects\DSH\plugins\`（本插件项目 `dsh-forge/` 所在）；上游源码 `E:\Projects\DSH\_harness-src\`
 - 现有插件先例：`dsh-terminal`（隐藏 PowerShell + SSE）、`dsh-rule-manager`、`dsh-restart`
 - 网络代理：`127.0.0.1:7890`（用户确认可用；境外抓取经其 CONNECT 隧道）
 

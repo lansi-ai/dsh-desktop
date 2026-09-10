@@ -38,8 +38,8 @@ const RELEASE_TAG_PREFIX = 'dsh-v';
 
 const ROOT = path.resolve(__dirname, '..');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
-const BOOT_TS = path.join(ROOT, 'src/desktop-host/boot.ts');
-const PATCH_YML = path.join(ROOT, 'src/desktop-host/desktop-patch.yml');
+const BOOT_TS = path.join(ROOT, 'src/forge-host/boot.ts');
+const PATCH_YML = path.join(ROOT, 'src/forge-host/forge-patch.yml');
 const MIGRATIONS_DOC = path.join(ROOT, 'docs/upstream-migrations.md');
 
 // 跟踪的上游关键包（dist-tag 对齐面）
@@ -100,7 +100,7 @@ const OFFICIAL_ROSTER = 'packages/bundle/web-app/cordis.patch.yml';
 
 function httpsGet(url, headers = {}) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'User-Agent': 'dsh-desktop-upstream', ...headers } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'dsh-forge-upstream', ...headers } }, (res) => {
       let data = '';
       res.on('data', (c) => (data += c));
       res.on('end', () => resolve({ status: res.statusCode, body: data }));
@@ -169,7 +169,7 @@ function getBaselineVersion(pkg) {
   return pkg.dependencies['@deepseek-ai/dsh'];
 }
 
-// 从 boot.ts + desktop-patch.yml 提取 roster 引用的官方基础包名（去子路径）
+// 从 boot.ts + forge-patch.yml 提取 roster 引用的官方基础包名（去子路径）
 function extractRosterPackages() {
   const set = new Set();
   const re = /name:\s*'(@deepseek-ai\/[^']+)'/g;

@@ -1,5 +1,5 @@
 ---
-description: 核心代码规范、安全红线与语法准则（dsh-desktop）
+description: 核心代码规范、安全红线与语法准则（dsh-forge）
 globs: "*"
 alwaysApply: true
 ---

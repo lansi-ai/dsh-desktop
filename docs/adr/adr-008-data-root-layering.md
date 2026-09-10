@@ -1,6 +1,6 @@
 # ADR-008 · 用户数据与设备数据分层（$DSH_HOME 归位 + 应用命名统一）
 
-状态：**已接受**（2026-09-09）· 关联：[`07-desktop-shell.md`](../07-desktop-shell.md)、[`pitfalls.md`](../pitfalls.md) 坑 42、`src/desktop-shell/data-migration.ts`
+状态：**已接受**（2026-09-09）· 关联：[`07-forge-shell.md`](../07-forge-shell.md)、[`pitfalls.md`](../pitfalls.md) 坑 42、`src/forge-shell/data-migration.ts`
 
 ## 背景
 
@@ -59,7 +59,7 @@ M4 引入「首启选择用户数据存储位置」（`data-home.ts`，`$DSH_HOM
 
 - 正面：卸载选「删除数据」真正删干净；换机只需拷 home 一个目录；会话不再落在 `%APPDATA%`（Roaming）被域漫游同步；R7 硬编码实质收口；命名与安装目录一致。
 - 负面：首启窗口的「迁移旧数据」现在会搬走全部用户数据，数据量大时耗时更长（无进度提示）。
-- 遗留：便携包仍写 `%APPDATA%`（未处理 `PORTABLE_EXECUTABLE_DIR`，真便携模式待定）；`@lansi-ai/dsh-desktop-*` 包名、`src/desktop-*` 目录名未改（影响面大，另议）；GitHub repo 名已改 `dsh-desktop → dsh-forge`（2026-09-09，`electron-builder.yml` publish.repo 与本地 remote 同步）。
+- 遗留：便携包仍写 `%APPDATA%`（未处理 `PORTABLE_EXECUTABLE_DIR`，真便携模式待定）；GitHub repo 名已改 `dsh-desktop → dsh-forge`（2026-09-09，`electron-builder.yml` publish.repo 与本地 remote 同步）；**2026-09-10 补做**：`@lansi-ai/dsh-desktop-*` 插件 ID 与 `src/desktop-*` 目录/文件名全量更名为 `dsh-forge`。
 
 ## 验证
 

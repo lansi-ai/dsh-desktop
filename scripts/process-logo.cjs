@@ -22,7 +22,7 @@
  * 透明底产物中浅色底变体（*-light）整体压暗：金色在纯白背景上对比度不足，压深以保可读。
  *
  * 落盘位置说明：应用/托盘的**消费真源**是全局目录 `$DSH_HOME/icons/`（由 host 品牌资产
- * 同步写入，见 desktop-theme.ts syncGlobalBrandAssets），其回退源 = `src/desktop-shell/web/`
+ * 同步写入，见 forge-theme.ts syncGlobalBrandAssets），其回退源 = `src/forge-shell/web/`
  * 下的内置默认图；`resources/themes/default/` 根目录的同名 PNG 是**历史兼容副本**
  * （dsh-ui:// 主题路由仍可命中包根，图标包清单只收 `icons/` 子目录）。
  * 用法：node scripts/process-logo.cjs
@@ -157,8 +157,8 @@ async function main() {
   const transparent = [
     ['website/public/logo.png', SIZE, 1],
     ['website/public/favicon.png', FAVICON_SIZE, 1],
-    ['src/desktop-shell/web/brand-mark-dark.png', BRAND_SIZE, 1],
-    ['src/desktop-shell/web/brand-mark-light.png', BRAND_SIZE, LIGHT_FACTOR],
+    ['src/forge-shell/web/brand-mark-dark.png', BRAND_SIZE, 1],
+    ['src/forge-shell/web/brand-mark-light.png', BRAND_SIZE, LIGHT_FACTOR],
     ['resources/themes/default/brand-mark-dark.png', BRAND_SIZE, 1],
     ['resources/themes/default/brand-mark-light.png', BRAND_SIZE, LIGHT_FACTOR],
   ];
@@ -168,8 +168,8 @@ async function main() {
 
   // 黑底应用图标（512px）：桌面/任务栏/Dock/安装包；浅深两版同为黑底（金标已足对比）
   const apps = [
-    'src/desktop-shell/web/app-icon-light.png',
-    'src/desktop-shell/web/app-icon-dark.png',
+    'src/forge-shell/web/app-icon-light.png',
+    'src/forge-shell/web/app-icon-dark.png',
     'resources/themes/default/app-icon-light.png',
     'resources/themes/default/app-icon-dark.png',
   ];
@@ -179,8 +179,8 @@ async function main() {
 
   // 黑底托盘图标（64px）：16px 渲染尺寸下靠方块轮廓保证可辨识
   const trays = [
-    'src/desktop-shell/web/tray-icon-light.png',
-    'src/desktop-shell/web/tray-icon-dark.png',
+    'src/forge-shell/web/tray-icon-light.png',
+    'src/forge-shell/web/tray-icon-dark.png',
     'resources/themes/default/tray-icon-light.png',
     'resources/themes/default/tray-icon-dark.png',
   ];

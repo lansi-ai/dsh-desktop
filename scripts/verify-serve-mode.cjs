@@ -17,11 +17,11 @@ const assert = require('node:assert')
 const path = require('node:path')
 
 const root = path.join(__dirname, '..')
-const argvMod = require(path.join(root, 'dist', 'desktop-shell', 'argv.js'))
-const hostMod = require(path.join(root, 'dist', 'desktop-host', 'boot.js'))
+const argvMod = require(path.join(root, 'dist', 'forge-shell', 'argv.js'))
+const hostMod = require(path.join(root, 'dist', 'forge-host', 'boot.js'))
 
 // ── 1. argv parser 行为矩阵 ────────────────────────────────────────────
-// 期望结构随 src/desktop-shell/argv.ts 的 CliOptions 对齐：M4 新增 --hidden /
+// 期望结构随 src/forge-shell/argv.ts 的 CliOptions 对齐：M4 新增 --hidden /
 // --select-data-dir 后 parseArgv 恒返回 { serve, servePort, hidden, selectDataDir }。
 
 function testParse(label, argv, expected) {

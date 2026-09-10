@@ -94,7 +94,7 @@ async function main() {
     // 壳层 UI 图标（renderer 经 dsh-ui://app/theme/<id|current>/icons/<file> 直读）：
     // 标题栏品牌 logo 自 M6 起复用 app-icon PNG，不再单独生成 titlebar-logo.svg。
     // 官方 UI 内部小图标（设置/文件夹等）经 ui-overrides.json 映射替换
-    // （desktop-ui-icons-client 消费，空表=不激活）。
+    // （forge-ui-icons-client 消费，空表=不激活）。
     const iconsDir = path.join(themeDir, 'icons')
     fs.mkdirSync(iconsDir, { recursive: true })
     fs.writeFileSync(path.join(iconsDir, 'ui-overrides.json'), JSON.stringify(UI_OVERRIDES[theme.id] ?? [], null, 2) + '\n', 'utf-8')

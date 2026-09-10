@@ -14,13 +14,13 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const root = path.join(__dirname, '..')
-const bootGraph = require(path.join(root, 'dist', 'desktop-host', 'boot-graph.js'))
+const bootGraph = require(path.join(root, 'dist', 'forge-host', 'boot-graph.js'))
 
 const sampleId = 'dsh-spike-sample'
-const samplePath = path.join(root, 'dist', 'desktop-shell', 'web', 'dsh-spike-sample.js')
+const samplePath = path.join(root, 'dist', 'forge-shell', 'web', 'dsh-spike-sample.js')
 assert.ok(fs.existsSync(samplePath), `样例 bundle 缺失: ${samplePath}`)
 
-const graph = bootGraph.generateBootGraph('desktop-m1-ipc-test', [{ id: sampleId, path: samplePath }])
+const graph = bootGraph.generateBootGraph('forge-m1-ipc-test', [{ id: sampleId, path: samplePath }])
 
 // 1. 图谱含官方基础插件 + 样例插件
 const ids = graph.entries.map((entry) => entry.id)
@@ -46,7 +46,7 @@ assert.ok(bundleText.includes('__ModuleLoader__'), 'bundle 应注册到 __Module
 assert.equal(bootGraph.resolveBundlePath(sampleId), samplePath)
 
 // 5. 注入脚本包含 queue shim + parser 预载 + __DSH_BOOT__
-const script = bootGraph.generateFullBootScript('desktop-m1-ipc-test', [{ id: sampleId, path: samplePath }])
+const script = bootGraph.generateFullBootScript('forge-m1-ipc-test', [{ id: sampleId, path: samplePath }])
 assert.ok(script.includes('window.__ModuleLoader__'), '注入脚本应含 queue shim')
 assert.ok(script.includes('@deepseek-ai/dsh-client-modules/client.js'), '注入脚本应预载 client-modules')
 assert.ok(script.includes('@deepseek-ai/dsh-client-runtime/client.js'), '注入脚本应预载 client-runtime')
@@ -98,7 +98,7 @@ assert.ok(ccPath !== undefined && fs.existsSync(ccPath), 'client-connection 应�
 const ccBundle = bootGraph.resolveBundleRequest(`/plugins/${ccId}/client.js`)
 assert.ok(ccBundle, 'client-connection 应能被 bundle route 直读（预载注册）')
 // 注入脚本应带出 client-connection 预载 script（仅注册 factory，不入图谱）
-const fullScript = bootGraph.generateFullBootScript('desktop-m1-ipc-test', [{ id: sampleId, path: samplePath }])
+const fullScript = bootGraph.generateFullBootScript('forge-m1-ipc-test', [{ id: sampleId, path: samplePath }])
 assert.ok(fullScript.includes(`/plugins/${ccId}/client.js?rev=`), '注入脚本应预载 client-connection 基类（PRELOAD_ONLY）')
 assert.ok(fullScript.includes(`"id":"${ccId}"`) === false, '注入脚本图谱不应含 client-connection 条目')
 assert.ok(fullScript.includes('@deepseek-ai/dsh-client-ui-renderer/client.js'), '注入脚本应预载/含 ui-renderer 客户端插件')
@@ -146,7 +146,7 @@ assert.deepEqual(tpHostDecl.inject, [
 assert.strictEqual(tpHostDecl.immediately, true, '第三方插件应立即激活')
 
 // 图谱应包含第三方条目，且 bundle route 能直读其产物（方案 A 装载路径）
-const tpGraph = bootGraph.generateBootGraph('desktop-m1-ipc-test', [tpHostDecl])
+const tpGraph = bootGraph.generateBootGraph('forge-m1-ipc-test', [tpHostDecl])
 const tpEntry = tpGraph.entries.find((e) => e.id === thirdPartyId)
 assert.ok(tpEntry, '图谱应包含第三方插件条目')
 assert.equal(tpEntry.url, `/plugins/${thirdPartyId}/client.js?rev=${tpEntry.rev}`)

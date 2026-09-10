@@ -1,6 +1,6 @@
-# dsh-desktop 完整插件清单（Plugin Inventory）
+# dsh-forge 完整插件清单（Plugin Inventory）
 
-> 真源：`src/desktop-host/boot.ts`（Host 树 §1+§4 insert）与 `src/desktop-host/boot-graph.ts`（Client 图谱 desktopDecls + CLIENT_EXCLUDE_IDS）。本文为派生视图，架构变更时同步更新。
+> 真源：`src/forge-host/boot.ts`（Host 树 §1+§4 insert）与 `src/forge-host/boot-graph.ts`（Client 图谱 desktopDecls + CLIENT_EXCLUDE_IDS）。本文为派生视图，架构变更时同步更新。
 > 命名规范（D-19）：桌面插件统一 `@lansi-ai/dsh-*`（蓝思 scope + dsh 生态前缀）。
 > 状态更新至：**`0.1.2-alpha.4` 基线（2026-09-02 M4-d4）· M6-P2 首件自有化完成**。
 > HTML 可视化版：`docs/architecture-plugins.html`（尚未同步 0.1.2 后状态，以本文为准）。
@@ -29,12 +29,12 @@
 
 | 官方包 | 桌面自有件 | 接管面 | host 半 | 状态 |
 |---|---|---|---|---|
-| `dsh-client-ui-layout` | `@lansi-ai/dsh-desktop-layout` | root 槽位（三列 grid + ctx.layout 服务）+ ThemePresenter 等价（坑 26） | — | ✅ 实机通过 |
-| （无官方对应，宿主化骨架 D-21） | `desktop-appearance.ts` + `LAYOUT_SKELETON_CSS` | `--dsd-*` 外观变量 + 首帧骨架（防裸窗口期） | 宿主模块 | ✅ |
-| （无官方对应，M3-c4） | `@lansi-ai/dsh-desktop-titlebar` | 布局 root 槽位 `titlebar` 行（拖拽区 + 窗控三钮 + 品牌区） | — | ✅ 实机通过 |
-| `dsh-client-ui-sidebar` | `@lansi-ai/dsh-desktop-sidebar` | sidebar 槽位（fold 状态机 + 新会话 + 5 子槽位声明）；ui-workspace/ui-settings 经子槽位无改动继续工作 | — | ✅ 实机通过（2026-09-01） |
-| `dsh-session-log-export`（client 半） | `@lansi-ai/dsh-desktop-session-export` | `conversation.session.header.utilities` 槽位（导出胶囊 + 结果弹层，文案修正桌面语义） | **保留复用**（boot.ts `session-log-download` 行：/export 命令 + `/api/session.export` ZIP 流式路由） | ✅ 实机通过（2026-09-02，M6-P2 首件） |
-| `dsh-client-ui-workspace`（client 半） | `@lansi-ai/dsh-desktop-workspaces` | **五项接管面**（详见 `upstream-contracts.md` §7.1 末行）：① provide `uiWorkspace` 服务（六方法，**排除即连坐**——侧栏壳/ui-conversation/native picker/agent-preset 四者硬 inject）；② `provideRoot(hooks.workspaces)`；③ `locale.register('workspace')` 63 键；④ 双注册 `sidebar.workspaces` + `conversation.hero.workspace`（各带 directoryFlow 子洞）；⑤ 十三项动作注入面 | — （该包 host 半 `lib/index.js` 本就是空 apply，boot.ts 未插该行，host 侧无连坐） | 🔄 **W1 + picker 承重件 ✅；W2 tree 派生层 ✅**（2026-09-08）：五接管面全通；选/加工作区路径已实现（**原「空壳」写法曾锁死全应用，见坑 35**）；tree 派生纯函数（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘）已内联进 bundle 并经 `node:test` 单测守护（8 项断言全过）；行组件仍后置（W3）；静态门禁 + 图谱实测 + bundle 冒烟 40 项 + pickflow 行为断言 21 项 + 字典逐字 diff 均通过，**待实机点验** |
+| `dsh-client-ui-layout` | `@lansi-ai/dsh-forge-layout` | root 槽位（三列 grid + ctx.layout 服务）+ ThemePresenter 等价（坑 26） | — | ✅ 实机通过 |
+| （无官方对应，宿主化骨架 D-21） | `forge-appearance.ts` + `LAYOUT_SKELETON_CSS` | `--dsd-*` 外观变量 + 首帧骨架（防裸窗口期） | 宿主模块 | ✅ |
+| （无官方对应，M3-c4） | `@lansi-ai/dsh-forge-titlebar` | 布局 root 槽位 `titlebar` 行（拖拽区 + 窗控三钮 + 品牌区） | — | ✅ 实机通过 |
+| `dsh-client-ui-sidebar` | `@lansi-ai/dsh-forge-sidebar` | sidebar 槽位（fold 状态机 + 新会话 + 5 子槽位声明）；ui-workspace/ui-settings 经子槽位无改动继续工作 | — | ✅ 实机通过（2026-09-01） |
+| `dsh-session-log-export`（client 半） | `@lansi-ai/dsh-forge-session-export` | `conversation.session.header.utilities` 槽位（导出胶囊 + 结果弹层，文案修正桌面语义） | **保留复用**（boot.ts `session-log-download` 行：/export 命令 + `/api/session.export` ZIP 流式路由） | ✅ 实机通过（2026-09-02，M6-P2 首件） |
+| `dsh-client-ui-workspace`（client 半） | `@lansi-ai/dsh-forge-workspaces` | **五项接管面**（详见 `upstream-contracts.md` §7.1 末行）：① provide `uiWorkspace` 服务（六方法，**排除即连坐**——侧栏壳/ui-conversation/native picker/agent-preset 四者硬 inject）；② `provideRoot(hooks.workspaces)`；③ `locale.register('workspace')` 63 键；④ 双注册 `sidebar.workspaces` + `conversation.hero.workspace`（各带 directoryFlow 子洞）；⑤ 十三项动作注入面 | — （该包 host 半 `lib/index.js` 本就是空 apply，boot.ts 未插该行，host 侧无连坐） | 🔄 **W1 + picker 承重件 ✅；W2 tree 派生层 ✅**（2026-09-08）：五接管面全通；选/加工作区路径已实现（**原「空壳」写法曾锁死全应用，见坑 35**）；tree 派生纯函数（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘）已内联进 bundle 并经 `node:test` 单测守护（8 项断言全过）；行组件仍后置（W3）；静态门禁 + 图谱实测 + bundle 冒烟 40 项 + pickflow 行为断言 21 项 + 字典逐字 diff 均通过，**待实机点验** |
 
 > **双装配线先例**（session-log-export，自有化方法论第 18 条的实践）：官方双面包的 client 半被排除替换时，host 半经 boot.ts 照常装载提供数据面——自有件零重复实现。
 
@@ -47,22 +47,22 @@
 | `dsh-client-ui-directory-picker-browse` | 与 native 形态 single slot 冲突（桌面走 Electron chooser） |
 | `dsh-session-log-export` | 导出 UI 自有化（client 半；host 半保留，见上） |
 | `dsh-client-hmr` | dev SSE `/plugins/events` 桌面不存在，轮询必 404（终端静音） |
-| `dsh-client-ui-settings-general` | 设置外壳自研（`@lansi-ai/dsh-desktop-settings-shell` 接管 `sidebar.settings` / `settings.trigger` 等，双激活抛 "already has a registration"）。**2026-09-07 补登记**：boot-graph 早已排除但本清单漏记 |
-| `dsh-client-ui-workspace` | M6-P3 工作区浏览区自研（`@lansi-ai/dsh-desktop-workspaces` 顶替，2026-09-07 W1）。⚠ **非纯 UI 排除**：该包还对外提供 `uiWorkspace` ctx 服务 + `useWorkspaces` 全局贡献 + `workspace` 字典，排除前必须逐项接管（见 §〇 已自有化明细与 `upstream-contracts.md` §2/§7.1） |
+| `dsh-client-ui-settings-general` | 设置外壳自研（`@lansi-ai/dsh-forge-settings-shell` 接管 `sidebar.settings` / `settings.trigger` 等，双激活抛 "already has a registration"）。**2026-09-07 补登记**：boot-graph 早已排除但本清单漏记 |
+| `dsh-client-ui-workspace` | M6-P3 工作区浏览区自研（`@lansi-ai/dsh-forge-workspaces` 顶替，2026-09-07 W1）。⚠ **非纯 UI 排除**：该包还对外提供 `uiWorkspace` ctx 服务 + `useWorkspaces` 全局贡献 + `workspace` 字典，排除前必须逐项接管（见 §〇 已自有化明细与 `upstream-contracts.md` §2/§7.1） |
 
 > **2026-09-10 起 `dsh-cordis-client-runner` + `dsh-client-ui-cordis` 不再排除**（创造模式 · dogfood #23）：宿主半 `cordis-host-runner` 已 insert（`dynamicCordisRunner`/`cordisInspect`），客户端两半同批回填装载，面板入口注册进自绘侧栏新声明的 `sidebar.footer.action` 槽位（`list`/`root`，对齐官方 ui-sidebar）。
 
 ### 自有化待办（按阶段）
 
-- **P2**：`dsh-desktop-brand`（sidebar.brand.mark/name 洞）、会话 header 重排评估（TRAE 式会话名 + 按钮组）
-- **P3**：`dsh-desktop-workspaces`（全量复刻 ui-workspace）——W1 五接管面 ✅ + **picker 承重件 ✅**（2026-09-08；坑 35：原「空壳」锁死全应用，已把选/加工作区提前到首批）→ **W2 tree 派生层 ✅**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘，内联进 bundle，export.derive 钩子 + node:test 单测 8 项，2026-09-08）→ **W3 Rows 行组件 + 视图选项 ✅**（组行/会话行 + 状态点优先级 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，单测 8 项追加，2026-09-08）→ **W4 Browser 增强 ✅**（内容搜索：wide 内联搜索槽 + narrow 搜索入口展开侧栏 + Host `session.search` 防抖 250ms + sanitizeSearchQuery 线缆护栏 + 本地/内容命中合并派生，单测追加 sanitizeSearchQuery，全局计 16 项通过，2026-09-08；目录流收养已随 W1 通；分组折叠/视图选项已随 W3）→ **W5** 实机对照点验收口
+- **P2**：`dsh-forge-brand`（sidebar.brand.mark/name 洞）、会话 header 重排评估（TRAE 式会话名 + 按钮组）
+- **P3**：`dsh-forge-workspaces`（全量复刻 ui-workspace）——W1 五接管面 ✅ + **picker 承重件 ✅**（2026-09-08；坑 35：原「空壳」锁死全应用，已把选/加工作区提前到首批）→ **W2 tree 派生层 ✅**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘，内联进 bundle，export.derive 钩子 + node:test 单测 8 项，2026-09-08）→ **W3 Rows 行组件 + 视图选项 ✅**（组行/会话行 + 状态点优先级 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，单测 8 项追加，2026-09-08）→ **W4 Browser 增强 ✅**（内容搜索：wide 内联搜索槽 + narrow 搜索入口展开侧栏 + Host `session.search` 防抖 250ms + sanitizeSearchQuery 线缆护栏 + 本地/内容命中合并派生，单测追加 sanitizeSearchQuery，全局计 16 项通过，2026-09-08；目录流收养已随 W1 通；分组折叠/视图选项已随 W3）→ **W5** 实机对照点验收口
 - **P4-P6**：见上表（启动前需逐件摸底登记）
 
 ---
 
 ## 一、Host 侧 · Cordis 插件树（boot.ts overlay patches）
 
-装载链：`bootDesktopHost()` → 官方 `boot('dsh-desktop', cordis.yml, patches, prepare)`，所有条目无改动装载。
+装载链：`bootDesktopHost()` → 官方 `boot('dsh-forge', cordis.yml, patches, prepare)`，所有条目无改动装载。
 
 ### 1. LLM 与凭据（6 条）
 
@@ -331,18 +331,18 @@
 | 插件 | 文件 | 作用 | 状态 |
 |---|---|---|---|
 | `@lansi-ai/dsh-ipc-connection` | `ipc-connection.js` | 零端口 IPC 载波占位（0.1.2：传输经 HTML boot 脚本注入 `__DSH_TRANSPORT__`，官方 client-connection 自行 provide connection；本条目为图谱激活占位） | ✅ |
-| `@lansi-ai/dsh-desktop-layout` | `desktop-layout-client.js` | **三列 grid 布局**（sidebar\|center\|details）+ ctx.layout 服务 + rAF 拖拽 + 窄屏折叠 + ThemePresenter 等价 + 官方主题 token（接管 root 槽位，D-18；inject: slots+theme） | ✅（2026-09-01 实机验证通过） |
-| `@lansi-ai/dsh-desktop-titlebar` | `desktop-titlebar-client.js` | titlebar 行：品牌区（**v7：全局 `brand-mark-{light,dark}.png` 透明底金标**，缺失回退官方 FishLogo/占位）+ 折叠钮 + 中部拖拽区 + 窗控三钮；**v5：logo + 窗控四枚 + 折叠两枚全部支持主题槽位 `icons/titlebar-*.svg`**（状态对成对提供才启用，缺失回退内置，peekSvg 防首帧空窗）（inject: slots+layout+themeIcon） | ✅（2026-09-04 v5 / 2026-09-10 v7，待实机点验） |
-| `@lansi-ai/dsh-desktop-sidebar` | `desktop-sidebar-client.js` | 侧栏壳（M6-P3）：fold 状态机 + 新会话（经 **`ctx.get('uiWorkspace').startSession`**，坑 32 修复件——非 domain 服务）+ 4 子槽位声明（brand.mark/name、workspaces、settings），子槽位注册者无改动继续工作。**2026-09-07 注**：`sidebar.workspaces` 现由自研 `dsh-desktop-workspaces` 顶替（原为官方 ui-workspace）；`sidebar.settings` 仍为官方注册者 | ✅（2026-09-01 实机验证通过） |
-| `@lansi-ai/dsh-desktop-session-export` | `desktop-session-export-client.js` | Session 日志导出 UI（M6-P2 首件）：header 导出胶囊 + 结果弹层 + 下载 controller，文案修正桌面语义；host 半官方保留 | ✅（2026-09-02 实机验证通过） |
-| `@lansi-ai/dsh-desktop-workspaces` | `desktop-workspaces-client.js` | 工作区浏览区（M6-P3 W1 骨架）：顶替官方 `ui-workspace`，承接**五项接管面**——`uiWorkspace` 服务（六方法）+ `provideRoot(hooks.workspaces)` + `workspace` 字典 63 键 + 双注册（`sidebar.workspaces` / `conversation.hero.workspace` 各带 directoryFlow 子洞）+ 十三项动作注入面（薄转发官方 domain，数据面零新增）。store persist key 沿用 `dsh.workspace.view.v5`。**选/加工作区已可用**（官方 `WorkspacePickFlow` 等价内核：有工作区列菜单+底部固定「添加」，无工作区 open 即直抬系统目录选择器，收养失败落弹层可重试；侧栏 `addOnly` + 收养后 `startSession`）；**tree 派生层已完成（W2）**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘等纯函数内联进 bundle，`exports.derive` 钩子供 W3/W4 复用 + node:test 单测守护）；**Rows 行组件 + 视图选项已完成（W3）**（组行/会话行 + 状态点 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，纯函数 8 项单测追加）；**内容搜索已完成（W4）**（wide 内联搜索槽 + narrow 搜索入口 + Host `session.search` 防抖 + sanitizeSearchQuery 线缆护栏 + 本地/内容命中合并派生，单测追加 sanitizeSearchQuery） | 🔄 W1+picker+**W2 派生层 + W3 Rows/视图选项 + W4 内容搜索**（2026-09-08，图谱实测 + 冒烟 40 项 + pickflow 行为 21 项 + 字典 diff + **派生/行/搜索单测 16 项** 全通过，**待实机点验**） |
-| `@lansi-ai/dsh-desktop-settings` | `desktop-settings-client.js` | 设置页「桌面」section（tray/通知/快捷键/自启 Toggle） | ✅ |
-| `@lansi-ai/dsh-desktop-theme` | `desktop-theme-client.js` | 设置页「外观」section，**由上至下四项一级设置项**：① 应用图标 ② 托盘图标 ③ 品牌 logo（三项 global，存 `userData/icons/` 全局单份、不随包切换）④ 图标包（卡片网格 + 新建包，其下二级=界面图标需求清单：默认折叠、按消费方插件分组卡、行内上传·替换）；槽位真源 = host `ICON_SLOTS`（D-23；坑 27/28/29/30） | ✅（2026-09-04 重构，待实机点验） |
-| `@lansi-ai/dsh-desktop-audit-viewer` | `desktop-audit-viewer-client.js` | 会话审计查看器 Tab | ✅ |
-| `@lansi-ai/dsh-desktop-conversation-visuals` | `desktop-conversation-visuals-client.js` | 对话区视觉层（data-phase 圆角/裁剪样式，不接管 conversation 槽位） | ✅ |
-| `@lansi-ai/dsh-desktop-cmdpalette` | `desktop-cmdpalette-client.js` | 命令面板（2026-08-27 禁用壳，仅留 quick-ask 聚焦） | ⛔ 已禁用 |
+| `@lansi-ai/dsh-forge-layout` | `forge-layout-client.js` | **三列 grid 布局**（sidebar\|center\|details）+ ctx.layout 服务 + rAF 拖拽 + 窄屏折叠 + ThemePresenter 等价 + 官方主题 token（接管 root 槽位，D-18；inject: slots+theme） | ✅（2026-09-01 实机验证通过） |
+| `@lansi-ai/dsh-forge-titlebar` | `forge-titlebar-client.js` | titlebar 行：品牌区（**v7：全局 `brand-mark-{light,dark}.png` 透明底金标**，缺失回退官方 FishLogo/占位）+ 折叠钮 + 中部拖拽区 + 窗控三钮；**v5：logo + 窗控四枚 + 折叠两枚全部支持主题槽位 `icons/titlebar-*.svg`**（状态对成对提供才启用，缺失回退内置，peekSvg 防首帧空窗）（inject: slots+layout+themeIcon） | ✅（2026-09-04 v5 / 2026-09-10 v7，待实机点验） |
+| `@lansi-ai/dsh-forge-sidebar` | `forge-sidebar-client.js` | 侧栏壳（M6-P3）：fold 状态机 + 新会话（经 **`ctx.get('uiWorkspace').startSession`**，坑 32 修复件——非 domain 服务）+ 4 子槽位声明（brand.mark/name、workspaces、settings），子槽位注册者无改动继续工作。**2026-09-07 注**：`sidebar.workspaces` 现由自研 `dsh-forge-workspaces` 顶替（原为官方 ui-workspace）；`sidebar.settings` 仍为官方注册者 | ✅（2026-09-01 实机验证通过） |
+| `@lansi-ai/dsh-forge-session-export` | `forge-session-export-client.js` | Session 日志导出 UI（M6-P2 首件）：header 导出胶囊 + 结果弹层 + 下载 controller，文案修正桌面语义；host 半官方保留 | ✅（2026-09-02 实机验证通过） |
+| `@lansi-ai/dsh-forge-workspaces` | `forge-workspaces-client.js` | 工作区浏览区（M6-P3 W1 骨架）：顶替官方 `ui-workspace`，承接**五项接管面**——`uiWorkspace` 服务（六方法）+ `provideRoot(hooks.workspaces)` + `workspace` 字典 63 键 + 双注册（`sidebar.workspaces` / `conversation.hero.workspace` 各带 directoryFlow 子洞）+ 十三项动作注入面（薄转发官方 domain，数据面零新增）。store persist key 沿用 `dsh.workspace.view.v5`。**选/加工作区已可用**（官方 `WorkspacePickFlow` 等价内核：有工作区列菜单+底部固定「添加」，无工作区 open 即直抬系统目录选择器，收养失败落弹层可重试；侧栏 `addOnly` + 收养后 `startSession`）；**tree 派生层已完成（W2）**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘等纯函数内联进 bundle，`exports.derive` 钩子供 W3/W4 复用 + node:test 单测守护）；**Rows 行组件 + 视图选项已完成（W3）**（组行/会话行 + 状态点 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，纯函数 8 项单测追加）；**内容搜索已完成（W4）**（wide 内联搜索槽 + narrow 搜索入口 + Host `session.search` 防抖 + sanitizeSearchQuery 线缆护栏 + 本地/内容命中合并派生，单测追加 sanitizeSearchQuery） | 🔄 W1+picker+**W2 派生层 + W3 Rows/视图选项 + W4 内容搜索**（2026-09-08，图谱实测 + 冒烟 40 项 + pickflow 行为 21 项 + 字典 diff + **派生/行/搜索单测 16 项** 全通过，**待实机点验**） |
+| `@lansi-ai/dsh-forge-settings` | `forge-settings-client.js` | 设置页「桌面」section（tray/通知/快捷键/自启 Toggle） | ✅ |
+| `@lansi-ai/dsh-forge-theme` | `forge-theme-client.js` | 设置页「外观」section，**由上至下四项一级设置项**：① 应用图标 ② 托盘图标 ③ 品牌 logo（三项 global，存 `userData/icons/` 全局单份、不随包切换）④ 图标包（卡片网格 + 新建包，其下二级=界面图标需求清单：默认折叠、按消费方插件分组卡、行内上传·替换）；槽位真源 = host `ICON_SLOTS`（D-23；坑 27/28/29/30） | ✅（2026-09-04 重构，待实机点验） |
+| `@lansi-ai/dsh-forge-audit-viewer` | `forge-audit-viewer-client.js` | 会话审计查看器 Tab | ✅ |
+| `@lansi-ai/dsh-forge-conversation-visuals` | `forge-conversation-visuals-client.js` | 对话区视觉层（data-phase 圆角/裁剪样式，不接管 conversation 槽位） | ✅ |
+| `@lansi-ai/dsh-forge-cmdpalette` | `forge-cmdpalette-client.js` | 命令面板（2026-08-27 禁用壳，仅留 quick-ask 聚焦） | ⛔ 已禁用 |
 
-> ~~`@lansi-ai/dsh-desktop-panel`~~ **已下线**（`feat(plugins)!` dabdae0，随侧栏触发按钮一并撤下）。
+> ~~`@lansi-ai/dsh-forge-panel`~~ **已下线**（`feat(plugins)!` dabdae0，随侧栏触发按钮一并撤下）。
 
 另：HTML 注入预置 `LAYOUT_SKELETON_CSS`（boot-graph 常量）——首帧布局骨架，防裸窗口期；内容归布局插件，与插件 CSS 同源两处同步。
 
@@ -350,15 +350,15 @@
 
 | 模块 | 作用 | 状态 |
 |---|---|---|
-| `desktop-api.ts` | ctx.desktop 聚合服务（审计 JSONL / 配置 / 下行事件） | ✅ |
-| `desktop-tray.ts` | 托盘 + 关窗驻留 + 快速问答 | ✅ |
-| `desktop-notify.ts` | 系统通知（审批/错误/进展三类，0.1.2 host 事件直订阅） | ✅ |
-| `desktop-shortcuts.ts` | 全局快捷键（Alt+Shift+Q / Space） | ✅ |
-| `desktop-clipboard.ts` | 剪贴板（写走 approval） | ✅ |
-| `desktop-cmdpalette.ts` | 命令面板 host 半（Ctrl+Shift+P） | ✅ |
-| `desktop-audit-viewer.ts` | 审计查询服务（过滤+分页） | ✅ |
-| `desktop-autostart.ts` | 开机自启（OS 登录项唯一真源） | ✅ |
-| `desktop-appearance.ts` | `--dsd-*` 外观变量注入（D-21 骨架宿主化外观契约） | ✅ |
+| `forge-api.ts` | ctx.desktop 聚合服务（审计 JSONL / 配置 / 下行事件） | ✅ |
+| `forge-tray.ts` | 托盘 + 关窗驻留 + 快速问答 | ✅ |
+| `forge-notify.ts` | 系统通知（审批/错误/进展三类，0.1.2 host 事件直订阅） | ✅ |
+| `forge-shortcuts.ts` | 全局快捷键（Alt+Shift+Q / Space） | ✅ |
+| `forge-clipboard.ts` | 剪贴板（写走 approval） | ✅ |
+| `forge-cmdpalette.ts` | 命令面板 host 半（Ctrl+Shift+P） | ✅ |
+| `forge-audit-viewer.ts` | 审计查询服务（过滤+分页） | ✅ |
+| `forge-autostart.ts` | 开机自启（OS 登录项唯一真源） | ✅ |
+| `forge-appearance.ts` | `--dsd-*` 外观变量注入（D-21 骨架宿主化外观契约） | ✅ |
 | `theme-sync.ts` | 主题同步（0.1.2 host 事件双路直订阅，坑 22/26） | ✅ |
 | `connection-fetch-bridge.ts` | connection fetch 桥（非 POST `/api/` 同源请求 → host connection 共享处理器，导出链路） | ✅ |
 | `window-manager.ts` | 多窗口 WindowManager（会话独立窗口 + 广播） | ✅ |

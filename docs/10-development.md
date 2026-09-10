@@ -16,7 +16,7 @@
 ③ shell 构建                          electron-builder / 多步：main+preload 单包
 ④ desktop 插件构建（每包）             tsdown（与官方同 preset 对齐）→ lib/ + client.js（若有 client 半）
 ⑤ 运行时组装                          resources/（ui + legacy + deps）-> 打进包；deps 以 pnpm --prod 冻结清单
-⑥ 开发工具                            scripts/dsh-desktop-dev（主面 vite dev server + shell --dev 直连）
+⑥ 开发工具                            scripts/dsh-forge-dev（主面 vite dev server + shell --dev 直连）
 ```
 
 - 开发模式（主面）：`renderer/` 跑 vite dev server → shell `--dev` 加载 dev URL（HMR 全量）；
@@ -36,15 +36,15 @@ dsh --help 等价物：startup args: --serve={port} | --user-data-dir | --no-ret
 
 | 层 | 工具 | 覆盖 |
 | --- | --- | --- |
-| 单测 | vitest（对齐上游） | desktop-api schema、IPC 信封编解码、host 插件 effect 清理 |
-| 组件 | vitest + fixture | 自绘面组件（对话流/时间线/命令面板）与 desktop-client-* 插件（无宿主） |
+| 单测 | vitest（对齐上游） | forge-api schema、IPC 信封编解码、host 插件 effect 清理 |
+| 组件 | vitest + fixture | 自绘面组件（对话流/时间线/命令面板）与 forge-client-* 插件（无宿主） |
 | 集成 | 内存 profile + `InProcessApiClient` | 桥→apiProxy→session 全链（对齐上游 carrier 测试思路） |
 | 兼容层 | vitest + e2e | desktopRoutes 映射、SSE→帧、旧插件 host 半零改动（`/rules/*`、`/terminal/run`） |
 | e2e | Playwright + `_electron` | 主面：启动→对话→命令面板→托盘→通知→协议唤起→崩溃恢复；兼容窗口：旧插件回归 |
 | 静态 | oxlint / tsc 双程序（host/client 聚合，对齐上游 tsconfig 双 aggregate） | 方向纪律、类型安全 |
 
 - **关键测试文件计划**：`shell/test/ipc-fetch.spec.ts`（象限完整性）、`bundle/test/patch-invariants.spec.ts`
-  （desktop patch 与上游 web-app 行集合的差集校验）、`packages/desktop-client-*/test/*.spec.tsx`
+  （desktop patch 与上游 web-app 行集合的差集校验）、`packages/forge-client-*/test/*.spec.tsx`
 
 ## 5. 与上游同步节奏
 

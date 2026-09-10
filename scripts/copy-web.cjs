@@ -1,4 +1,4 @@
-// 构建后脚本：将 desktop-shell/web/ 静态资源与 resources/ 静态资源复制到 dist
+// 构建后脚本：将 forge-shell/web/ 静态资源与 resources/ 静态资源复制到 dist
 const fs = require('node:fs')
 const path = require('node:path')
 
@@ -12,8 +12,8 @@ function copyDirRecursive(src, dst) {
   }
 }
 
-const webSrc = path.join(__dirname, '..', 'src', 'desktop-shell', 'web')
-const webDst = path.join(__dirname, '..', 'dist', 'desktop-shell', 'web')
+const webSrc = path.join(__dirname, '..', 'src', 'forge-shell', 'web')
+const webDst = path.join(__dirname, '..', 'dist', 'forge-shell', 'web')
 const resourcesSrc = path.join(__dirname, '..', 'resources')
 const resourcesDst = path.join(__dirname, '..', 'dist', 'resources')
 
@@ -22,7 +22,7 @@ if (fs.existsSync(webSrc)) {
   for (const file of fs.readdirSync(webSrc)) {
     fs.copyFileSync(path.join(webSrc, file), path.join(webDst, file))
   }
-  console.log(`[build] 已复制 ${fs.readdirSync(webSrc).length} 个静态文件到 dist/desktop-shell/web/`)
+  console.log(`[build] 已复制 ${fs.readdirSync(webSrc).length} 个静态文件到 dist/forge-shell/web/`)
 }
 
 // 策略：resources/ 目录（agent-presets 等静态资源）整体复制到 dist/resources/
@@ -38,5 +38,5 @@ if (fs.existsSync(resourcesSrc)) {
 // 无碍：Include 对已存在文件只读不写。dev 模式不读本文件（仍用项目内 .runtime/
 // 锚点，向上可命中项目 node_modules）。
 const cordisRootConfig = path.join(__dirname, '..', 'dist', 'cordis.yml')
-fs.writeFileSync(cordisRootConfig, '# dsh-desktop profile root — 所有配置由 desktop-patch.yml overlay 补丁覆盖。\n[]\n')
+fs.writeFileSync(cordisRootConfig, '# dsh-forge profile root — 所有配置由 forge-patch.yml overlay 补丁覆盖。\n[]\n')
 console.log('[build] 已生成 dist/cordis.yml（打包版根锚点）')

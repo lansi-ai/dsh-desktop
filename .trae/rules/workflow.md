@@ -1,5 +1,5 @@
 ---
-description: AI 编码与工程协作 SOP、微观业务契约对齐、上下文预检流水线与规则自我演进协议（dsh-desktop）
+description: AI 编码与工程协作 SOP、微观业务契约对齐、上下文预检流水线与规则自我演进协议（dsh-forge）
 globs: "*"
 alwaysApply: true
 ---
@@ -18,7 +18,7 @@ alwaysApply: true
 ## 01. 任务开始前的预检流水线 (Pre-execution Protocol)
 契约确认后执行 3 步预检：
 1. **读取 L3**：核对 `active-context.md`，确认任务符合当前 Sprint 目标与"下一步即时行动"。
-2. **核对 L2**：确认创建/修改文件路径符合 `architecture.md`（`desktop-shell`/`desktop-host`/`desktop-compat`/`desktop-plugins`/`preload`/`types`）与单向依赖。
+2. **核对 L2**：确认创建/修改文件路径符合 `architecture.md`（`forge-shell`/`forge-host`/`forge-compat`/`forge-plugins`/`preload`/`types`）与单向依赖。
 3. **检查 L1**：确认技术栈（TS `strict`、零 `any`、zod 校验）、安全红线（禁硬编码凭据、禁非 `--serve` 端口监听、禁裸 IPC 直通）。
 
 ## 02. 编码与实现 SOP (Coding & Implementation Standard)

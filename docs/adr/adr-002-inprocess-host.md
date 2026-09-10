@@ -1,6 +1,6 @@
 # ADR-002 · 进程模型：Host 内嵌 Electron 主进程
 
-状态：**已接受**（2026-08）· 关联：[`04-architecture.md`](../04-architecture.md)、[`07-desktop-shell.md`](../07-desktop-shell.md)
+状态：**已接受**（2026-08）· 关联：[`04-architecture.md`](../04-architecture.md)、[`07-forge-shell.md`](../07-forge-shell.md)
 
 ## 背景
 Host 放哪：Electron 主进程内嵌 vs 侧车子进程（Spawn `dsh web`/SDK 子进程）vs 外置（纯套壳）。

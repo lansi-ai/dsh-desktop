@@ -7,32 +7,32 @@
 
 | 插件（包名建议） | 职责 | 暴露的 ctx 服务/事件 | 依赖注入 |
 | --- | --- | --- | --- |
-| `desktop-host-core` | 注册 `ctx.desktop` 总服务、桌面事件表、动作日志（`desktop/action` → 审计）、配置 schema | `ctx.desktop`（聚合）+ `desktop/action` 事件 | — |
-| `desktop-host-runtime` | 装载 dist、注册 IPC 桥宿主端（unary + respond + 帧下行）、`__DSH_BOOT__` 等价物供给、桌面启动握手 | `ctx.desktopRuntime` | `apiProxy`, `clientModules` |
-| `desktop-host-tray` | 托盘图标、菜单（会话列表、快速问答框、状态、退出）、气泡提示（配合 notifications） | `desktop/tray` 子命令、`desktop/action: tray.*` | `desktop`, `sessions` |
-| `desktop-host-shortcuts` | 全局热键注册/注销（Win `globalShortcut`；mac `Menu` 加速键兼容层）、动作→事件 | `desktop/shortcuts` | `desktop` |
-| `desktop-host-notifications` | 系统通知（Win toast / mac 通知中心）、点击回调（定位会话窗口）、完成/审批/错误三类触发点 | `desktop/notification-click` | `desktop`, `sessions`, `events` |
-| `desktop-host-clipboard` | 读（白名单上下文）/ 写（**需 approval**）剪贴板；供客户端面板与（可选）模型工具使用 | `desktop/clipboard` | `desktop`, `approval` |
-| `desktop-host-protocol` | 注册 `dsh://` 协议、解析唤起参数（open/ask）、路由到窗口/输入框 | `desktop/protocol` | `desktop` |
-| `desktop-host-restart` | 宿主异常退出检测、自动重启（事件溯源重建会话视图）、退出前 flush 持久化 | `desktop/app` | `desktop`, `session` |
-| `desktop-host-updater` | 版本检查、下载、校验（SHA256）、安装、回滚 | `desktop/updater` | `desktop` |
-| `desktop-host-windows` | 多窗口管理（会话独立窗口、焦点跟随 agent 活动、窗口状态持久化） | `desktop/windows` | `desktop`, `sessions` |
-| `desktop-host-standby`（可选 P2） | 空闲窗口冻结、低功耗驻留 | — | `desktop` |
+| `forge-host-core` | 注册 `ctx.desktop` 总服务、桌面事件表、动作日志（`desktop/action` → 审计）、配置 schema | `ctx.desktop`（聚合）+ `desktop/action` 事件 | — |
+| `forge-host-runtime` | 装载 dist、注册 IPC 桥宿主端（unary + respond + 帧下行）、`__DSH_BOOT__` 等价物供给、桌面启动握手 | `ctx.desktopRuntime` | `apiProxy`, `clientModules` |
+| `forge-host-tray` | 托盘图标、菜单（会话列表、快速问答框、状态、退出）、气泡提示（配合 notifications） | `desktop/tray` 子命令、`desktop/action: tray.*` | `desktop`, `sessions` |
+| `forge-host-shortcuts` | 全局热键注册/注销（Win `globalShortcut`；mac `Menu` 加速键兼容层）、动作→事件 | `desktop/shortcuts` | `desktop` |
+| `forge-host-notifications` | 系统通知（Win toast / mac 通知中心）、点击回调（定位会话窗口）、完成/审批/错误三类触发点 | `desktop/notification-click` | `desktop`, `sessions`, `events` |
+| `forge-host-clipboard` | 读（白名单上下文）/ 写（**需 approval**）剪贴板；供客户端面板与（可选）模型工具使用 | `desktop/clipboard` | `desktop`, `approval` |
+| `forge-host-protocol` | 注册 `dsh://` 协议、解析唤起参数（open/ask）、路由到窗口/输入框 | `desktop/protocol` | `desktop` |
+| `forge-host-restart` | 宿主异常退出检测、自动重启（事件溯源重建会话视图）、退出前 flush 持久化 | `desktop/app` | `desktop`, `session` |
+| `forge-host-updater` | 版本检查、下载、校验（SHA256）、安装、回滚 | `desktop/updater` | `desktop` |
+| `forge-host-windows` | 多窗口管理（会话独立窗口、焦点跟随 agent 活动、窗口状态持久化） | `desktop/windows` | `desktop`, `sessions` |
+| `forge-host-standby`（可选 P2） | 空闲窗口冻结、低功耗驻留 | — | `desktop` |
 
 ## 2. 通用插件骨架（模板，实现期统一）
 
 ```ts
-// 每个 desktop-* 插件：host 单面（无 client 半）或双面（少量 client 设置 UI）
+// 每个 forge-* 插件：host 单面（无 client 半）或双面（少量 client 设置 UI）
 import { Context } from '@deepseek-ai/cordis'
 
-export const inject = ['desktop']           // 依赖 desktop-core 先就绪
+export const inject = ['desktop']           // 依赖 forge-core 先就绪
 export function apply(ctx: Context): void {
-  ctx.effect(() => { /* 注册 Electron 原生能力，返回清理函数 */ }, 'desktop-tray: install')
+  ctx.effect(() => { /* 注册 Electron 原生能力，返回清理函数 */ }, 'forge-tray: install')
   ctx.desktop.onAction('tray.click', (p) => { /* … */ })
 }
 ```
 
-## 3. `ctx.desktop` 服务接口（desktop-api 包定义，zod schema 同步）
+## 3. `ctx.desktop` 服务接口（forge-api 包定义，zod schema 同步）
 
 ```ts
 interface DesktopCore {
@@ -75,7 +75,7 @@ interface DesktopCore {
 ## 7. 与其他宿主插件的互操作（旧 Web 插件 host 半兼容）
 
 - **第三方 web 插件**（用户现有 `dsh-terminal` / `dsh-rule-manager` / `dsh-restart` 均为此模式）：
-  依赖 `ctx.webServer.register` 注册 HTTP 路由。桌面 profile 禁用真实 webserver → 由 **`desktop-host-compat`** 提供：
+  依赖 `ctx.webServer.register` 注册 HTTP 路由。桌面 profile 禁用真实 webserver → 由 **`forge-host-compat`** 提供：
   - **`ctx.desktopRoutes`（webServer 等价面）**：`register({kind, path, handler})` 原样可用，
     语义 = 挂到 IPC 桥 method 表（`dsh:http:<method>:<path>`），零监听；SSE/长连接路由经帧下行通道；
   - `--serve=<port>` 兼容模式：完整装配官方 `webserver`（loopback），旧插件「HTTP 原义」可用（调试/临场）；

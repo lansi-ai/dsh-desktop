@@ -1,6 +1,6 @@
-# dsh-desktop 垂直化扩展路线指引
+# dsh-forge 垂直化扩展路线指引
 
-> **定位**：以 dsh-desktop 为底座，把通用 AI 会话客户端改造为业务垂直应用的自定义路线指引。
+> **定位**：以 dsh-forge 为底座，把通用 AI 会话客户端改造为业务垂直应用的自定义路线指引。
 > **贯穿案例**：AI 视频创建工作流程序（业务输入 → 编排生成 → 视频交付）。
 > **底座版本**：M3 代码完成态（多窗口/托盘/审计/自启可用），基线 `0.1.2-alpha.3`（2026-09-01 M4-d3 由 rc.8 直升，见 `m4-d3-012-alpha3-migration-plan.md`）。
 > 配套阅读：`14-implementation-map.md`（架构实现地图）、`architecture-plugins.html`（完整插件清单）、`pitfalls.md`（坑档）。
@@ -44,8 +44,8 @@
 
 ### 2.1 UI 层：Slots 槽位注入（最轻，先从这里开始）
 
-**位置**：`src/desktop-shell/web/<your-plugin>-client.js`（浏览器 bundle）
-**注册**：`boot-graph.ts` 的 `desktopDecls` 数组追加条目（见文件 L328-342 现有 5 个 @dsh-desktop 条目即模板）。
+**位置**：`src/forge-shell/web/<your-plugin>-client.js`（浏览器 bundle）
+**注册**：`boot-graph.ts` 的 `desktopDecls` 数组追加条目（见文件 L328-342 现有 5 个 @dsh-forge 条目即模板）。
 
 ```js
 window.__ModuleLoader__.load({
@@ -67,8 +67,8 @@ window.__ModuleLoader__.load({
 
 | 槽位 | 现状 | 视频案例用法 |
 |---|---|---|
-| `settings.section` | ✅ 已验证（desktop-settings 在用） | 「视频供应商/API Key/默认分辨率」设置页 |
-| `sidebar.footer.action` | ✅ 已验证（desktop-panel 在用） | 「新建视频任务」入口按钮 |
+| `settings.section` | ✅ 已验证（forge-settings 在用） | 「视频供应商/API Key/默认分辨率」设置页 |
+| `sidebar.footer.action` | ✅ 已验证（forge-panel 在用） | 「新建视频任务」入口按钮 |
 | `settings.general.item` | ⚠️ 已被官方 general 占用（坑 13：勿重复声明） | — |
 | conversation / hero / workspace 等 | 契约见各 ui-* 包 `lib/types/client/contract/slots.d.ts` | 对话流内嵌「视频预览卡」 |
 
@@ -78,11 +78,11 @@ window.__ModuleLoader__.load({
 
 ### 2.2 Host 功能层：注册业务工具与 provider
 
-**位置**：`src/desktop-host/` 新模块 + `boot.ts` 两处接入。
+**位置**：`src/forge-host/` 新模块 + `boot.ts` 两处接入。
 
 **路径一：桥方法（桌面能力型，不走模型）** —— 适合「点按钮调 API」的业务动作：
 ```ts
-// src/desktop-host/video-studio.ts
+// src/forge-host/video-studio.ts
 import { registerMethod } from './bridge.js'
 export function installVideoStudio(opts): () => void {
   registerMethod('videoStudio.submit', async (params) => {
@@ -91,10 +91,10 @@ export function installVideoStudio(opts): () => void {
   // main.ts bootstrap 第 9 步装配
 }
 ```
-preload 侧在 `src/desktop-shell/preload.ts` 白名单加一个 `videoStudio` 命名空间（照抄 `audit` 三行模板）。
+preload 侧在 `src/forge-shell/preload.ts` 白名单加一个 `videoStudio` 命名空间（照抄 `audit` 三行模板）。
 
 **路径二：Agent 工具（模型可调用）** —— 适合「自然语言驱动」：
-新建 Cordis 插件（可先项目内模块，参照 desktop-api.ts 的 Service 形态），向 `ctx.tools` 注册 `video_generate` 工具：
+新建 Cordis 插件（可先项目内模块，参照 forge-api.ts 的 Service 形态），向 `ctx.tools` 注册 `video_generate` 工具：
 ```ts
 // 工具定义：name/description/parameters(zod 或 schemastery)
 // handler：接收模型参数 → 校验 → 提交渲染任务（走 dsh-jobs）→ 返回任务句柄
@@ -108,13 +108,13 @@ preload 侧在 `src/desktop-shell/preload.ts` 白名单加一个 `videoStudio` �
 
 | 需求 | 用法 | 位置 |
 |---|---|---|
-| 用户偏好（供应商/分辨率） | `settings` 服务注册 namespace（照抄 desktop-api.ts `lazySettingsScope`） | `ctx.settings.register('video-studio', schema)` |
+| 用户偏好（供应商/分辨率） | `settings` 服务注册 namespace（照抄 forge-api.ts `lazySettingsScope`） | `ctx.settings.register('video-studio', schema)` |
 | 业务对象（项目/任务清单） | `ctx.storageDomain`（JSON 后端已在装）或直接桥方法读写 userData | `boot.ts` §4 storage 链 |
 | 任务状态 | 复用 `dsh-jobs`（session/jobs 帧已通 UI） | 勿自造 |
 
 ### 2.4 系统层：桌面集成
 
-- **渲染完成通知**：`desktop-notify.ts` 消费的是 `events.mux` 流——你的 job 事件只要走官方 jobs 通道，通知自动生效。
+- **渲染完成通知**：`forge-notify.ts` 消费的是 `events.mux` 流——你的 job 事件只要走官方 jobs 通道，通知自动生效。
 - **任务面板独立窗口**：`WindowManager.createSessionWindow` 泛化出的会话窗口机制，可加一种 `windowKind` 分支绑定业务窗口。
 - **`dsh://` 协议**：`dsh-protocol.ts` 加 action（如 `dsh://newvideo?template=x`）供外部系统唤起建单。
 
@@ -127,7 +127,7 @@ preload 侧在 `src/desktop-shell/preload.ts` 白名单加一个 `videoStudio` �
 **目标**：在现有 UI 里跑通「上传素材 → 对话生成脚本 → 提交渲染 → 收到成品」。
 
 1. **A1 业务设置页**（§2.1 settings.section 槽）：视频供应商 API Key（经环境注入，遵守 core-standards 红线：禁止硬编码凭据）、默认参数。
-2. **A2 侧边栏入口**（§2.1 sidebar.footer.action）：「视频工作室」面板（desktop-panel-client.js 直接抄壳）。
+2. **A2 侧边栏入口**（§2.1 sidebar.footer.action）：「视频工作室」面板（forge-panel-client.js 直接抄壳）。
 3. **A3 `video_generate` 工具**（§2.2 路径二）：单供应商写死；内部用 `dsh-jobs` 起后台任务，轮询供应商 API。
 4. **A4 产物交付**：渲染产物落工作区目录 → `ui-deliverables` 自动展示成品引用；通知走 jobs 事件白拿。
 5. **验收**：一句话「把 input/script.md 做成 720p 视频」→ 审批 → 后台渲染 → 托盘通知 → 对话流里点开成品。
@@ -135,7 +135,7 @@ preload 侧在 `src/desktop-shell/preload.ts` 白名单加一个 `videoStudio` �
 ### 阶段 B · 垂直化：业务域一等公民
 
 1. **B1 工作流编排**：把多步流水线（脚本→分镜→TTS→合成）写为 `dsh-tool-workflow` 的 JS 编排脚本，模型经 workflow 工具驱动；复杂交互可沉淀为 skill（`dsh-skill-filesystem`，放 `resources/skills/video-pipeline/`）。
-2. **B2 专用 UI**：对话流内嵌视频预览卡（conversation 槽位）+ 任务列表 Tab（抄 desktop-audit-viewer 的独立 Tab 模式：bridge 查询方法 + client 插件渲染）。
+2. **B2 专用 UI**：对话流内嵌视频预览卡（conversation 槽位）+ 任务列表 Tab（抄 forge-audit-viewer 的独立 Tab 模式：bridge 查询方法 + client 插件渲染）。
 3. **B3 多供应商**（§2.2 路径三）：`ctx.video` 域 + provider 插件矩阵。
 4. **B4 斜杠命令**：`/newvideo`、`/render` —— 往 `dsh-commands` 注册表添加（Host 侧 insert 一个 command 插件，照抄 dsh-command-goal 形态）。
 
@@ -177,9 +177,9 @@ preload 侧在 `src/desktop-shell/preload.ts` 白名单加一个 `videoStudio` �
 | 1 | 假 slot：向不存在的槽位注册是静默 no-op，无报错 | 坑 13：先用 slots.d.ts 核对槽位契约 |
 | 2 | client bundle 里 `exports.inject` 写服务名会 PENDING（服务等待） | 坑 15：`inject: []`，服务用 `ctx.get` 软查找 |
 | 3 | 非 insert 补丁对空根配置是静默 no-op | 坑 16：Host 插件必经 `boot.ts` insert 数组 |
-| 4 | React in bundle：用 `createElement` 不用 jsx-runtime；children 放 props | desktop-settings-client.js 头注 |
+| 4 | React in bundle：用 `createElement` 不用 jsx-runtime；children 放 props | forge-settings-client.js 头注 |
 | 5 | 通道常量 preload 内联与 types/channels.ts 人工同步 | preload.ts 头注 |
-| 6 | 图标/资源随 nativeTheme 黑白双版 | desktop-tray.ts |
+| 6 | 图标/资源随 nativeTheme 黑白双版 | forge-tray.ts |
 | 7 | 供应商 API Key 走环境变量，禁硬编码 | core-standards R-红线 |
 | 8 | 大文件产物走 spill-local，勿塞会话上下文 | boot.ts spill 配置 |
 
@@ -189,8 +189,8 @@ preload 侧在 `src/desktop-shell/preload.ts` 白名单加一个 `videoStudio` �
 
 - [ ] 通读 `docs/14-implementation-map.md` §7（载波）+ §11（renderer 注入插件）
 - [ ] 打开 `docs/architecture-plugins.html` 认领要复用/要排除的插件
-- [ ] 复制 `desktop-panel-client.js` → `video-studio-client.js`，`boot-graph.ts` 登记条目，跑通第一个槽位注入
-- [ ] 复制 `desktop-audit-viewer.ts`（host）+ `desktop-audit-viewer-client.js`（client）双件套模板，改名做「视频任务列表」
+- [ ] 复制 `forge-panel-client.js` → `video-studio-client.js`，`boot-graph.ts` 登记条目，跑通第一个槽位注入
+- [ ] 复制 `forge-audit-viewer.ts`（host）+ `forge-audit-viewer-client.js`（client）双件套模板，改名做「视频任务列表」
 - [ ] 写 `video_generate` 工具（先项目内模块，插件包化留后）
 - [ ] 验收：一句话生成一条占位视频（mock 供应商）走完全链
 

@@ -1,6 +1,6 @@
-# dsh-desktop — DeepSeek Harness 桌面客户端（非套壳路线）
+# dsh-forge — DeepSeek Harness 桌面客户端（非套壳路线）
 
-> 状态：**M1 实施中** — 脚手架已就绪（Electron 44 + TS strict + ESLint），主链路由 `src/desktop-shell` 起步。
+> 状态：**M1 实施中** — 脚手架已就绪（Electron 44 + TS strict + ESLint），主链路由 `src/forge-shell` 起步。
 > 目标版本基线：`@deepseek-ai/dsh` `0.1.0-rc.8`（本地检出权威基线；2026-09-01 实测上游最新稳定为 `0.1.1-rc.2`，diff 已在升级迁移表登记，升级前核查）。
 >
 > **当前优先级（2026-08 用户确认）**：先做「把 DSH 做成桌面应用」的技术方案，**主面复用官方 Web UI 发行物**；
@@ -11,7 +11,7 @@
 
 ## 名称与含义：DSH Forge
 
-项目的公开产品名是 **DSH Forge**（`dsh-desktop` 为工程代号）。Forge 意为「锻炉」，直接回应本项目的一句话定位——**把桌面操作系统锻造成 DeepSeek Harness 的可插拔能力层**：
+项目的公开产品名是 **DSH Forge**，工程代号与自研插件命名空间统一为 `dsh-forge`（应用目录名 `dsh-forge`、插件 ID `@lansi-ai/dsh-forge-*`）。Forge 意为「锻炉」，直接回应本项目的一句话定位——**把桌面操作系统锻造成 DeepSeek Harness 的可插拔能力层**：
 
 1. **锻造，而非套壳**：桌面能力不是给网页套个外置浏览器，而是像冶炼锻造一样，把托盘、全局热键、系统通知、多窗口等原生能力逐一铸成 host 插件，与官方装配进同一个 Cordis Host 插件树。
 2. **可插拔、可卸载、可审查**：每个桌面能力都是一个可被 `dsh plugin` 列出、可被 patch 增删的插件；Forge 的心智在于「组合与再加工」——没有写死的外壳，只有一套可持续锻造的能力层。
@@ -45,7 +45,7 @@
 | --- | --- | --- |
 | Host 进程 | 外部子进程 `dsh web`，壳只是浏览器 | 主进程内嵌 Cordis Host，生命周期与应用合一，可编程启停 |
 | 传输 | 直接加载 `http://127.0.0.1:3080` | 官方预留的 Electron 载波插槽：`file://` dist + `AbstractApiClient` IPC 桥（`doFetch` 覆写），零端口 |
-| 原生能力 | 无 / 壳层脚本零散处理 | 每个能力一个 host 插件（`desktop-tray` / `desktop-shortcuts` / …），经 `cordis.patch.yml` 装配 |
+| 原生能力 | 无 / 壳层脚本零散处理 | 每个能力一个 host 插件（`forge-tray` / `forge-shortcuts` / …），经 `cordis.patch.yml` 装配 |
 | UI | WebView 原样 iframe | **复用官方 Web UI 发行物**，经官方槽位注入桌面侧功能（二期可选自绘主面，见 ADR-006） |
 | 旧插件 | 无视 | host 半零改动可用（desktopRoutes 等价面）；client 半经零端口 bundle 兼容面保留（ADR-007） |
 | 可审查性 | 壳行为不可见 | 桌面动作进会话轨迹、权限走 approval 服务、日志统一 |
@@ -61,14 +61,14 @@
 | [`docs/04-architecture.md`](docs/04-architecture.md) | 总体架构：进程模型、模块划分、数据流、与官方 layering 模型的对齐 |
 | [`docs/05-host-plugins.md`](docs/05-host-plugins.md) | 宿主插件设计：desktop bundle、`ctx.desktop.*` 服务接口、各能力插件规格 |
 | [`docs/06-client-plugins.md`](docs/06-client-plugins.md) | 客户端插件设计：官方 UI 槽位注入 + 零端口 bundle 兼容面（含旧插件承接） |
-| [`docs/07-desktop-shell.md`](docs/07-desktop-shell.md) | 桌面外壳设计：主进程装配（`boot()`）、IPC 桥协议、官方 dist 装载、窗口管理、打包分发、自动更新 |
+| [`docs/07-forge-shell.md`](docs/07-forge-shell.md) | 桌面外壳设计：主进程装配（`boot()`）、IPC 桥协议、官方 dist 装载、窗口管理、打包分发、自动更新 |
 | [`docs/08-security.md`](docs/08-security.md) | 安全与信任模型：无端口、renderer 隔离、权限、签名、外链白名单 |
 | [`docs/09-roadmap.md`](docs/09-roadmap.md) | 里程碑 M1–M6 与任务拆解、验收标准 |
 | [`docs/10-development.md`](docs/10-development.md) | 开发环境、构建链路、调试、测试、与上游同步、**发版流程（§9）** |
 | [`docs/11-risks.md`](docs/11-risks.md) | 风险登记与控制措施 |
 | [`docs/12-references.md`](docs/12-references.md) | 全部依据：本地源码路径 + 官方/社区 URL 引用 + 现有插件 API 面盘点 |
 | [`docs/plugin-inventory.md`](docs/plugin-inventory.md) | **插件清单与自有化进度**：Host/Client 两侧完整插件树、桌面自有插件（`@lansi-ai/dsh-*`）、互斥排除清单、全量自绘（M6）逐阶段进度 |
-| [`docs/13-ui-design.md`](docs/13-ui-design.md) | **（二期可选）** Desktop-First 自绘 UI 愿景——暂缓，主线不依赖 |
+| [`docs/13-ui-design.md`](docs/13-ui-design.md) | **（二期可选）** forge-First 自绘 UI 愿景——暂缓，主线不依赖 |
 | [`docs/adr/`](docs/adr/) | 架构决策记录：[ADR-001 选 Electron](docs/adr/adr-001-electron-stack.md) · [ADR-002 宿主内嵌](docs/adr/adr-002-inprocess-host.md) · [ADR-003 IPC 载波](docs/adr/adr-003-ipc-fetch-carrier.md) · [ADR-004 装配模型](docs/adr/adr-004-profile-bundle-model.md) · [ADR-005 版本钉死](docs/adr/adr-005-version-pinning.md) · [ADR-006 自绘主面](docs/adr/adr-006-custom-ui.md)（暂缓·可选） · [ADR-007 旧插件兼容](docs/adr/adr-007-plugin-compat.md) |
 
 ## 关键结论速览
@@ -98,14 +98,14 @@ npm run release -- <version> [--local] [--push]
 ## 目录规划（未来实现期）
 
 ```
-dsh-desktop/
+dsh-forge/
 ├─ docs/                  # 本文档集（当前阶段唯一内容）
 ├─ shell/                 # Electron 应用（main / preload / IPC 桥 / 协议 / 窗口/托盘）
 ├─ bundle/                # desktop profile 的 cordis.patch.yml（dsh.bundle 声明）
 ├─ packages/
-│  ├─ desktop-host-*      # 桌面能力宿主插件（tray/shortcuts/notifications/clipboard/compat/…）
-│  ├─ desktop-client-*    # 官方 UI 槽位注入的客户端插件
-│  └─ desktop-*           # 共享库（IPC 协议类型、桥接、配置 schema）
+│  ├─ forge-host-*      # 桌面能力宿主插件（tray/shortcuts/notifications/clipboard/compat/…）
+│  ├─ forge-client-*    # 官方 UI 槽位注入的客户端插件
+│  └─ forge-*           # 共享库（IPC 协议类型、桥接、配置 schema）
 ├─ scripts/               # 构建（dist/shell）/ 打包 / 签名 / 更新产物脚本
 └─ tools/                 # 与上游 dsh 仓库同步的工具
 ```

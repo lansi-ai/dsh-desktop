@@ -1,5 +1,5 @@
 /**
- * dsh-desktop 多窗口契约（M3-a1·WindowManager 基建）。
+ * dsh-forge 多窗口契约（M3-a1·WindowManager 基建）。
  *
  * 定义窗口管理的 zod Schema、状态枚举、广播帧结构，
  * 作为 renderer/preload/host 三方共享的唯一类型源头。

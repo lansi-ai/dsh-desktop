@@ -44,7 +44,7 @@ protocols:
 # icon 传 PNG 源图，electron-builder 在 mac 构建机上自动转 .icns；
 # 无 Apple Developer 证书时按 ad-hoc 签名（本机可跑，外发需用户绕过 Gatekeeper）
 mac:
-  icon: src/desktop-shell/web/app-icon-light.png
+  icon: src/forge-shell/web/app-icon-light.png
   category: public.app-category.productivity
   # ad-hoc 签名：默认无证书时完全跳过签名，未签名 app 在 mac 上会被 Gatekeeper 杀掉
   # （M 系列更是直接无法启动）；ad-hoc 保证签名完整性，无需 Apple 开发者账号。
@@ -64,7 +64,7 @@ mac:
 win:
   # exe/安装包图标：官方 harness logo 黑色版（浅色态官方原貌）；运行期任务栏图标
   # 由 main.ts 按 nativeTheme 动态切换黑白双版（见 scripts/make-icons.cjs）
-  icon: src/desktop-shell/web/app-icon-light.png
+  icon: src/forge-shell/web/app-icon-light.png
   target:
     - target: nsis
       arch:

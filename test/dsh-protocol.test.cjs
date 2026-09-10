@@ -16,7 +16,7 @@ const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const path = require('node:path')
 
-const proto = require(path.join(__dirname, '..', 'dist', 'desktop-host', 'dsh-protocol.js'))
+const proto = require(path.join(__dirname, '..', 'dist', 'forge-host', 'dsh-protocol.js'))
 const { parseDshUrl, authorizeDshUrl, extractDshUrlFromArgv, routeDshProtocol, MAX_DSH_URL_LENGTH } = proto
 
 // ── parseDshUrl：参数强校验 ─────────────────────────────────────────────

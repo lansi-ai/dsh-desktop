@@ -288,10 +288,10 @@
     <div class="row-label">桌面注入插件（@lansi-ai/dsh-*，经官方 Slots）</div>
     <div class="chips">
       <span class="chip c-purple"><span class="dot"></span>ipc-connection<span class="file">载波变体 · 独占提供 connection 服务</span></span>
-      <span class="chip c-purple"><span class="dot"></span>desktop-settings<span class="file">settings.section 槽位</span></span>
-      <span class="chip c-purple"><span class="dot"></span>desktop-panel<span class="file">sidebar.footer.action 槽位</span></span>
-      <span class="chip c-purple"><span class="dot"></span>desktop-audit-viewer<span class="file">审计 Tab</span></span>
-      <span class="chip c-purple ghost"><span class="dot"></span>desktop-cmdpalette（已禁用壳 · 2026-08-27）</span>
+      <span class="chip c-purple"><span class="dot"></span>forge-settings<span class="file">settings.section 槽位</span></span>
+      <span class="chip c-purple"><span class="dot"></span>forge-panel<span class="file">sidebar.footer.action 槽位</span></span>
+      <span class="chip c-purple"><span class="dot"></span>forge-audit-viewer<span class="file">审计 Tab</span></span>
+      <span class="chip c-purple ghost"><span class="dot"></span>forge-cmdpalette（已禁用壳 · 2026-08-27）</span>
       <span class="chip c-purple"><span class="dot"></span>3rd-party：opencode-usage<span class="file">无改动装载</span></span>
     </div>
 
@@ -320,14 +320,14 @@
   <!-- ═══════════ Tier 3：主进程 ═══════════ -->
   <section class="tier tier-host">
     <div class="tier-title">
-      <span class="t">⚙ Electron 主进程 · desktop-host（内嵌 Cordis Host）</span>
+      <span class="t">⚙ Electron 主进程 · forge-host（内嵌 Cordis Host）</span>
       <span class="d">boot() 装配：空根 cordis.yml + overlay patches（§1 insert 全量服务 · §2 persona 覆盖 · §3 禁用 Web 传输 · §4 storage/presets）</span>
     </div>
 
     <div class="host-grid">
       <!-- 左列：外壳 -->
       <div class="col-box">
-        <div class="h">desktop-shell <small>应用外壳</small></div>
+        <div class="h">forge-shell <small>应用外壳</small></div>
         <span class="chip c-green"><span class="dot"></span>main.ts<span class="file">bootstrap 时序</span></span>
         <span class="chip c-green"><span class="dot"></span>dsh-ui-protocol<span class="file">dist/bundle/compat 三路由</span></span>
         <span class="chip c-green"><span class="dot"></span>argv<span class="file">--serve / --hidden</span></span>

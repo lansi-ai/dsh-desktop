@@ -1,5 +1,5 @@
 /**
- * IPC 通道常量（dsh-desktop Step 4·IPC 载波四件套）。
+ * IPC 通道常量（dsh-forge Step 4·IPC 载波四件套）。
  *
  * 通道命名遵守 Electron invoke/send 惯例：
  * - 'dsh:rpc'     → 上行 client-request（invoke，返回 server-response）

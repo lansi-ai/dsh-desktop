@@ -1,0 +1,636 @@
+/**
+ * dsh-forge Cordis Host 装配（M1·步骤3 + Step 6·--serve 兼容模式）。
+ *
+ * 复用 @deepseek-ai/dsh-app-boot 的 boot() 启动完整 Cordis 插件树，
+ * 默认模式（零端口）：通过 overlay patches 禁用 Web 传输层条目，保留核心 host 服务
+ *   （llm/session/agent/sandbox/fs），所有通信走 Electron IPC 载波。
+ * --serve 兼容模式：显式启用 webserver/web-runtime/web-startup，供第三方 webServer
+ *   路由插件（如 dsh-terminal 的 /terminal/stream）走 HTTP 原义，loopback 监听。
+ * prepare 钩子中调用 provideCmdline() 注入 cmdlineArgs 服务。
+ *
+ * 补丁值策略：所有原 cordis.patch.yml 中的 !!js 表达式均在 TypeScript 中直接求值，
+ * 不依赖 Cordis Loader 的 __jsExpr 运行时求值管道（该管道仅在 Include YAML 解析阶段激活，
+ * 而 overlay patches 作为 JS 对象直接传入 boot() 时跳过了该阶段）。
+ */
+
+import { join } from 'node:path'
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { app } from 'electron'
+import { log } from './log.js'
+import { resolveUserDataRoot } from './forge-home-paths.js'
+import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include' with { 'resolution-mode': 'import' }
+
+// 运行时数据根目录（M4-a1·打包路径适配）：
+// 开发模式 → 项目内 .runtime（随仓库可清理）；打包模式 → 系统 userData 下 .runtime
+// （asar 只读不可写，R7 硬编码路径的打包态收口；完整可配置化留 M5）。
+// 惰性求值：顶层求值会在纯 Node 环境（verify-serve-mode.cjs require）下因
+// electron.app 为 undefined 而崩（坑 37）。
+export function runtimeRoot(): string {
+  // 纯 Node 环境（verify-serve-mode.cjs require 本模块）下 electron.app 为
+  // undefined：回退开发路径；Electron 运行时 app 必存在（isPackaged 区分 dev/packaged）。
+  if (app !== undefined && app.isPackaged) {
+    return join(app.getPath('userData'), '.runtime')
+  }
+  return join(__dirname, '..', '..', '.runtime')
+}
+
+/**
+ * 桌面侧用户数据根（`sessions` / `storages` 等自有落点的父目录）。
+ *
+ * 归位后跟随首启选定的 harness home（`$DSH_HOME`），与官方 `dshHomePath()`
+ * 语义一致；仅在 DSH_HOME 未就绪（测试 / 纯 Node / 自定义 patches）时回退
+ * 运行时数据根，R7 硬编码至此收口。
+ */
+function userDataRoot(): string {
+  return resolveUserDataRoot(join(runtimeRoot(), 'user-data'))
+}
+
+/** boot 启动选项（含 Step 6 --serve 兼容模式）。 */
+export interface BootOptions {
+  /** 自定义 configPath（省略时自动生成于 .runtime/）。 */
+  readonly configPath?: string
+  /** 自定义 overlay patches（省略时按 serveMode 自动生成）。 */
+  readonly patches?: PatchOptions[]
+  /** 裸模块解析基 URL（Electron 打包后指向 resources/app/node_modules）。 */
+  readonly bareModuleBaseUrl?: string
+  /**
+   * 是否启用 --serve 兼容模式（默认 false）。
+   *
+   * 启用时会：
+   *   - 解除 DESKTOP_OVERLAY_PATCHES 中对 webserver/web-runtime/web-startup
+   *     的 disabled 标记
+   *   - 在 prepare 钩子注入 desktopStartup 元信息（供第三方路由插件判定运行模式）
+   *
+   * @default false（零端口 IPC 载波模式）
+   */
+  readonly serveMode?: boolean
+  /** --serve 监听端口（serveMode=true 时有效；默认 38000）。 */
+  readonly servePort?: number
+  /** 审计日志文件路径（M3-b2，JSONL 格式）。 */
+  readonly auditLogPath?: string
+  /**
+   * 插件树装配进度回调（启动闪屏进度条数据源）。
+   *
+   * 实现口径：prepare 钩子内起 200ms 轮询，读 `ctx.loader.entries()` 的 fiber
+   * 状态（2=active / 0=pending / 3=failed，disabled 视为完成）；boot 返回后
+   * 停止轮询并回调终值。轮询定时器已 unref，绝不影响进程退出。
+   */
+  readonly onProgress?: (progress: BootProgress) => void
+}
+
+/** 插件树装配进度快照（onProgress 回调负载）。 */
+export interface BootProgress {
+  /** 已完成激活的条目数（含 disabled）。 */
+  readonly active: number
+  /** 当前已发现的条目总数（随树解析增长）。 */
+  readonly total: number
+  /** 正在挂载的插件名（pending 状态的第一个条目；无则空串）。 */
+  readonly current: string
+}
+
+// ── Desktop profile overlay patches ─────────────────────────────────────────
+/**
+ * 桌面 overlay 补丁栈（顺序重要：后写覆盖前写）。
+ *
+ * 结构对齐 dsh-base cordis.patch.yml（insert）+ dsh-web-app cordis.patch.yml（id 覆盖），
+ * 并叠加 desktop 特定补丁：禁用 webserver/web-runtime/web-startup/connection/client-*，
+ * 覆盖 system-prompt persona 为桌面版本。
+ *
+ * 所有 !!js 表达式已在 TS 中求值为具体值（见文件头部注释）。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const DESKTOP_OVERLAY_PATCHES: any[] = [
+  // ── §1 dsh-base insert（全量核心 host 服务）──────────────────────────────
+  {
+    insert: [
+      { id: 'timer', name: '@deepseek-ai/cordis-plugin-timer' },
+      { id: 'hmr', name: '@deepseek-ai/cordis-plugin-hmr', config: { root: ['.'] }, disabled: true },
+      { id: 'llm', name: '@deepseek-ai/dsh-llm' },
+      { id: 'session', name: '@deepseek-ai/dsh-session' },
+      { id: 'typert', name: '@deepseek-ai/dsh-typert-registry' },
+      { id: 'typert-loader', name: '@deepseek-ai/dsh-typert-loader' },
+      { id: 'typert-gateway', name: '@deepseek-ai/dsh-api-gateway' },
+      // 0.1.2 传输背板：host 侧 connection(HostConnectionHandle) + api-remotes($events 源)。
+      //   connection：官方 host 半提供 `ctx.connection.createSharedFetchHandler('/api')` 等
+      //     （桌面经 bridge 转发 unary/逻辑流，见 main.ts 第 4 步）；
+      //   api-remotes：注册 `$events` forwarded Remote 事件源（api-gateway 消费），
+      //     host 端事件（api-session/*、settings/document-updated、approval/request 等）
+      //     经它泵给 renderer 的 ClientRemoteEvents。inject ['typertGateway']。
+      { id: 'api-remotes', name: '@deepseek-ai/dsh-api-remotes' },
+      // host 侧 connection（官方 `@deepseek-ai/dsh-client-connection` 的 host 半）：
+      // 提供 `ctx.connection.createSharedFetchHandler('/api')`（unary 面）。inject 需
+      // webServer（由 prepare 钩子注入的 compat 等价面提供）+ credentials（base 已装）。
+      // 官方 host connection 不绑定端口（只在 webServer 注册 /api 前缀路由，零监听 stub）。
+      { id: 'host-connection', name: '@deepseek-ai/dsh-client-connection' },
+      // 0.1.2 API controllers（web-app bundle L91-101 等价行）：typertGateway 解析
+      // session/*、settings/*、credentials/*、workspace/* Remote endpoint 的前提。
+      // 缺此三行 → createSharedFetchHandler 对这些端点返回 404、流端点 "no active Remote
+      // method"（实机 2026-09-01 定位）。依赖服务（agents/llm/session/settings/credentials/
+      // workspaceRegistry/typert 等）均已在上方或 base 补丁装配。
+      { id: 'session-controller', name: '@deepseek-ai/dsh-api-session-controller' },
+      { id: 'settings-controller', name: '@deepseek-ai/dsh-api-settings-controller' },
+      { id: 'workspace-controller', name: '@deepseek-ai/dsh-api-workspace-controller' },
+      // 0.1.5 新增双半 API：workspaceFiles Remote（bounded read / 目录列举 / Agent 写变更
+      // feed，sidebar-files 文件树与 textpreview 均消费）；client 半经 dsh.client 自动入图谱。
+      { id: 'workspace-files', name: '@deepseek-ai/dsh-api-workspace-files' },
+      // 0.1.5 新增双半 API：fileUploads Remote + connection.fetch 流式上传路由
+      // （inject agents/attachments/commands/connection 均已在 base/overlay 装配）；
+      // 官方 web patch 同名行（id `file-upload`），Node 半经本行激活。
+      { id: 'file-upload', name: '@deepseek-ai/dsh-client-file-upload' },
+      // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer
+      // （已禁用），改为在 prepare 钩子直接实例化 native 版注入（见 boot() 内注释），
+      // 此处不设 cordis 条目，避免 auto 版因缺 webServer 激活失败。
+      // workspaceRegistry 服务：ApiProxyService.inject 必需（inject storageDomain+sessionPersistence）
+      { id: 'workspace', name: '@deepseek-ai/dsh-workspace' },
+      { id: 'session-title', name: '@deepseek-ai/dsh-session-title', config: { fallbackMaxWords: 5, fallbackMaxBytes: 40, maxTitleBytes: 80 } },
+      { id: 'session-title-llm', name: '@deepseek-ai/dsh-session-title-first-prompt-llm', config: { targetWords: 5, targetCjkCharacters: 10, maxInputBytes: 4096, maxOutputTokens: 64, timeoutMs: 60000 } },
+      { id: 'user-questions', name: '@deepseek-ai/dsh-user-questions' },
+      { id: 'agent', name: '@deepseek-ai/dsh-agent' },
+      { id: 'agent-default-model', name: '@deepseek-ai/dsh-agent-default-model', config: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } },
+      { id: 'jobs', name: '@deepseek-ai/dsh-jobs-local' },
+      { id: 'llm-retry', name: '@deepseek-ai/dsh-llm-retry' },
+      { id: 'settings', name: '@deepseek-ai/dsh-settings-file' },
+      // credentials 已从 roster 移除（M4 数据目录选择配套）：官方 dsh-credentials-local
+      // 被 @lansi-ai/dsh-forge-credentials 自有化实现替代（forge-credentials.ts），
+      // 在下方 prepare 钩子注入（存储位置跟随首启选定的 harness home / DSH_HOME）。
+      // 基类构造即 ctx.provide('credentials')，官方消费者 inject ['credentials'] 零改动。
+      { id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai' },
+      // session-persistence-jsonl: 会话记录跟随 $DSH_HOME（与官方 dshHomePath('sessions')
+      // 同义）；未就绪时回退运行时数据根（R7 兜底，见 userDataRoot()）。
+      { id: 'session-persistence-jsonl', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(userDataRoot(), 'sessions') } },
+      { id: 'attachment-local', name: '@deepseek-ai/dsh-attachment-local' },
+      // 会话全文搜索（opt-in）：静态 insert 仅保证插件行存在；config 由
+      // buildPatches() 动态覆盖为 openAt 'startup' + $DSH_HOME/search/ 持久化索引。
+      // 此处 :memory:/never 为兜底默认（供自定义 patches/测试场景，不触发持久化）。
+      { id: 'session-query-sqlite', name: '@deepseek-ai/dsh-session-query-sqlite', config: { path: ':memory:', openAt: 'never' } },
+      { id: 'session-projection', name: '@deepseek-ai/dsh-session-projection' },
+      {
+        id: 'session-telemetry-otel',
+        name: '@deepseek-ai/dsh-session-telemetry-otel',
+        config: {
+          // !!js process.env.DSH_TELEMETRY_MODE || 'DISABLED'
+          mode: process.env.DSH_TELEMETRY_MODE || 'DISABLED',
+          shutdownTimeoutMillis: 3000,
+          exporter: {
+            // !!js process.env.DSH_TELEMETRY_OTLP_URL ?? 'https://...'
+            url: process.env.DSH_TELEMETRY_OTLP_URL ?? 'https://harness-telemetry.deepseeksvc.com/v1/logs',
+            compression: 'gzip',
+            timeoutMillis: 1000,
+          },
+          processor: { scheduledDelayMillis: 10000, maxQueueSize: 2048, maxExportBatchSize: 2048, exportTimeoutMillis: 1500 },
+        },
+      },
+      { id: 'subprocess', name: '@deepseek-ai/dsh-subprocess-local' },
+      { id: 'sandbox', name: '@deepseek-ai/dsh-sandbox-local' },
+      {
+        id: 'sandbox-policy',
+        name: '@deepseek-ai/dsh-sandbox-policy',
+        config: {
+          // !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+          mode: process.env.DSH_PERMISSION_MODE ?? 'workspace-write',
+          // !!js process.cwd()
+          workspaceRoot: process.cwd(),
+        },
+      },
+      { id: 'bash-sandbox', name: '@deepseek-ai/dsh-bash-sandbox', disabled: process.platform === 'win32', config: { timeoutMs: 60000 } },
+      { id: 'pwsh-sandbox', name: '@deepseek-ai/dsh-pwsh-sandbox', disabled: process.platform !== 'win32' },
+      {
+        id: 'approval',
+        name: '@deepseek-ai/dsh-user-approval',
+        config: {
+          // !!js "(process.env.DSH_PERMISSION_MODE ?? 'workspace-write') === 'danger-full-access' ? 'never' : 'ask'"
+          policy: (process.env.DSH_PERMISSION_MODE ?? 'workspace-write') === 'danger-full-access' ? 'never' : 'ask',
+        },
+      },
+      { id: 'permission', name: '@deepseek-ai/dsh-permission-presets', config: { presets: { 'read-only': { sandbox: 'read-only', approval: 'ask' }, 'workspace-write': { sandbox: 'workspace-write', approval: 'ask' }, 'danger-full-access': { sandbox: 'danger-full-access', approval: 'never' } } } },
+      { id: 'shell-env', name: '@deepseek-ai/dsh-shell-env' },
+      { id: 'tool-bash', name: '@deepseek-ai/dsh-tool-bash', disabled: process.platform === 'win32' },
+      { id: 'tool-pwsh', name: '@deepseek-ai/dsh-tool-pwsh', disabled: process.platform !== 'win32' },
+      { id: 'tool-jobs', name: '@deepseek-ai/dsh-tool-jobs' },
+      { id: 'fs-observation-policy', name: '@deepseek-ai/dsh-fs-observation-policy' },
+      { id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs' },
+      { id: 'tool-fs-search', name: '@deepseek-ai/dsh-tool-fs-search', config: { sampleOverCapGlobResults: false } },
+      { id: 'agent-instructions', name: '@deepseek-ai/dsh-agent-instructions', config: { maxBytes: 65536 } },
+      { id: 'skill', name: '@deepseek-ai/dsh-skill' },
+      { id: 'skill-filesystem', name: '@deepseek-ai/dsh-skill-filesystem' },
+      { id: 'skill-badge', name: '@deepseek-ai/dsh-skill-badge', disabled: true },
+      { id: 'tool-skill', name: '@deepseek-ai/dsh-tool-skill' },
+      { id: 'commands', name: '@deepseek-ai/dsh-commands' },
+      { id: 'command-feedback', name: '@deepseek-ai/dsh-command-feedback' },
+      // messageFeedback host 服务（消息赞/踩+备注 sidecar）：官方 UI 的
+      // dsh-client-ui-message-feedback（客户端半，渲染 assistant 消息动作条）会调
+      // messageFeedback/list|put|delete Remote；缺此服务 → typertGateway 404
+      // （[dsh-bridge] RPC 失败 (messageFeedback/list) HTTP 404，实机 2026-09-01）。
+      // 纯 cordis service 库（static inject: storageDomain/sessionPersistence/sessions，
+      // 三者本清单均已装载）；maxNoteBytes 对齐官方 Web bundle（8192）。
+      { id: 'message-feedback', name: '@deepseek-ai/dsh-message-feedback', config: { maxNoteBytes: 8192 } },
+      // Session 日志导出 host 半（dogfood #6）：对齐官方 web-app cordis.patch.yml
+      // `session-log-download` insert 行。apply 注册 /api/session.export 精确 fetch 路由
+      // （GET/HEAD，ZIP 流）+ /export 命令；浏览器原生导出请求经协议层 connection fetch 桥
+      // （dsh-ui-protocol.ts）转发到此路由。缺此行 → 导出 HEAD 探测 404（共享处理器
+      // 精确路由表为空）。inject ['commands','connection']，导出依赖 sessionQuery/
+      // sessionPersistence/attachments（本清单均已装载）。
+      { id: 'session-log-download', name: '@deepseek-ai/dsh-session-log-export' },
+      // 0.1.5 新增：在应用中打开 host 半（对齐官方 web-app `open-in-app` 行，含 config 三
+      // 超时参数）。注册 open-in-app 探测/启动路由；浏览器半 ui-open-in-app 经 dsh.client
+      // 自动入图谱。inject ['webServer','connection','subprocess']：webServer 为 prepare 钩子
+      // 的 compat 等价面，connection 为 host-connection 行的 fetch registry，subprocess 在 base。
+      { id: 'open-in-app', name: '@deepseek-ai/dsh-host-open-in-app', config: { probeTimeoutMs: 10000, iconTimeoutMs: 10000, launchWatchMs: 1000 } },
+      { id: 'goal', name: '@deepseek-ai/dsh-goal' },
+      { id: 'goal-round-driver', name: '@deepseek-ai/dsh-goal-round-driver' },
+      { id: 'command-goal', name: '@deepseek-ai/dsh-command-goal' },
+      { id: 'plan-mode', name: '@deepseek-ai/dsh-plan-mode', config: { section: 'You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode.' } },
+      { id: 'token-meter', name: '@deepseek-ai/dsh-token-meter' },
+      { id: 'compaction-basic', name: '@deepseek-ai/dsh-compaction-basic' },
+      { id: 'command-compact', name: '@deepseek-ai/dsh-command-compact' },
+      { id: 'subagent', name: '@deepseek-ai/dsh-subagent' },
+      { id: 'subagent-spawn-in-process', name: '@deepseek-ai/dsh-subagent-spawn-in-process', config: { providerName: 'spawn' } },
+      { id: 'subagent-fork-in-process', name: '@deepseek-ai/dsh-subagent-fork-in-process', config: { providerName: 'fork' } },
+      { id: 'tool-subagent-control', name: '@deepseek-ai/dsh-tool-subagent-control' },
+      { id: 'tool-subagent-list-agents', name: '@deepseek-ai/dsh-tool-subagent-control/list-agents' },
+      { id: 'tool-subagent', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', toolName: 'subagent', backgroundMode: 'continuable' } },
+      { id: 'tool-subagent-fork', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'fork', toolName: 'subagent_fork', backgroundMode: 'one-shot' } },
+      // 0.1.2-alpha.4：单向 report 工具被 send_message 取代（并入 dsh-tool-subagent 本体），
+      // 独立包 dsh-tool-subagent-report 已废且 npm 漏发 alpha.4，条目移除（对齐官方 web-app roster）。
+      // 0.1.2：subagent 模型选择设置（Host 平面顶层，对齐官方 web-app insert）。
+      // 缺此服务时，任何带 `modelSelectionSettings: true` 的 tool-subagent 装载
+      // （含恢复历史会话）会抛 "requires @deepseek-ai/dsh-tool-subagent/model-selection-settings
+      // in the Host scope"（实机 2026-09-01 定位）。依赖 settings（settings-file 已装）。
+      { id: 'subagent-model-selection-settings', name: '@deepseek-ai/dsh-tool-subagent/model-selection-settings' },
+      { id: 'workflow-worker-thread', name: '@deepseek-ai/dsh-workflow-worker-thread', config: { provider: 'spawn' } },
+      { id: 'tool-workflow', name: '@deepseek-ai/dsh-tool-workflow' },
+      { id: 'timeout-policy', name: '@deepseek-ai/dsh-tool-call-timeout-policy' },
+      { id: 'spill-local', name: '@deepseek-ai/dsh-spill-local' },
+      { id: 'spill-policy', name: '@deepseek-ai/dsh-spill-policy', config: { maxInlineBytes: 50000 } },
+      { id: 'session-checkpoint-policy', name: '@deepseek-ai/dsh-session-checkpoint-policy' },
+      { id: 'tool-result-pruner', name: '@deepseek-ai/dsh-compaction-tool-result-pruner', config: { thresholdChars: 8192, headChars: 4096, tailChars: 1024 } },
+      { id: 'tool-todo', name: '@deepseek-ai/dsh-tool-todo', config: { allowParallelInProgress: true } },
+      { id: 'tool-goal', name: '@deepseek-ai/dsh-tool-goal' },
+      { id: 'tool-ralph', name: '@deepseek-ai/dsh-tool-ralph', config: { subagentProvider: 'spawn', maxRounds: 64 } },
+      { id: 'tool-str-replace-editor', name: '@deepseek-ai/dsh-tool-str-replace-editor', config: { maxOutputChars: 16000 } },
+      { id: 'repeat-tool-reminder', name: '@deepseek-ai/dsh-repeat-tool-reminder', config: { thresholds: [3, 5, 8], argumentsPreviewChars: 500 } },
+      { id: 'web', name: '@deepseek-ai/dsh-web', config: { searchProvider: 'deepseek-official' } },
+      { id: 'web-search-deepseek', name: '@deepseek-ai/dsh-web-search-deepseek', config: { apiKeyEnv: 'DEEPSEEK_API_KEY' } },
+      { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web', config: { fetch: false, searchTimeoutMs: 60000 } },
+      { id: 'tools', name: '@deepseek-ai/dsh-tools' },
+      // 动态 Cordis 包宿主半（agent 预设 `cordis` = 创造模式的硬依赖）：
+      // 提供 `dynamicCordisRunner`（定义注册表 + node:vm 沙箱 + 运行往返）与 `cordisInspect`；
+      // `@deepseek-ai/dsh-tool-cordis` 静态 inject 这两个服务，缺行即
+      // `preset "cordis" failed to mount: 1 row(s) did not activate`（dogfood #23）。
+      // 自身只 inject `tools`（本表上方已激活）；与零端口无冲突——沙箱在进程内，
+      // 不监听任何端口，浏览器半走既有 remote/api-gateway 通路（main.ts 载波桥）。
+      // ⚠ 信任立场：动态包 ≈ bash 访问（官方 README Trust stance；vm 非安全边界）。
+      { id: 'cordis-host-runner', name: '@deepseek-ai/dsh-cordis-host-runner' },
+      // ui-settings-general host 面条目：注册 `ui-onboarding` settings namespace，
+      // 供官方 UI 的内测声明/onboarding 写入（client 面经 settings.mutate 打到 host settings，
+      // 缺此 namespace 会报 "settings namespace ui-onboarding is not registered" 拦截进入）。
+      { id: 'ui-settings-general', name: '@deepseek-ai/dsh-client-ui-settings-general' },
+      // 同类「双面包」host 半条目（对齐官方 web-app cordis.patch.yml ui-* 段）：
+      // client 半在渲染图谱（boot-graph），host 半在此注册各自 settings namespace；
+      // 缺条目 → 设置页写偏好时报 "settings namespace <ns> is not registered"
+      // （ui-theme 缺失实机 2026-09-01 定位：设置页切外观报错）。
+      { id: 'ui-theme', name: '@deepseek-ai/dsh-client-ui-theme' },               // ui-theme：外观偏好/字号
+      { id: 'locale', name: '@deepseek-ai/dsh-client-locale' },                   // locale：语言偏好
+      { id: 'ui-chat', name: '@deepseek-ai/dsh-client-ui-chat' },                 // ui-chat：聊天界面偏好
+      { id: 'ui-conversation', name: '@deepseek-ai/dsh-client-ui-conversation' }, // ui-conversation：busyEnter 等
+      { id: 'system-prompt', name: '@deepseek-ai/dsh-system-prompt', config: { persona: '' } },
+      { id: 'agent-loop', name: '@deepseek-ai/dsh-agent-loop', config: { agents: [] } },
+      { id: 'fs-sandbox', name: '@deepseek-ai/dsh-fs-sandbox' },
+      { id: 'llm-deepseek', name: '@deepseek-ai/dsh-llm-deepseek' },
+      // 注：第三方插件 @lnyanhongyan/dsh-opencode-usage 因 peer 锁 rc.7 与 0.1.2 不兼容，
+      // 已在 M4-d3 升级轮移除（package.json 依赖 + 本 insert + THIRD_PARTY_CLIENT_IDS）。
+      // 待其升版后按 M1 门禁 ADR-007 重新装载。
+    ],
+  },
+
+  // ── §2 dsh-web-app 选择性覆盖（桌面 persona）─────────────────────────────
+  { id: 'system-prompt', config: { persona: 'You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.' } },
+  // ── §3 禁用 Web 传输层 + 启用 0.1.2 IPC 载波变体 ────────────────
+  // 零端口：禁用官方 webserver/web-runtime/web-startup/modules（host 传输层绑定端口）。
+  // api-remotes 不再禁用——0.1.2 中它是 $events 转发源（renderer 经 __DSH_TRANSPORT__
+  // 逻辑流拉取），必须激活（§1 已 insert，此处不再打 disabled）。
+  { id: 'webserver', disabled: true },
+  { id: 'web-runtime', disabled: true },
+  { id: 'web-startup', disabled: true },
+  { id: 'modules', disabled: true },
+  { id: 'client-hmr', disabled: true },
+  // 2026-09-10 起 cordis 双半整体启用（创造模式 · dogfood #23）：宿主半见 §1 的
+  // `cordis-host-runner` insert，浏览器半经 boot-graph 回填装载；旧行
+  // `{ id: 'cordis-client-runner' | 'cordis-host-runner', disabled: true }` 已删
+  // （它们本就不在 dsh-base roster 里，属于「禁用未插入行」的空操作）。
+  // 0.1.2 IPC 载波替换：不再禁用 connection（官方 host connection 提供
+  // createSharedFetchHandler，是桌面传输背板的核心）；client-runtime 已删（无此行）。
+  // 历史补丁条目（getIpcCarrierPatchEntries）已废弃，见 manifest.ts。
+
+  // ── §3b 对齐官方 web profile：模型可见能力归 agent 预设所有（坑 53）────────
+  // dsh-base 把「模型可见」行（工具 / 指令注入 / plan-compaction 段）注册在宿主平面，
+  // 官方 web profile 逐行 disabled 掉，改由 agent 预设的 agent.cordis.yml 各自声明。
+  // 依据：dsh-tools 的作用域解析 = 全局层 + scope 链（`view(scope)` 先取 global 层），
+  // 预设只能「影子覆盖」同名工具，无法屏蔽全局层的其它工具 → 宿主平面残留的每一行
+  // 都会渗进所有预设（含极简模式），每轮多出数千 token。
+  // 桌面此前只对齐了 web 传输层，未对齐本节 → 极简模式也会继承 fs/skill/goal/todo/
+  // web/subagent/workflow/ralph 等整套目录（官方极简只应有一个持久 shell 工具）。
+  // 对照：官方 dsh-web-app/cordis.patch.yml 同名 disabled 清单。
+  { id: 'tool-bash', disabled: true },
+  { id: 'tool-pwsh', disabled: true },
+  { id: 'tool-jobs', disabled: true },
+  { id: 'tool-fs', disabled: true },
+  { id: 'tool-fs-search', disabled: true },
+  { id: 'skill-filesystem', disabled: true },
+  { id: 'tool-skill', disabled: true },
+  { id: 'command-goal', disabled: true },
+  { id: 'tool-goal', disabled: true },
+  { id: 'plan-mode', disabled: true },
+  { id: 'compaction-basic', disabled: true },
+  { id: 'command-compact', disabled: true },
+  { id: 'tool-result-pruner', disabled: true },
+  { id: 'tool-subagent-control', disabled: true },
+  { id: 'tool-subagent-list-agents', disabled: true },
+  { id: 'tool-subagent', disabled: true },
+  { id: 'tool-subagent-fork', disabled: true },
+  { id: 'workflow-worker-thread', disabled: true },
+  { id: 'tool-workflow', disabled: true },
+  { id: 'tool-ralph', disabled: true },
+  { id: 'agent-instructions', disabled: true },
+  { id: 'tool-todo', disabled: true },
+  { id: 'tool-web', disabled: true },
+  // 桌面遗留行：官方 dsh-base / dsh-web-app / 四个 shipped 预设均无此工具，
+  // 属旧基线残留（rc.x 时代的宿主平面条目），对齐官方一并禁用。
+  { id: 'tool-str-replace-editor', disabled: true },
+
+  // ── §4 桌面特定条目（storage + agent-presets）────────────────────────────
+  // storage-json: workspace 域数据跟随 $DSH_HOME（与官方 dshHomePath('storages') 同义）；
+  // 未就绪时回退运行时数据根（R7 硬编码已收口，见 userDataRoot()）。
+  // 链条：storage(提供 ctx.storage) → storage-json(注册 json backend 服务) →
+  //        storage-domain(提供 ctx.storageDomain) → workspace(提供 ctx.workspaceRegistry)
+  //        → host-apiproxy(提供 ctx.apiProxy + events.mux/host)。
+  // agent-presets：M2·官方 UI 设置面板 agent 预设选择器数据源。
+  // 坑 16：cordis-plugin-include 的非 insert 补丁（{id,name,config}）只按 id 覆盖
+  // 已存在条目，根配置为空 [] 时是静默 no-op——此前该条目不带 insert 键，
+  // dsh-agent-presets 插件从未装载（agentPresets 服务 undefined → 设置页纯空白，
+  // 页面对空 roster/未装载均不渲染不报错）。必须经 insert 数组进插件树。
+  {
+    insert: [
+      { id: 'storage', name: '@deepseek-ai/dsh-storage' },
+      { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(userDataRoot(), 'storages') } },
+      { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
+      // 预设来源与官方完全一致：shipped 根（dsh-agent-presets 包内 presets/，system 只读）
+      // + $DSH_HOME/.agent-presets（用户根）。includeShippedRoot 默认 true，且 shipped 根
+      // 排在 config.roots 之前、「同名 id 前一个根赢」——因此仓库自带一份与官方同名的
+      // 裁剪 standard 只会被永久遮蔽（跑的是官方 standard），故已随本轮对齐删除。
+      // 保留 roots 这一行为桌面自有扩展根（默认空目录），扫描 ENOENT 返回 [] 属合法部署态。
+      {
+        id: 'agent-presets',
+        name: '@deepseek-ai/dsh-agent-presets',
+        config: {
+          default: 'standard',
+          roots: [{ path: join(__dirname, '..', 'resources', 'agent-presets'), trust: 'system' }],
+        },
+      },
+    ],
+  },
+]
+
+// ── 空根配置生成 ────────────────────────────────────────────────────────────
+/**
+ * 生成空 cordis.yml 根配置文件（`[]`）。
+ * Loader 需要真实文件路径作为 Include 根锚点，所有实际配置由 overlay patches 覆盖。
+ * 开发模式：写入项目内 .runtime/（随仓库可清理，向上可命中项目 node_modules）。
+ * 打包模式：使用构建期生成的 asar 内 dist/cordis.yml（见函数内注释，坑 45）。
+ * @returns cordis.yml 的绝对路径。
+ */
+function createRootConfig(): string {
+  // 打包模式：锚点必须位于 asar 内（构建期由 scripts/copy-web.cjs 生成 dist/cordis.yml）。
+  // 根因：boot() 将 ctx.baseUrl 设为 configPath 所在目录，dsh-agent-presets 的
+  // packageInstalled 以该目录为起点向上查找 node_modules/<pkg>/package.json——
+  // 锚点若留在 userData/.runtime（AppData 下），向上永远找不到 node_modules，
+  // 安装版 standard 预设 23 行全部报 "cannot be resolved"（npm run dev/start 正常
+  // 是因为 .runtime 在项目内、向上可命中项目 node_modules；bareModuleBaseUrl 只
+  // 救 Include 的 import 解析，救不了这个磁盘检查）。锚点进 asar 后
+  // baseUrl=<app.asar>/dist/，向上一级命中 asar 内 node_modules（Electron 主进程
+  // fs 对 asar 路径的 existsSync 生效）；asar 只读无碍——Include 对已存在文件
+  // 只读不写（checkAccess 失败仅标记 readonly）。
+  if (app !== undefined && app.isPackaged) {
+    const packagedConfigPath = join(app.getAppPath(), 'dist', 'cordis.yml')
+    if (existsSync(packagedConfigPath)) return packagedConfigPath
+    log.error(
+      `[dsh-boot] 打包模式缺少 dist/cordis.yml 根锚点（${packagedConfigPath}），` +
+        '回退 userData/.runtime——agent 预设健康检查将全部失败（请重新构建，确认 scripts/copy-web.cjs 已运行）',
+    )
+  }
+  const root = runtimeRoot()
+  mkdirSync(root, { recursive: true })
+  const configPath = join(root, 'cordis.yml')
+  writeFileSync(configPath, '# dsh-forge profile root — 所有配置由 forge-patch.yml overlay 补丁覆盖。\n[]\n')
+  return configPath
+}
+
+// ── 入口函数 ────────────────────────────────────────────────────────────────
+
+/**
+ * 会话全文搜索索引补丁（openAt: startup + 持久化 path）。
+ *
+ * path 在装配期解析（此时 DSH_HOME 已由 ensureDataHome 就绪）为
+ * `<DSH_HOME>/search/session-query.sqlite`，索引文件跨重启持久；startup 只打开
+ * 索引库（读 global_generation，毫秒级），真正的索引对账在首次搜索时增量发生
+ * （dsh-session-query-sqlite `_reconcile` 按 revision/fingerprint 比对，不重复全量）。
+ * DSH_HOME 未就绪（测试/自定义 patches 场景）回退 :memory: + startup 保证服务可用。
+ */
+function sessionQueryIndexPatch(): PatchOptions {
+  const home = process.env.DSH_HOME
+  if (home === undefined || home === '') {
+    log.warn('[dsh-boot] DSH_HOME 未就绪，会话搜索索引回退 :memory:（openAt startup）')
+    return { id: 'session-query-sqlite', config: { path: ':memory:', openAt: 'startup' } }
+  }
+  return { id: 'session-query-sqlite', config: { path: join(home, 'search', 'session-query.sqlite'), openAt: 'startup' } }
+}
+
+/**
+ * 默认模式（portless）：沿用 DESKTOP_OVERLAY_PATCHES，webserver/web-runtime/
+ *   web-startup 保持 disabled，connection/client-runtime 由 IPC 载波变体替代。
+ * --serve 模式：解除 webserver/web-runtime/web-startup 的 disabled 标记，
+ *   使第三方 webServer 路由插件（dsh-terminal 等）恢复 HTTP 原义路径。
+ *
+ * @param serveMode 是否启用 --serve 兼容模式。
+ * @param servePort serve 监听端口（仅在 serveMode=true 下有意义）。
+ * @returns 最终传给 boot() 的 patches 数组。
+ */
+function buildPatches(serveMode: boolean, servePort: number): PatchOptions[] {
+  // 会话全文搜索索引覆盖（startup + 持久化）恒追加于栈尾，后写覆盖静态 insert 行。
+  const patches = [...DESKTOP_OVERLAY_PATCHES, sessionQueryIndexPatch()]
+  if (!serveMode) {
+    // 默认零端口模式：返回内置补丁栈（IPC 载波变体 + Web 传输层禁用）。
+    return patches
+  }
+  // --serve 兼容模式：桌面补丁栈本身从未插入 dsh-web-app 的传输层行——
+  // §3 只有 `{ id: 'webserver', disabled: true }` 这类 id 打点 patch，而目标条目
+  // （webserver/web-runtime/web-startup）在 boot() 直传空 cordis.yml + patches 的组合里
+  // 不存在，故这些 disabled 是 no-op（被 applyEntryPatches 静默跳过）。
+  // 因此这里不能靠"解除 disabled"，必须显式 INSERT 一个 webserver 定义行，用常量
+  // host/port 直接绑定 loopback，且不依赖 webStartup 服务的 CLI flag 解析。
+  // web-runtime/web-startup 是官方 dist 走 HTTP + 旗标解析所在；桌面 UI 经 dsh-ui://
+  // 协议 + IPC 载波承载，--serve 只需 webserver 作为第三方 webServer 路由载波
+  // （如 dsh-terminal 的 /terminal/stream）即可。
+  const webserverInsert: PatchOptions = {
+    insert: [
+      { id: 'webserver', name: '@deepseek-ai/dsh-host-webserver', config: { host: '127.0.0.1', port: servePort } },
+    ],
+  }
+  return [...patches, webserverInsert]
+}
+
+/**
+ * 启动 dsh-forge Cordis Host。
+ *
+ * @param options 配置选项。
+ * @param options.configPath cordis.yml 绝对路径；省略时自动生成于 .runtime/。
+ * @param options.patches overlay 补丁数组（桌面 patch 栈）；省略时按 serveMode 自动生成。
+ * @param options.bareModuleBaseUrl 裸模块解析基 URL（Electron 打包后指向 resources/app/node_modules）。
+ * @param options.serveMode 是否启用 --serve 兼容模式（默认 false）。
+ * @param options.servePort --serve 监听端口（默认 38000）。
+ * @returns 已就绪的 Cordis Context（ctx.get(service) 可获取服务）。
+ */
+export async function bootDesktopHost(options: BootOptions = {}): Promise<unknown> {
+  // 动态导入 ESM 包（项目 CJS，上游 ESM，必须使用 import()）
+  const { boot } = await import('@deepseek-ai/dsh-app-boot')
+  const { provideCmdline } = await import('@deepseek-ai/dsh-cmdline')
+
+  const serveMode = options.serveMode === true
+  const servePort = options.servePort ?? 38000
+  const configPath = options.configPath ?? createRootConfig()
+  const patches = options.patches ?? buildPatches(serveMode, servePort)
+
+  // 装配进度轮询句柄（prepare 钩子内启动，finally 统一清理）。
+  let progressTimer: ReturnType<typeof setInterval> | undefined
+
+  try {
+    return await boot(
+    'dsh-forge',
+    configPath,
+    patches,
+    // prepare 钩子：在 Loader 安装后、插件树挂载前注入 cmdlineArgs 服务 + desktopStartup 元信息
+    async (hostCtx) => {
+      // 装配进度轮询（BootOptions.onProgress）：读 loader entries 的 fiber 状态
+      // （2=active / 0=pending，disabled 视为完成；状态值与 dsh-app-boot 镜像对齐），
+      // 200ms 上报一次给启动闪屏进度条。定时器 unref，绝不影响进程退出。
+      if (options.onProgress) {
+        const loader = hostCtx.get('loader') as
+          | { entries(): Iterable<{ options: { name?: string }; disabled?: boolean; fiber?: { state?: number } }> }
+          | undefined
+        if (loader !== undefined) {
+          const onProgress = options.onProgress
+          progressTimer = setInterval(() => {
+            let active = 0
+            let total = 0
+            let current = ''
+            for (const entry of loader.entries()) {
+              total++
+              if (entry.disabled) { active++; continue }
+              if (entry.fiber?.state === 2) { active++; continue }
+              if (entry.fiber?.state === 0 && current === '') current = entry.options.name ?? ''
+            }
+            onProgress({ active, total, current })
+          }, 200)
+          progressTimer.unref?.()
+        }
+      }
+
+      provideCmdline(hostCtx, {
+        args: Object.freeze([]),
+        exit: (code: number) => {
+          log.error(`[dsh-boot] cmdline exit 请求: ${code}`)
+          process.exit(code)
+        },
+      })
+
+      // desktopStartup 元信息：供第三方 web 路由插件判定当前运行模式
+      //   - mode: 'portless'（默认，IPC 载波）| 'serve'（HTTP loopback 兼容）
+      //   - port: serve 模式下的 loopback 端口
+      try {
+        hostCtx.provide('desktopStartup', {
+          mode: serveMode ? 'serve' : 'portless',
+          port: serveMode ? servePort : 0,
+          portless: !serveMode,
+        })
+        log.ok(`[dsh-boot] desktopStartup 已注入（mode=${serveMode ? 'serve' : 'portless'}）`)
+      } catch (error) {
+        log.warn('[dsh-boot] desktopStartup 注入失败:', error)
+      }
+
+      // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer（已禁用），
+      // native 版用 koffi（Win32 FFI），在 Electron 主进程读对话框路径时崩溃。故定义本地
+      // ElectronDirectoryPicker extends DirectoryPicker（基类构造 super(ctx) 即 ctx.provide
+      // `directoryPicker` 服务），override capability 用 Electron dialog.showOpenDialog 提供
+      // kind:"native"，pick 返回 string|null（对齐官方契约），稳定无 koffi。
+      try {
+        const { dialog, BrowserWindow } = await import('electron')
+        const { DirectoryPicker } = await import('@deepseek-ai/dsh-host-directory-picker')
+        class ElectronDirectoryPicker extends DirectoryPicker {
+          override capability() {
+            return {
+              kind: 'native' as const,
+              pick: async (signal?: AbortSignal): Promise<string | null> => {
+                const win = BrowserWindow.getAllWindows()[0]
+                const ret = await dialog.showOpenDialog(win ?? undefined, {
+                  title: '选择工作区目录',
+                  properties: ['openDirectory', 'createDirectory'],
+                })
+                if (signal?.aborted || ret.canceled || ret.filePaths.length === 0) return null
+                return ret.filePaths[0]
+              },
+            }
+          }
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        new (ElectronDirectoryPicker as any)(hostCtx)
+        log.ok('[dsh-boot] directoryPicker (Electron native dialog Service) 已注入')
+      } catch (error) {
+        log.warn('[dsh-boot] directoryPicker 注入失败:', error)
+      }
+
+      // M4·数据目录选择：自有化 credentials provider（forge-credentials.ts），
+      // 替代 roster 中官方 dsh-credentials-local 条目（已移除）。存储位置 =
+      // `<DSH_HOME|~/.dsh>/.credentials.yaml`（main.ts 启动早期已设 DSH_HOME）。
+      // 失败必须响亮：credentials 缺失 → llm/agent 全链不可用，不能静默降级。
+      try {
+        const { installDesktopCredentials } = await import('./forge-credentials.js')
+        await installDesktopCredentials(hostCtx)
+      } catch (error) {
+        log.error('[dsh-boot] credentials 服务注入失败（llm/agent 将不可用）:', error)
+      }
+
+      // M2·地基 forge-host-core：注入 ctx.desktop 聚合服务（core 子集）。
+      // 后续桌面能力 host 插件（tray/notify/shortcuts/clipboard…）经 inject:['desktop']
+      // 解析，共用审计总线 + 配置 + 下行桌面事件通道。
+      try {
+        const { installDesktopCore } = await import('./forge-api.js')
+        await installDesktopCore(hostCtx, { auditLogPath: options.auditLogPath })
+      } catch (error) {
+        log.warn('[dsh-boot] ctx.desktop 聚合服务注入失败:', error)
+      }
+
+      // 第三方 web 插件 host 半兼容（M1 门禁·ADR-007）：注入 ctx.webServer 等价面。
+      // 第三方/旧插件（如 @lnyanhongyan/dsh-opencode-usage）inject:['webServer','fs','tools']
+      // 硬依赖 webServer 服务；零端口模式下官方 webserver 已禁用，这里在插件树挂载前
+      // 注入内存路由表等价服务（register + dispatch），使插件 apply 无改动激活。
+      try {
+        const { installWebServerCompat } = await import('./compat-webserver.js')
+        await installWebServerCompat(hostCtx)
+      } catch (error) {
+        log.warn('[dsh-boot] webServer 等价面注入失败:', error)
+      }
+    },
+    options.bareModuleBaseUrl,
+    )
+  } finally {
+    // 装配结束（成功或失败）都停掉进度轮询，避免定时器残留。
+    if (progressTimer !== undefined) clearInterval(progressTimer)
+  }
+}
+
+/**
+ * 获取 Desktop overlay 补丁栈（供外部检查/日志用）。
+ */
+export function getDesktopOverlayPatches(): unknown[] {
+  return DESKTOP_OVERLAY_PATCHES
+}

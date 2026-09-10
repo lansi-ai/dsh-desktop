@@ -54,10 +54,10 @@
 
 | 操作 | 审批要求 | 实现 |
 | --- | --- | --- |
-| 剪贴板写入 | 必需 | `desktop-host-clipboard` 调 approval 服务（waterfall） |
+| 剪贴板写入 | 必需 | `forge-host-clipboard` 调 approval 服务（waterfall） |
 | 文件删除/越工作区写 | 官方 fs 策略已有 | 沿用 `tool-fs` 的 `fs-observation-policy` + approval |
 | 打开外部 URL | 确认弹窗 | shell.openExternal 白名单 + 用户确认（可记忆「本次会话」） |
-| `dsh://` 参数处理 | schema 校验 | desktop-host-protocol 内 zod 校验，拒绝即忽略 |
+| `dsh://` 参数处理 | schema 校验 | forge-host-protocol 内 zod 校验，拒绝即忽略 |
 | **兼容层 HTTP 面**（`/rules/*` 类旧插件路由） | 路径白名单 | desktopRoutes 仅放行已注册路径；未注册一律 404；方法/体积上限对齐插件常见用法 |
 | 安装/回滚更新 | 用户动作 | 更新永不静默自动执行 |
 | 开机自启注册 | 用户显式开启 | 设置窗口开关（默认关） |

@@ -5,8 +5,8 @@ const Jimp = require('jimp')
 const path = require('node:path')
 
 const SRC = path.join(__dirname, '..', 'lansi.jpg')
-const TRAY_OUT = path.join(__dirname, '..', 'src', 'desktop-shell', 'web', 'tray-icon.png')
-const APP_OUT = path.join(__dirname, '..', 'src', 'desktop-shell', 'web', 'app-icon.png')
+const TRAY_OUT = path.join(__dirname, '..', 'src', 'forge-shell', 'web', 'tray-icon.png')
+const APP_OUT = path.join(__dirname, '..', 'src', 'forge-shell', 'web', 'app-icon.png')
 
 /** 采样图像四角的平均色（作为背景参考色）。 */
 function cornerAvg(img) {

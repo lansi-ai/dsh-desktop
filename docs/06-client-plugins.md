@@ -10,7 +10,7 @@
 | `conversation.view`（会话页 tab 环） | chat(0) / trajectory(10) / … | `desktop` tab 或状态投影面板（order 20+） |
 | `sidebar`（侧栏项） | 会话列表、设置等 | 「桌面」入口：状态、托盘控制、快捷键、更新 |
 | `settings`（设置卡） | general / models / plugins / plugin-inventory | 桌面设置卡（通知开关、热键编辑、自启、剪贴板审批、更新通道） |
-| `settings.plugins`（插件配置面） | 各插件 config 卡 | desktop-* 各插件的 config 卡（schema 驱动） |
+| `settings.plugins`（插件配置面） | 各插件 config 卡 | forge-* 各插件的 config 卡（schema 驱动） |
 | `sidebar.footer.action` | 重启按钮等 | 「桌面重启」按钮（适配桌面 relaunch 语义） |
 | 窗口标题/托盘状态投影 | ui-renderer 管理标题 | 标题显示会话名 + 运行状态（配合 notifications） |
 
@@ -22,10 +22,10 @@
 
 | 包名 | 槽位 | 功能 | 说明 |
 | --- | --- | --- | --- |
-| `desktop-client-settings` | `settings` | 桌面设置卡：通知开关、热键编辑、开机自启、剪贴板审批、更新通道（stable/rc/off） | 二期可移入 ADR-006 自绘面 |
-| `desktop-client-panel` | `sidebar` + `conversation.view` | 桌面面板：宿主状态、托盘/快捷键开关、协议唤起历史、快速切换会话 | — |
-| `desktop-client-statusbar` | 布局注入（css 层面） | 底部/顶栏状态条：活动 agent 数、后台任务、token 快速视图 | P2 |
-| `desktop-client-updater` | `settings` | 更新卡：当前版本/最新版本/更新日志/安装按钮/回滚 | — |
+| `forge-client-settings` | `settings` | 桌面设置卡：通知开关、热键编辑、开机自启、剪贴板审批、更新通道（stable/rc/off） | 二期可移入 ADR-006 自绘面 |
+| `forge-client-panel` | `sidebar` + `conversation.view` | 桌面面板：宿主状态、托盘/快捷键开关、协议唤起历史、快速切换会话 | — |
+| `forge-client-statusbar` | 布局注入（css 层面） | 底部/顶栏状态条：活动 agent 数、后台任务、token 快速视图 | P2 |
+| `forge-client-updater` | `settings` | 更新卡：当前版本/最新版本/更新日志/安装按钮/回滚 | — |
 
 ## 3. renderer 侧桥接 API（`window.desktopBridge`，preload 白名单）
 
@@ -70,7 +70,7 @@ host 扫描 `dsh.client` 声明 → 组装 manifest → 每个 plugin bundle 经
 旧插件（`dsh-terminal`/`dsh-rule-manager`/`dsh-restart`）的 client 半依赖官方槽位 + 同源 `fetch()`：
 - 槽位注入：**正常工作**（同一官方 UI roster，相同 `ctx.slots` 注册机制）。
 - 同源 `fetch('/terminal/run')` 等：`file://` 或 `dsh-ui://` 下没有同源 HTTP 服务器——需要拦截：
-  - 方案 A（bundle 直达）：`desktop-host-compat` 把 `/terminal/run`、`/rules/*` 等注册的路由
+  - 方案 A（bundle 直达）：`forge-host-compat` 把 `/terminal/run`、`/rules/*` 等注册的路由
     通过 `dsh-ui://` 协议的 `fetch` 拦截映射到 `desktopRoutes` handler（IPC 回传）；
   - 方案 B：渲染器 preload 里 hook `window.fetch`，匹配 `/terminal/run` 等已注册路径 → 改走 `ipcRenderer.invoke('dsh:http', ...)` → 主进程处理；
   - 两种方案均对旧插件**透明**——它们仍调 `fetch(path)`，语义不变。

@@ -105,7 +105,7 @@
   <!-- ══════════ Host 侧插件树 ══════════ -->
   <section>
     <div class="sec-h"><h2>⚙ Host 侧 · Cordis 插件树</h2><span class="d">boot.ts DESKTOP_OVERLAY_PATCHES §1 insert + §4 insert，按域分组</span></div>
-    <div class="sec-note">装载源头：<code>bootDesktopHost()</code> → 官方 <code>boot('dsh-desktop', cordis.yml, patches, prepare)</code>。所有条目均为无改动装载（overlay patches 只做 insert/覆盖/禁用）。</div>
+    <div class="sec-note">装载源头：<code>bootDesktopHost()</code> → 官方 <code>boot('dsh-forge', cordis.yml, patches, prepare)</code>。所有条目均为无改动装载（overlay patches 只做 insert/覆盖/禁用）。</div>
     <div class="groups">
 
       <div class="group host">
@@ -404,26 +404,26 @@
         <table>
           <tr><th>插件</th><th>作用</th><th>状态</th></tr>
           <tr><td class="name">@lansi-ai/dsh-ipc-connection</td><td class="desc">零端口 IPC 载波（继承 AbstractApiClient，独占提供 connection 服务）</td><td><span class="st on">已装载</span></td></tr>
-          <tr><td class="name">@lansi-ai/dsh-desktop-layout</td><td class="desc">桌面布局插件（2026-08-27 方案 B：接管 root 槽位，三列布局 + 拖拽 + 窄屏折叠；官方 ui-layout 经 CLIENT_EXCLUDE_IDS 禁用）</td><td><span class="st on">已装载</span></td></tr>
-          <tr><td class="name">@lansi-ai/dsh-desktop-titlebar</td><td class="desc">标题栏装饰层（M3-c4：32px 拖拽顶栏 + 窗控三钮 + 分割线探针；旧 executeJavaScript 注入已废弃）</td><td><span class="st on">已装载</span></td></tr>
-          <tr><td class="name">@lansi-ai/dsh-desktop-settings</td><td class="desc">设置页「桌面」section（tray/通知/快捷键/自启 Toggle）</td><td><span class="st on">已装载</span></td></tr>
-          <tr><td class="name">@lansi-ai/dsh-desktop-panel</td><td class="desc">侧边栏底部悬浮面板入口（sidebar.footer.action 槽位）</td><td><span class="st on">已装载</span></td></tr>
-          <tr><td class="name">@lansi-ai/dsh-desktop-audit-viewer</td><td class="desc">会话审计查看器 Tab</td><td><span class="st on">已装载</span></td></tr>
-          <tr><td class="name">@lansi-ai/dsh-desktop-cmdpalette</td><td class="desc">命令面板（2026-08-27 禁用壳，仅留 quick-ask 聚焦）</td><td><span class="st off">已禁用</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-forge-layout</td><td class="desc">桌面布局插件（2026-08-27 方案 B：接管 root 槽位，三列布局 + 拖拽 + 窄屏折叠；官方 ui-layout 经 CLIENT_EXCLUDE_IDS 禁用）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-forge-titlebar</td><td class="desc">标题栏装饰层（M3-c4：32px 拖拽顶栏 + 窗控三钮 + 分割线探针；旧 executeJavaScript 注入已废弃）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-forge-settings</td><td class="desc">设置页「桌面」section（tray/通知/快捷键/自启 Toggle）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-forge-panel</td><td class="desc">侧边栏底部悬浮面板入口（sidebar.footer.action 槽位）</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-forge-audit-viewer</td><td class="desc">会话审计查看器 Tab</td><td><span class="st on">已装载</span></td></tr>
+          <tr><td class="name">@lansi-ai/dsh-forge-cmdpalette</td><td class="desc">命令面板（2026-08-27 禁用壳，仅留 quick-ask 聚焦）</td><td><span class="st off">已禁用</span></td></tr>
         </table>
       </div>
       <div class="group desk">
         <div class="gh">Host 半（主进程模块，M2 形态） <span class="count">11 个</span></div>
         <table>
           <tr><th>模块</th><th>作用</th><th>状态</th></tr>
-          <tr><td class="name">desktop-api.ts</td><td class="desc">ctx.desktop 聚合服务（审计 JSONL / 配置 / 下行事件）</td><td><span class="st on">已装配</span></td></tr>
-          <tr><td class="name">desktop-tray.ts</td><td class="desc">托盘 + 关窗驻留 + 快速问答</td><td><span class="st on">已装配</span></td></tr>
-          <tr><td class="name">desktop-notify.ts</td><td class="desc">系统通知（审批/错误/进展三类）</td><td><span class="st on">已装配</span></td></tr>
-          <tr><td class="name">desktop-shortcuts.ts</td><td class="desc">全局快捷键（Alt+Shift+Q / Space）</td><td><span class="st on">已装配</span></td></tr>
-          <tr><td class="name">desktop-clipboard.ts</td><td class="desc">剪贴板（写走 approval）</td><td><span class="st on">已装配</span></td></tr>
-          <tr><td class="name">desktop-cmdpalette.ts</td><td class="desc">命令面板 host 半（Ctrl+Shift+P）</td><td><span class="st on">已装配</span></td></tr>
-          <tr><td class="name">desktop-audit-viewer.ts</td><td class="desc">审计查询服务（过滤+分页）</td><td><span class="st on">已装配</span></td></tr>
-          <tr><td class="name">desktop-autostart.ts</td><td class="desc">开机自启（OS 登录项唯一真源）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-api.ts</td><td class="desc">ctx.desktop 聚合服务（审计 JSONL / 配置 / 下行事件）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-tray.ts</td><td class="desc">托盘 + 关窗驻留 + 快速问答</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-notify.ts</td><td class="desc">系统通知（审批/错误/进展三类）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-shortcuts.ts</td><td class="desc">全局快捷键（Alt+Shift+Q / Space）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-clipboard.ts</td><td class="desc">剪贴板（写走 approval）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-cmdpalette.ts</td><td class="desc">命令面板 host 半（Ctrl+Shift+P）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-audit-viewer.ts</td><td class="desc">审计查询服务（过滤+分页）</td><td><span class="st on">已装配</span></td></tr>
+          <tr><td class="name">forge-autostart.ts</td><td class="desc">开机自启（OS 登录项唯一真源）</td><td><span class="st on">已装配</span></td></tr>
           <tr><td class="name">dsh-protocol.ts</td><td class="desc">dsh:// 系统协议路由</td><td><span class="st on">已装配</span></td></tr>
           <tr><td class="name">session-rewarm.ts</td><td class="desc">冷会话启动预热（坑 11）</td><td><span class="st on">已装配</span></td></tr>
           <tr><td class="name">compat-webserver.ts</td><td class="desc">webServer 等价面（内存路由）</td><td><span class="st on">已装配</span></td></tr>
@@ -432,7 +432,7 @@
     </div>
     <div class="foot-note">
       注：Host 半当前为项目内模块形态（prepare/main 装配），插件包化（cordis.patch.yml + dsh.client 声明）排期 M5；
-      装载真源 = <code>src/desktop-host/boot.ts</code>（Host 树）与 <code>src/desktop-host/boot-graph.ts</code>（Client 图谱），本页为派生视图。
+      装载真源 = <code>src/forge-host/boot.ts</code>（Host 树）与 <code>src/forge-host/boot-graph.ts</code>（Client 图谱），本页为派生视图。
     </div>
   </section>
 

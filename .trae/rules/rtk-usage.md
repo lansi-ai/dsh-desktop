@@ -1,5 +1,5 @@
 ---
-description: RTK Token-Killer 正确用法与沙箱修复指引（dsh-desktop）
+description: RTK Token-Killer 正确用法与沙箱修复指引（dsh-forge）
 globs: "*"
 alwaysApply: true
 ---

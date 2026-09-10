@@ -17,20 +17,20 @@
 | T4 零端口 bundle | spike 定案：`dsh-ui://plugins/...` 协议直读 vs `BootSeams.loadBundle` | `dsh-rule-manager`、`dsh-terminal` client 半无改动装载可见 |
 | T5 旧插件 fetch 拦截 | `/terminal/run`、`/rules/*` 等旧插件同源 fetch 经桥拦截到 desktopRoutes | 旧插件 host 半+client 半全链可用 |
 | T6 零端口验证 | 重启后 `netstat` 无监听；关窗驻留可用 | R-03/R-05 达标 |
-| T7 崩溃恢复初版 | `desktop-host-restart`：宿主崩溃→错误页→relaunch→会话历史重建 | 杀掉宿主进程后 5s 内恢复可见会话 |
+| T7 崩溃恢复初版 | `forge-host-restart`：宿主崩溃→错误页→relaunch→会话历史重建 | 杀掉宿主进程后 5s 内恢复可见会话 |
 | 门禁 | 全量回归：与 Web 面功能一致性抽查清单（对话/轨迹/设置/插件/技能） | 无 P0 缺口 |
 
 ## M2 · 桌面能力插件化（P0 桌面功能 + 旧插件保命）
 | 任务 | 验收 |
 | --- | --- |
-| desktop-host-core + desktop-api | `ctx.desktop` 具备、`desktop/action` 审计落地 |
-| desktop-host-runtime / compat | IPC 桥宿主端稳定；多窗口载波注册表；desktopRoutes 等价面 + 零端口 bundle 服务就绪 |
+| forge-host-core + forge-api | `ctx.desktop` 具备、`desktop/action` 审计落地 |
+| forge-host-runtime / compat | IPC 桥宿主端稳定；多窗口载波注册表；desktopRoutes 等价面 + 零端口 bundle 服务就绪 |
 | 旧插件兼容验证 | `dsh-rule-manager`、`dsh-terminal`、`dsh-restart`：host 半零改动可用；client 半经 bundle 服务 + fetch 拦截可用（ADR-007 验收矩阵） |
-| desktop-host-tray | 托盘：会话列表/快速问答/状态/退出；关窗驻留 |
-| desktop-host-notifications | 完成/审批/错误三类通知 + 点击定位会话 |
-| desktop-host-shortcuts | 全局热键唤出快速问答（默认 Ctrl+Shift+Space） |
-| desktop-host-clipboard | 写审批链路（approval waterfall）e2e |
-| desktop-client-settings / panel | 官方 UI 注入桌面设置卡 + 侧栏「桌面」面板 |
+| forge-host-tray | 托盘：会话列表/快速问答/状态/退出；关窗驻留 |
+| forge-host-notifications | 完成/审批/错误三类通知 + 点击定位会话 |
+| forge-host-shortcuts | 全局热键唤出快速问答（默认 Ctrl+Shift+Space） |
+| forge-host-clipboard | 写审批链路（approval waterfall）e2e |
+| forge-client-settings / panel | 官方 UI 注入桌面设置卡 + 侧栏「桌面」面板 |
 | 门禁 | 桌面能力全部可 `dsh plugin` 列表可见、可 patch 关闭、卸载无残留 |
 
 ## M3 · 多窗口与深度交互（P1 前半）—— 2026-08-26 启动
@@ -42,15 +42,15 @@
 | M3-a1 窗口管理器基建 | WindowManager 单例（窗口注册表 + 会话绑定 + 创建/销毁/聚焦 API）；`types/window.ts` zod 契约；多窗口 IPC 通道；preload 白名单扩展；main.ts bootstrap 集成 | typecheck + lint 零错误 |
 | M3-a2 会话独立窗口 | 新建窗口（renderer→主进程→新 BrowserWindow→dsh-ui:// + 会话上下文）；独立 IPC 载波路由（per-window carrier-relay）；窗口会话同步广播；窗口崩溃恢复；窗口间切换 | 3+ 窗口独立对话 + 同步 + 恢复 |
 | M3-a3 窗口状态持久化 | 位置/大小持久化到 settings-file；会话绑定持久化（重启恢复）；Z-order 记忆 | 重启后窗口状态恢复 |
-| M3-a4 命令面板（Ctrl+K 混合方案） | renderer 内 Ctrl+K 面板（会话/插件/设置）+ desktop-cmdpalette-client.js 注入；主进程全局 Ctrl+Shift+P 快速提问悬浮窗；desktop-cmdpalette.ts host 插件；preload 白名单；boot-graph 图谱注入 | Ctrl+K 切换会话 + Ctrl+Shift+P 唤起提问 |
+| M3-a4 命令面板（Ctrl+K 混合方案） | renderer 内 Ctrl+K 面板（会话/插件/设置）+ forge-cmdpalette-client.js 注入；主进程全局 Ctrl+Shift+P 快速提问悬浮窗；forge-cmdpalette.ts host 插件；preload 白名单；boot-graph 图谱注入 | Ctrl+K 切换会话 + Ctrl+Shift+P 唤起提问 |
 | M3-a5 M3-a 门禁 | 多窗口实机验证 + 命令面板冒烟 | Dogfood 启动：日常使用 |
 
 ### M3-b 第二波：协议 + 审计 + 自启
 | 任务 | 子项 | 验收 |
 | --- | --- | --- |
 | M3-b1 dsh:// 系统协议 | 协议注册 + Windows 注册表关联；open/ask/settings 三个 action；窗口去重聚焦；dsh-protocol.ts 路由 | 浏览器/命令行 dsh:// 唤起工作 |
-| M3-b2 会话审计查询工具 | 审计日志查看器 UI（槽位注入）；desktop-audit-viewer.ts 服务（读取+过滤+分页）；desktop:event + Host 全链路 | 审计 Tab 可过滤查看 |
-| M3-b3 开机自启 | 设置开关（desktop-settings 注入）；Windows setLoginItemSettings；配置持久化 | 设置开关生效 |
+| M3-b2 会话审计查询工具 | 审计日志查看器 UI（槽位注入）；forge-audit-viewer.ts 服务（读取+过滤+分页）；desktop:event + Host 全链路 | 审计 Tab 可过滤查看 |
+| M3-b3 开机自启 | 设置开关（forge-settings 注入）；Windows setLoginItemSettings；配置持久化 | 设置开关生效 |
 | M3-b4 M3 门禁 | 完整 dogfood 验收 + 全量回归 + netstat 零监听再验证 | **2 周无浏览器** + 崩溃恢复测试 |
 
 **关键决策（M3 新增）：**
@@ -87,7 +87,7 @@
 
 ## 持续任务（贯穿）
 - **同步上游**：每个 rc 发布 → `sync-upstream` → 破坏性变更迁移登记（ADR-005）→ 回归
-- **测试**：单测（desktop-api/bridge）、组件（client 插件，`?fixture`）、e2e（Playwright + Electron）
+- **测试**：单测（forge-api/bridge）、组件（client 插件，`?fixture`）、e2e（Playwright + Electron）
 - **安全评审**：按 `08-security.md §8` 清单每里程碑走一遍
 - **文档同步**：本篇与 ADR 随实现更新；「已实现/已否决」标注制
 
