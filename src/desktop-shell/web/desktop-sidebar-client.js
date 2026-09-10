@@ -6,8 +6,9 @@
  *   - 新会话按钮（`ctx.get('uiWorkspace').startSession`，坑 32：UI 动作取自 ui-* 服务、
  *     非 framework domain 服务；复用-or-新建 workspace 会话语义）；
  *   - 折叠切换按钮（`ctx.layout.toggleSidebar`，走桌面布局插件 LayoutController）；
- *   - 声明官方同款子槽位（brand.mark / brand.name / workspaces / settings）——
- *     官方 `ui-workspace`（会话树）与 `ui-settings`（设置入口）
+ *   - 声明官方同款子槽位（brand.mark / brand.name / workspaces / settings /
+ *     footer.action）——官方 `ui-workspace`（会话树）、`ui-settings`（设置入口）与
+ *     `ui-cordis`（动态插件面板入口，2026-09-10 回填装载）
  *     **无改动继续工作**，注册进同名子槽位。
  *
  * 与官方差异（v1 有意为之）：
@@ -138,9 +139,14 @@ window.__ModuleLoader__.load({
             },
           }),
         ),
-        // 底部：设置入口（官方 ui-settings 注册）
+        // 底部：设置入口（官方 ui-settings 注册）+ 底栏动作（官方 ui-cordis 的
+        // 「动态插件」面板入口注册进 sidebar.footer.action；官方 ui-sidebar 的 foot
+        // 同样同时承载这两者）
         h('div', { className: 'dsh-desktop-sidebar-foot' },
           h('div', null, renderSlot('sidebar.settings', { wide })),
+          h('div', { className: 'dsh-desktop-sidebar-foot-action' },
+            renderSlot('sidebar.footer.action', { wide }),
+          ),
         ),
       )
     }
@@ -164,6 +170,9 @@ window.__ModuleLoader__.load({
           'sidebar.brand.name': { kind: 'single', scope: 'root' },
           'sidebar.workspaces': { kind: 'single', scope: 'root' },
           'sidebar.settings': { kind: 'single', scope: 'root' },
+          // 官方 ui-sidebar 的 foot 同款声明（list/root）：官方 ui-cordis 的
+          // 「动态插件」面板入口注册于此；缺声明会让上游自建槽位并继承错误 scope（坑 48）
+          'sidebar.footer.action': { kind: 'list', scope: 'root' },
         },
         inject: () => {
           const workspaceNavigation = ctx.get('uiWorkspace')
