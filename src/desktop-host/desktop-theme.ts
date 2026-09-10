@@ -2,8 +2,8 @@
  * dsh-desktop 桌面图标主题服务（图标主题 / 颜色主题拆分 · 图标侧）。
  *
  * 图标分两类归属，互不牵连：
- *   - **全局图标**（`scope='global'`）：应用图标（窗口/任务栏/Dock）、托盘图标
- *     —— 存包外 `userData/icons/` 只有一份，**切换图标包不影响**
+ *   - **全局图标**（`scope='global'`）：应用图标（窗口/任务栏/Dock）、托盘图标、
+ *     标题栏品牌标记 —— 存包外 `userData/icons/` 只有一份，**切换图标包不影响**
  *     （它们是「这个应用长什么样」的身份标识，不属于任何图标包）；
  *   - **图标包**（`scope='pack'`）：界面图标（设置导航、窗控、折叠钮）—— 存
  *     `resources/themes/<id>/icons/`（内置包）或 `userData/themes/<id>/icons/`
@@ -20,8 +20,9 @@
  *   - 图标槽位注册表（`ICON_SLOTS` · 单一真源）：声明系统与各自研插件消费的
  *     图标位（含 scope/group/plugin/规范文件名/格式/建议尺寸/缺失回退说明）；
  *     设置页「外观」据此展示需求清单并提供槽位行内上传
- *   - 全局图标迁移：ready 阶段把旧版存在包根的 app/tray PNG 一次性搬到
- *     userData/icons（全局已有不覆盖；品牌 logo 不迁，避免改变既有外观）
+ *   - 全局品牌资产同步：ready 阶段按 `BRAND_REVISION` 修订号把内置
+ *     app/tray/brand PNG 同步进 userData/icons（用户改过的文件保留不覆盖，见
+ *     syncGlobalBrandAssets）
  *   - 图标路径解析：getActiveIconPath(kind, dark) 同步返回**全局目录**图标路径，
  *     文件缺失逐级回退（全局另一色版 → 内置 web 默认图标）
  *   - bridge 方法：list（清单+当前+槽位状态+激活包写入目录+全局图标目录）/ set
@@ -34,6 +35,7 @@
  */
 
 import { cp, readdir, readFile, mkdir, copyFile, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
 import { dirname, join, basename, normalize, sep } from 'node:path'
 import { app, dialog } from 'electron'
@@ -59,13 +61,27 @@ import {
 /** 缺省图标主题 ID（settings 未设置/值非法时回退）。 */
 export const DEFAULT_THEME_ID = 'default'
 
-/** 图标文件名约定（全局图标目录 userData/icons 下的 app/tray 四件套）。 */
+/** 图标文件名约定（全局图标目录 userData/icons 下各件套）。 */
 const ICON_FILES = {
   app: { light: 'app-icon-light.png', dark: 'app-icon-dark.png' },
   tray: { light: 'tray-icon-light.png', dark: 'tray-icon-dark.png' },
+  /** 标题栏品牌 logo（透明底金标；与应用图标的黑底方块形态解耦）。 */
+  brand: { light: 'brand-mark-light.png', dark: 'brand-mark-dark.png' },
 } as const
 
-/** 图标种类（app=窗口/任务栏/Dock，tray=系统托盘）。 */
+/**
+ * 品牌资产修订号：应用/托盘/品牌标记 PNG 的**形态**每次变化递增。
+ *
+ * 全局图标目录是用户可上传的真源（有自定义就绝不覆盖），因此内置品牌资源更新时
+ * 需要一个显式修订号来区分「用户自定义」与「上一版随包资源」：见
+ * syncGlobalBrandAssets（修订号变化 + 文件内容仍与上次写入一致 → 刷新为新版）。
+ */
+const BRAND_REVISION = '2'
+
+/** 修订号落盘文件名（全局图标目录内；点号开头，不进 dsh-ui:// /icons/ 白名单）。 */
+const BRAND_REVISION_FILE = '.brand-revision.json'
+
+/** 图标种类（app=窗口/任务栏/Dock，tray=系统托盘，brand=标题栏品牌 logo）。 */
 export type ThemeIconKind = keyof typeof ICON_FILES
 
 /**
@@ -122,6 +138,26 @@ const RAW_ICON_SLOTS: readonly Omit<IconSlot, 'scope'>[] = [
     format: 'png',
     size: 64,
     fallback: '回退全局浅色版，再回退内置默认 logo',
+  },
+  {
+    id: 'brand-mark-light',
+    label: '标题栏品牌标记（浅色）',
+    group: '品牌标记',
+    plugin: '@lansi-ai/dsh-desktop-titlebar（标题栏左上品牌 logo）',
+    file: ICON_FILES.brand.light,
+    format: 'png',
+    size: 256,
+    fallback: '回退全局深色版，再回退官方鲸鱼组件（透明底 PNG，勿传方块底）',
+  },
+  {
+    id: 'brand-mark-dark',
+    label: '标题栏品牌标记（深色）',
+    group: '品牌标记',
+    plugin: '@lansi-ai/dsh-desktop-titlebar（标题栏左上品牌 logo）',
+    file: ICON_FILES.brand.dark,
+    format: 'png',
+    size: 256,
+    fallback: '回退全局浅色版，再回退官方鲸鱼组件（透明底 PNG，勿传方块底）',
   },
   {
     id: 'titlebar-minimize',
@@ -253,14 +289,16 @@ const RAW_ICON_SLOTS: readonly Omit<IconSlot, 'scope'>[] = [
 ]
 
 /**
- * 全局归属的槽位 ID：应用图标与托盘图标。它们是不属于任何一个图标包的
- * 「这个应用长什么样」身份标识。
+ * 全局归属的槽位 ID：应用图标、托盘图标与标题栏品牌标记。它们是不属于任何一个
+ * 图标包的「这个应用长什么样」身份标识（换图标包不改外观）。
  */
 const GLOBAL_SLOT_IDS: readonly string[] = [
   'app-icon-light',
   'app-icon-dark',
   'tray-icon-light',
   'tray-icon-dark',
+  'brand-mark-light',
+  'brand-mark-dark',
 ]
 
 /** 带归属范围的图标槽位（对外下发的最终形态）。 */
@@ -390,27 +428,87 @@ export function getActiveIconPath(kind: ThemeIconKind, dark: boolean): string {
   return resolveDefaultIconPath(kind, dark)
 }
 
-/**
- * 一次性迁移：把「包根 app/tray PNG」搬到全局目录（userData/icons）。
- *
- * 旧版本里应用/托盘图标存在图标包包根、随包切换；现在它们是全局单份、与包解耦。
- * 为升级后图标凭空变回内置默认，这里在 ready 阶段按「激活包优先、其余包次之」
- * 找到第一个提供该文件的包并复制过去；**全局已有的不覆盖**（用户自己传的就是真源）。
- */
-async function migratePackIconsToGlobal(): Promise<void> {
-  const globalDir = resolveGlobalIconsDir()
-  const files = Object.values(ICON_FILES).flatMap((kind) => [kind.light, kind.dark])
-  const order = [activeThemeId, ...themes.keys()]
-  let migrated = 0
-  for (const file of files) {
-    if (existsSync(join(globalDir, file))) continue
-    const source = order.map((id) => themes.get(id)).find((entry) => entry !== undefined && existsSync(join(entry.dir, file)))
-    if (source === undefined) continue
-    await mkdir(globalDir, { recursive: true })
-    await copyFile(join(source.dir, file), join(globalDir, file))
-    migrated += 1
+/** 品牌资产修订号落盘结构（记录当前修订号 + 各文件写入时的 sha256）。 */
+interface BrandRevisionMarker {
+  revision: string
+  /** 上次「随包写入」的文件 sha256（内容与记录不符即视为用户自定义）。 */
+  hashes: Record<string, string>
+}
+
+/** 文件 sha256（缺失/读取失败返回 null，不抛错）。 */
+async function hashFile(file: string): Promise<string | null> {
+  try {
+    return createHash('sha256').update(await readFile(file)).digest('hex')
+  } catch {
+    return null
   }
-  if (migrated > 0) log.info(`[dsh-theme] 已把 ${migrated} 个包根应用/托盘图标迁移到全局目录: ${globalDir}`)
+}
+
+/**
+ * 同步内置品牌资产到全局图标目录（应用/托盘/品牌标记 PNG）。
+ *
+ * 全局图标目录是用户可上传的真源，故旧策略「只增不改」会让**随包品牌资源更新永远
+ * 到不了存量安装**（旧文件一直在，迁移直接跳过）。本函数以 `BRAND_REVISION` 为闸门，
+ * 把「随包资源」与「用户自定义」区分开：
+ *   - 修订号一致 → 直接返回（常规启动零额外 IO）；
+ *   - 修订号变化 → 逐文件判断：全局缺失，或内容仍等于上次随包写入的哈希（含首次引入
+ *     修订号之前的存量安装）→ 覆盖为随包新版；内容已被用户改过 → **保留用户版本**并在
+ *     日志列出，避免「用户换的图标」被品牌更新吞掉。
+ * 真源 = 内置 web 目录（`dist/desktop-shell/web/`）而非图标包：品牌是全局身份标识，
+ * 与激活包无关（旧「包根图标迁移」逻辑随之废弃，也顺带避开非 default 图标包残留的
+ * 历史 app/tray PNG 被误当品牌源的问题）。
+ * 写入完成后落盘新修订号 + 哈希表；落盘失败只告警（下次启动重试刷新，不重复覆盖用户件）。
+ */
+async function syncGlobalBrandAssets(): Promise<void> {
+  const globalDir = resolveGlobalIconsDir()
+  const markerPath = join(globalDir, BRAND_REVISION_FILE)
+  let marker: BrandRevisionMarker | null = null
+  try {
+    const parsed: unknown = JSON.parse(await readFile(markerPath, 'utf-8'))
+    if (typeof parsed === 'object' && parsed !== null && typeof (parsed as BrandRevisionMarker).revision === 'string') {
+      marker = parsed as BrandRevisionMarker
+    }
+  } catch {
+    // 无修订号文件（本机制首次引入）→ 按存量安装处理
+  }
+  if (marker?.revision === BRAND_REVISION) return
+
+  const hashes: Record<string, string> = { ...(marker?.hashes ?? {}) }
+  const kept: string[] = []
+  let refreshed = 0
+  const kinds = Object.entries(ICON_FILES) as Array<[ThemeIconKind, { light: string; dark: string }]>
+  for (const [kind, variants] of kinds) {
+    for (const dark of [false, true]) {
+      const file = dark ? variants.dark : variants.light
+      const target = join(globalDir, file)
+      const current = await hashFile(target)
+      const previous = hashes[file]
+      if (current !== null && previous !== undefined && current !== previous) {
+        kept.push(file)
+        continue
+      }
+      const shipped = resolveDefaultIconPath(kind, dark)
+      if (!existsSync(shipped)) continue
+      try {
+        await mkdir(globalDir, { recursive: true })
+        await copyFile(shipped, target)
+        const written = await hashFile(target)
+        if (written !== null) hashes[file] = written
+        refreshed += 1
+      } catch (error) {
+        log.warn(`[dsh-theme] 品牌图标 ${file} 写入失败，保留原文件:`, error)
+      }
+    }
+  }
+  try {
+    await writeFile(markerPath, `${JSON.stringify({ revision: BRAND_REVISION, hashes }, null, 2)}\n`, 'utf-8')
+  } catch (error) {
+    log.warn('[dsh-theme] 品牌修订号落盘失败（下次启动重试刷新）:', error)
+  }
+  log.info(
+    `[dsh-theme] 品牌资产已同步到全局图标目录（修订号 ${marker?.revision ?? 'legacy'} → ${BRAND_REVISION}，` +
+      `刷新 ${refreshed} 个${kept.length > 0 ? `，保留用户自定义: ${kept.join(', ')}` : ''}）`,
+  )
 }
 
 /**
@@ -550,8 +648,8 @@ export function installDesktopTheme(options: DesktopThemeOptions): DesktopThemeH
     log.info(`[dsh-theme] 主题包清单扫描完成: [${[...themes.keys()].join(', ')}]`)
     try {
       applyActiveThemeId(await readActiveThemeId(options.callApi))
-      // 旧版包根 app/tray 图标迁到全局目录（建窗前完成，首帧图标即正确）
-      await migratePackIconsToGlobal()
+      // 内置品牌资产同步到全局目录（应用/托盘/品牌标记；建窗前完成，首帧图标即正确）
+      await syncGlobalBrandAssets()
       log.info(`[dsh-theme] 启动期激活主题就绪: ${activeThemeId}`)
     } catch (error) {
       log.warn('[dsh-theme] 读取图标主题偏好失败，使用默认主题:', error)

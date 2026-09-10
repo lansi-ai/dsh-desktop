@@ -286,8 +286,9 @@ export const themeSummarySchema = themeManifestSchema.extend({
  * 图标槽位（系统/自研插件消费的主题图标需求，注册表真源在 desktop-theme.ts）。
  *
  * 设置页「外观」据此展示**需求清单**（要哪些图标、规范文件名、期望落盘位置、
- * 缺失时回退到什么），而非罗列包内已有文件；上传按槽位驱动，目标文件名由
- * 注册表决定（app/tray 四件套在包根，UI 槽位在 icons/ 子目录）。
+ * 缺失时回退到什么），而非罗列包内已有文件；上传按槽位驱动，目标文件名与落盘
+ * 目录由注册表决定（scope=global 落 `userData/icons/`：应用图标/托盘图标/标题栏
+ * 品牌标记；scope=pack 落激活包 `icons/` 子目录）。
  */
 export const iconSlotSchema = z.object({
   /** 槽位 ID（上传请求定位用，如 'titlebar-logo'）。 */

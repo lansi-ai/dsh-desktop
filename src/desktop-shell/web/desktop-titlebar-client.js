@@ -1,5 +1,5 @@
 /**
- * @lansi-ai/dsh-desktop-titlebar —— 桌面自绘标题栏插件（v4：左侧品牌区 + SVG 图标）。
+ * @lansi-ai/dsh-desktop-titlebar —— 桌面自绘标题栏插件（v7：独立品牌标记 + 可主题化窗控）。
  *
  * 背景（M3-c5 → 本重构）：
  *   此前 titlebar 以 body 级 `position:fixed` 浮层挂在 `#root` 之外（兄弟关系），
@@ -14,9 +14,14 @@
  *   `icons/titlebar-*.svg`；口径=「激活包含该文件就用」，状态对（maximize↔restore、
  *   collapse-left↔collapse-right）**成对提供才启用**，缺失回退内置 Fluent 图形；
  *   先画内置再换主题稿，不出现空帧（详见 useThemeControls）。
- * v6 改进：标题栏品牌 logo 由独立 titlebar-logo.svg 内联改为 **复用 app-icon PNG**
+ * v6 改进：标题栏品牌 logo 由独立 titlebar-logo.svg 内联改为复用应用图标 PNG
  *   （浅色/深色按 `document.body` 的 `data-ds-dark-theme` 属性切换，`<img>` 呈现，
- *   缺失回退官方鲸鱼/占位）——与主应用图标一致，不再有独立的品牌 logo 图标槽位。
+ *   缺失回退官方鲸鱼/占位）。
+ * v7 改进（2026-09-10）：品牌 logo 改用**独立的透明底品牌标记** `brand-mark-{light,dark}.png`
+ *   ——应用图标/托盘图标已改为「黑底圆角实底 + 金标」，标题栏若继续复用会在标题栏里
+ *   贴出一块黑方块（标题栏是自绘 UI，不属于应用图标语境）；品牌标记仍走全局
+ *   `dsh-ui://app/icons/` 与 host `ICON_SLOTS` 的 global 槽位（可上传、可自定义），
+ *   与应用图标解耦。
  *
  * 职责边界：本插件只管标题栏自身（拖拽区/窗控/品牌区/下边线）；布局行骨架归
  *   @lansi-ai/dsh-desktop-layout。
@@ -96,8 +101,8 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 标题栏品牌 logo —— 复用全局 **app-icon PNG**（不再用独立 titlebar-logo.svg）：
-     * 真源是 `userData/icons/` 下的 app-icon-light/dark.png，经
+     * 标题栏品牌 logo —— 全局 **brand-mark PNG**（透明底金标，v7 起不再复用 app-icon）：
+     * 真源是 `userData/icons/` 下的 brand-mark-light/dark.png，经
      * `dsh-ui://app/icons/<file>` 路由取用；按 `document.body` 的
      * `data-ds-dark-theme` 深色属性（布局主题 presenter 写入）选浅/深色版，附带
      * MutationObserver 监听该属性，深浅主题切换时即时换图。
@@ -124,10 +129,10 @@ window.__ModuleLoader__.load({
         }
       }, [])
       useEffect(() => {
-        setLogoUrl(`dsh-ui://app/icons/${dark ? 'app-icon-dark.png' : 'app-icon-light.png'}?t=${iconBust}`)
+        setLogoUrl(`dsh-ui://app/icons/${dark ? 'brand-mark-dark.png' : 'brand-mark-light.png'}?t=${iconBust}`)
       }, [dark])
       const load = () => {
-        setLogoUrl(`dsh-ui://app/icons/${document.body.hasAttribute('data-ds-dark-theme') ? 'app-icon-dark.png' : 'app-icon-light.png'}?t=${iconBust}`)
+        setLogoUrl(`dsh-ui://app/icons/${document.body.hasAttribute('data-ds-dark-theme') ? 'brand-mark-dark.png' : 'brand-mark-light.png'}?t=${iconBust}`)
       }
       return { logoUrl }
     }
@@ -390,12 +395,12 @@ span.dsh-desktop-titlebar-icon svg {
       const collapseHtml = collapsed ? controlIcons.collapseRight : controlIcons.collapseLeft
       const collapseIcon = collapsed ? ICON_CHEVRON_RIGHT : ICON_CHEVRON_LEFT
 
-      // 品牌区：主题 logo（图标主题激活时）> 官方 DeepSeek 品牌组件 > 内置占位。
+      // 品牌区：主题 logo（品牌标记 PNG）> 官方 DeepSeek 品牌组件 > 内置占位。
       // 不再用 renderSlot('sidebar.brand.*') —— 该子槽位不属于 titlebar 槽的
       // children 声明，跨槽位调用会触发 SlotOwnershipError 崩溃。
       const brand = getOfficialBrand()
       const { logoUrl } = useThemeLogo()
-      // 复用 app-icon PNG：/icons/ 路由缺失会 404 → onError 回退官方鲸鱼/占位；
+      // brand-mark PNG：/icons/ 路由缺失会 404 → onError 回退官方鲸鱼/占位；
       // logoUrl 变化（深浅切换/破缓存）时重置失败标记，给新图一次机会。
       const [logoFailed, setLogoFailed] = useState(false)
       useEffect(() => { setLogoFailed(false) }, [logoUrl])
@@ -403,7 +408,7 @@ span.dsh-desktop-titlebar-icon svg {
       return h('div', { className: 'dsh-desktop-titlebar' },
         // 左侧品牌区
         h('div', { className: 'dsh-desktop-titlebar-left' },
-          // Logo（app-icon PNG / 官方 FishLogo / 占位兜底）。品牌区仅作展示。
+          // Logo（brand-mark PNG / 官方 FishLogo / 占位兜底）。品牌区仅作展示。
           h('div', { className: 'dsh-desktop-titlebar-brand', title: 'DSH Forge' },
             logoUrl && !logoFailed
               ? h('img', {
