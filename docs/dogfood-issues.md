@@ -272,3 +272,11 @@
 - 状态：**fixed（2026-09-10 · 坑 52）**
 - 修复：`check()` 拆 `checkInternal(manual)` 分流手动/静默；手动检查的 `not-available` / `error` 补系统通知（**仅主窗口未聚焦**）；`manual` 随 `app-update:status` 下行 → 关于页弹 6 秒结果提示（成功绿 / 失败琥珀）；审计同步补 `manual` 字段；托盘不加瞬态结果项
 
+### #20 · 标题栏版本号改为显示自有软件版本（承接 #14 · 用户指定，非 bug）
+
+- 环境：打包版 / dev 均适用（应用代码，需重新打包生效）
+- 需求：标题栏品牌名后的版本号原先显示**上游基线**（`__DSH_BASE_VERSION__` = `@deepseek-ai/dsh` 实际安装版本，如 `0.1.5-alpha.2`），改显**自有软件版本**
+- 状态：**fixed（2026-09-10）**
+- 修复：`dsh-ui-protocol.ts` 注入语句加 `window.__DSH_APP_VERSION__ = app.getVersion()`（与基线合成同一 `<script>`）；`desktop-titlebar-client.js` 的 `.dsh-desktop-titlebar-brand-version` 改读它并显示 `v0.1.1-alpha.8`，上游基线降为悬停 `title`（信息不丢）；关于页两者仍并存
+- 取舍：走协议层同步注入而非 `desktopBridge.updater.getStatus()` 异步取 —— 标题栏要首帧即有值，异步会闪
+

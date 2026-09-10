@@ -420,9 +420,12 @@ span.dsh-desktop-titlebar-icon svg {
             // 品牌名：自有产品名（不再展示官方 BrandWordmark 的 deepseek HARNESS）。
             // 官方 DeepSeek 标识仅在左侧 logo 加载失败时作为图标兜底（见上）。
             h('span', { className: 'dsh-desktop-titlebar-brand-name' }, 'DSH Forge'),
-            // DSH 基线版本号（由主机注入的 __DSH_BASE_VERSION__ 全局供给）
-            h('span', { className: 'dsh-desktop-titlebar-brand-version' },
-              window.__DSH_BASE_VERSION__ || ''),
+            // 本应用版本号（主机注入 __DSH_APP_VERSION__ = app.getVersion()）；
+            // 上游基线不再占据标题栏，降为悬停提示保留信息。
+            h('span', {
+              className: 'dsh-desktop-titlebar-brand-version',
+              title: window.__DSH_BASE_VERSION__ ? `上游基线 ${window.__DSH_BASE_VERSION__}` : '',
+            }, window.__DSH_APP_VERSION__ ? `v${window.__DSH_APP_VERSION__}` : ''),
           ),
           // 折叠按钮
           h('button', {

@@ -1,4 +1,4 @@
-import { protocol } from 'electron'
+import { app, protocol } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -109,9 +109,12 @@ function bootManifestScript(useDist: boolean): string {
   // 占位页回退模式：注入最小样例 client 插件作为零端口装载路径验证载体。
   const extraBundles = useDist ? buildThirdPartyBundles() : [{ id: 'dsh-spike-sample', path: join(PLACEHOLDER_ROOT, 'dsh-spike-sample.js') }]
   const boot = generateFullBootScript('desktop-m1-ipc', extraBundles)
-  // 注入当前实际安装的 DSH 基线版本全局，供自绘 UI（如标题栏）渲染展示。
+  // 注入两个版本全局，供自绘 UI（如标题栏）渲染展示：
+  //   __DSH_BASE_VERSION__ = 实际安装的 DSH 基线版本（上游，如 0.1.5-alpha.2）
+  //   __DSH_APP_VERSION__  = 本应用版本（app.getVersion()，即 package.json version）
+  // 标题栏展示后者、前者降为悬停提示；关于页两者都显示（基线另经 status 取）。
   const baseVersion = resolveDshBaseVersion()
-  const versionScript = `<script>window.__DSH_BASE_VERSION__ = ${JSON.stringify(baseVersion)}</script>`
+  const versionScript = `<script>window.__DSH_BASE_VERSION__ = ${JSON.stringify(baseVersion)};window.__DSH_APP_VERSION__ = ${JSON.stringify(app.getVersion())}</script>`
   // 0.1.2 自持传输载波：官方 client-connection 的 apply() 读 `window.__DSH_TRANSPORT__`
   // 选传输。必须在 plugin boot 前把桌面 IPC 传输装成页面全局（对齐官方 worker-preview
   // 的 connectWorkerHost 形态），官方 createWebConnectionRpc 自动装配 ctx.connection。
