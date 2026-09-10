@@ -351,6 +351,7 @@
 26. **分阶段替换 UI 的「可后置」判据 = 是否唯一交互入口，不是视觉复杂度**：把某个槽位实现成 `return null` 是合法渲染、静态门禁全绿，却可能锁死整条下游链（本例 picker ⇒ 无 session ⇒ 官方输入框判 `inert` 置灰）。唯一入口类控件必须与服务接管同批落地；验收要顺依赖链看到最终用户动作，别只看本槽位是否渲染（坑 35）。
 27. **用 `vm` 沙箱单测浏览器 bundle 时，`deepStrictEqual` 对跨 realm 对象必误报**：`node:assert/strict` 的 `deepEqual` 会把 vm realm 的对象与宿主 realm 的字面量判「same structure but not reference-equal」，连空数组 `[]` 都不放过（Array/对象原型主 realm 不同）。解法：断言别用 deepEqual 比较跨 realm 数组/对象——改投影为基本值逐字段 `assert.equal(arr.length, n)` + `arr[i].field === x`。仅当 bundle 导出的是**基本值**时方可整体深比（W2 派生层单测教训，`test/workspace-tree.test.cjs`）。
 28. **沙箱内跑 Electron（启动/打包）先看输出尾部，不要先看错误头**：拦截是环境坑但会以业务错误形态出现（`loader entries failed to apply` / 打包中途卡死），真正的根因永远在最后一行 `TRAE Sandbox Error: hit restricted` 的「被拒路径」里。被拒路径落在工作区外（数据目录 `$DSH_HOME`、IME 日志、系统色彩配置、`AppData` 缓存）→ 直接授权沙箱外运行或加白名单放行，**改代码是空转**（坑 0 / 38 / 42）。
+29. **判断「某个 agent 预设实际看到什么」要按注册表作用域推，不能按预设声明推**：`dsh-tools` / `dsh-system-prompt` 一律「全局层（宿主平面 root 注册）+ scope 链（预设/子 agent）」**并集**解析，预设自有声明只能影子遮蔽**同名项**，全局层里的**其它**项照样进请求；宿主 roster 抄官方时必须连官方 profile 的 `disabled` 关停表一起抄（坑 53）。计量证据双读：本地 `contextBreakdown`（system/tools/message 估算）+ 模型侧真实 `tokenUsage`（`uncached + cacheRead`），两者差一个量级就是泄漏信号；`$DSH_HOME/storages/session_projcache/sessions/*.json` 是免解压的第一现场。
 
 ## 结论
 
@@ -647,3 +648,23 @@
   2. 一个服务方法被多种来源共用（页面按钮 / 托盘菜单 / 定时器）时，必须携带**来源语义**，否则"该出声的"与"该安静的"无法分流。
   3. 通知策略要按**焦点状态**去重：窗口在前台时页内提示已足够，再弹系统通知就是噪音；窗口在后台时通知才是唯一出口。
   4. 排查"没有反馈"类问题，先列 **入口 × 可见面** 矩阵 —— 缺口往往落在组合的交叉格里（本次是「托盘入口 × 未打开关于页」）。
+
+## 坑 53：宿主平面 roster 未对齐官方 web profile 的关停表 → 极简模式照样带着整套工具目录，每轮白烧数千 token
+
+- **现象**：同一台机器、同一个 `$DSH_HOME`、同一个模型（`deepseek-official/deepseek-v4-flash`），官方客户端极简模式一轮「本轮用量」≈ 400 tok，DSH Forge 桌面客户端极简模式一轮却报 **6,264 tok**（未缓存 240 + 缓存读取 6,016 + 输出 8，缓存命中 96.2%）。用户体感"都是极简模式，为什么我的客户端这么贵"。归档证据：`$DSH_HOME/storages/session_projcache/sessions/*.json` 里 `agentPreset = minimal` 而 `contextBreakdown.toolsTokens` 与真实 `tokenUsage` 相差一个量级；同一批会话中 `standard` 的 `toolsTokens = 6905`，而官方极简应为**一个持久 shell 工具（约 195 tok）**。
+- **根因**（五层叠加）：
+  1. `@deepseek-ai/dsh-base/cordis.patch.yml` 是**宿主平面**官方 roster，把模型可见能力全部注册在 root context：`tool-pwsh` / `tool-fs` / `tool-fs-search` / `tool-jobs` / `tool-skill` / `skill-filesystem` / `tool-goal` / `tool-todo` / `tool-ralph` / `tool-web` / `tool-subagent`(×4) / `tool-workflow` / `workflow-worker-thread` / `agent-instructions` / `plan-mode` / `compaction-basic` / `command-compact` / `tool-result-pruner`。
+  2. 官方 web profile（`@deepseek-ai/dsh-web-app/cordis.patch.yml`）**逐行 `disabled: true` 把它们摘掉**，改由 agent 预设的 `agent.cordis.yml` 各自声明（四个 shipped 预设 standard / ptc / cordis / minimal 都自带完整工具行）。桌面 `boot.ts` + `desktop-patch.yml` 当初只对齐了 web **传输层**（webserver / web-runtime / modules / client-* ),这 23 行**一条没关**。
+  3. 语义依据：`dsh-tools` 的 `view(scope)` = **全局层 + scope 链**（`ScopedLayers.chainLayers` + `this.layers.global.tools.entries()`）。预设注册只能影子遮蔽**同名**工具，**挡不住全局层里的其它工具**；全局层不带 scope，对所有 agent（含极简）可见。
+  4. 极简预设把 persona 标 `complete: true` **只裁「提示词文本段落」**——`dsh-system-prompt` 里 `sections` 塌缩成 `[completeSection]`，但 `assembly.tools` 照旧 `orderTools()` 收集 → 工具目录不受 `complete` 影响，这正是它能穿透"极简"的机制缝隙。
+  5. 同理 `agent-instructions`（`maxBytes: 65536`）也是全局注入，极简模式本不该带工作区指令文件。
+- **解法**：
+  - `boot.ts` 新增 **§3b**（`desktop-patch.yml` 同步为参考文档）：照官方 web profile 的关停表逐行 `{ id, disabled: true }`，共 24 行 = 官方 23 行 + 桌面遗留 `tool-str-replace-editor`（官方 base / web / 四个 shipped 预设均无此工具，属 rc.x 时代残留）。四个预设自带工具行，故能力零损失。
+  - 删除仓库自带的裁剪预设 `resources/agent-presets/standard/`：`includeShippedRoot` 默认 `true`、shipped 根排在 `config.roots` **之前**、且「同名 id 前一个根赢」→ 这份与官方同名的副本**从未生效**（运行时一直是官方 standard），只会制造"以为在跑自有预设"的错觉。预设来源从此 = shipped 根 + `$DSH_HOME/.agent-presets`（用户根），与官方一致；桌面自有扩展根（`dist/resources/agent-presets`，默认空目录）保留，`scanRoot` ENOENT → `[]` 属官方合法部署态。
+  - `main.ts` 3.5 步「扫描为空」报错文案由 `dist/resources/agent-presets` 改指 shipped 根，避免误导排查方向。
+  - 新增 §7.3 拴合面行：上游升级时必须重跑官方两份 patch 的 diff，同步增删本清单（漏对齐不报错、只烧 token）。
+- **复盘要点**：
+  1. **抄官方 roster 必须连它所在 profile 的关停表一起抄**：官方结构是「base insert + 本 profile 的 disabled 覆盖」；只抄 insert 等于把官方已下线的能力全留在宿主平面。
+  2. **注册表类服务的作用域可见性是「并集」不是「覆盖」**：预设声明只管自己，判"某预设实际看到什么"要按 `view(scope) = global + 链` 推，不能按"预设声明了哪些"推。
+  3. **判据要双读**：本地 `contextBreakdown`（估算）vs 模型侧 `tokenUsage`（真实），差一个量级即泄漏信号；缓存命中率高只代表"便宜"，不代表"小"。
+  4. **同名资源 id 的遮蔽是静默的**：`dsh-agent-presets` root 顺序（shipped → config.roots → user）+ "前一个根赢"会让仓库自带同名副本变死代码——"改了没生效"先查优先级，再查代码。

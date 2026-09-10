@@ -281,3 +281,12 @@
 - 修复：`dsh-ui-protocol.ts` 注入语句加 `window.__DSH_APP_VERSION__ = app.getVersion()`（与基线合成同一 `<script>`）；`desktop-titlebar-client.js` 的 `.dsh-desktop-titlebar-brand-version` 改读它并显示 `v0.1.1-alpha.8`，上游基线降为悬停 `title`（信息不丢）；关于页两者仍并存
 - 取舍：走协议层同步注入而非 `desktopBridge.updater.getStatus()` 异步取 —— 标题栏要首帧即有值，异步会闪
 
+### #21 · 极简模式 token 用量远高于官方客户端（用户报障：同一 `$DSH_HOME`、同模型，官方 ≈400 tok/轮 vs 桌面 ≈6,264 tok/轮）
+
+- 环境：安装版（`$DSH_HOME = C:\Users\Administrator\.dsh`，`settings.yaml` 的 `agent-presets.default = minimal`）；对照 = 官方客户端同一 home 的极简模式会话
+- 第一现场：`$DSH_HOME/storages/session_projcache/sessions/*.json` —— `agentPreset = minimal` 的会话里，本地 `contextBreakdown.toolsTokens`（195）与模型侧真实 `tokenUsage`（未缓存 240 + 缓存读取 6,016）相差一个量级；同批 `standard` 会话 `toolsTokens = 6905`
+- 根因（坑 53）：桌面宿主 roster 抄了官方 `dsh-base` 的**全量 insert**（含模型可见工具行），却只对齐了官方 web profile 的**传输层** disabled，漏掉它的 **23 行「模型可见」关停表**；`dsh-tools` 的 `view(scope) = 全局层 + scope 链`，全局层残留项会渗进**所有**预设，极简模式也不例外（`persona.complete` 只裁提示词段落，管不到工具目录）
+- 状态：**fixed（2026-09-10 · 坑 53）· 待实机验证**
+- 修复：`boot.ts` 新增 §3b 24 行 `disabled`（官方 23 行 + 桌面遗留 `tool-str-replace-editor`），`desktop-patch.yml` 同步为参考文档；删除**从未生效**的 `resources/agent-presets/standard/`（与官方同名 id，被 shipped 根永久遮蔽），预设来源回归 shipped 根 + `$DSH_HOME/.agent-presets`；`main.ts`「扫描为空」文案改指 shipped 根；拴合面登记 `upstream-contracts` §6 / §7.3
+- 验证点：极简模式开新会话发一句话 →「本轮用量」应回落到 ~400 tok 量级；标准模式能力不回归（子代理 / 工作流 / 技能 / 计划照旧）
+

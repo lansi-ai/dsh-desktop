@@ -63,7 +63,7 @@
 
 | 资源 | dev 路径 | 打包路径（asar 内） |
 |---|---|---|
-| agent-presets roots | `dist/resources/agent-presets`（boot.ts `join(__dirname,'..','resources',...)`） | `\dist\resources\agent-presets`（M4-a1 核验） |
+| agent-presets roots | shipped 根（`node_modules/@deepseek-ai/dsh-agent-presets/presets`，包内只读 system）+ 桌面扩展根 `dist/resources/agent-presets`（默认空目录，ENOENT → `[]`） | asar 内 `@deepseek-ai/dsh-agent-presets/presets` |
 | 官方 web-frontend dist | `node_modules/@deepseek-ai/dsh-web-frontend/dist`（dsh-ui:// 直读） | asar 内同路径 |
 | RUNTIME_ROOT | `<repo>/.runtime` | `<系统 userData>/.runtime`（app.isPackaged 分流） |
 | 用户可写预设根 | `dshHomePath('.agent-presets')`（includeUserRoot 默认追加） | 同左 |
@@ -111,6 +111,7 @@
 | `boot-graph.ts` `LAYOUT_SKELETON_CSS` | 官方 `html,body,#root{height:100%}`、`#root` 挂载点 | 🔴 高 | 官方 #root 尺寸/挂载规则是否变；我们要的 `position:fixed` 锚定是否仍能赢（坑 19） |
 | `boot-graph.ts` `CLIENT_EXCLUDE_IDS` | 官方被排除包（2026-09-07 现状 8 项）：`ui-layout` / `ui-sidebar` / `ui-directory-picker-browse` / `dsh-client-hmr` / `dsh-cordis-client-runner` / `dsh-client-ui-cordis` / `dsh-session-log-export`（仅 client 半） / `ui-settings-general` / **`ui-workspace`（M6-P3 W1，本表 §7.1 末行五项接管面）** | 🔴 高 | 升级是否新增互斥包；排除清单是否需更新；**逐条确认被排除包对外提供的服务/全局贡献是否已由自有件接管**（ui-workspace 的 `uiWorkspace` 服务即此类隐性连坐，见 §2 该行）；同文件多处编辑须串行 + dist 产物 grep 反查（坑 18） |
 | `dsh-ui-protocol.ts` `injectBootManifest` | 官方 index.html 结构（`</head>` 注入点） | 🟡 中 | 官方 index.html 挂载结构是否变（若自建根容器须此处插入） |
+| `boot.ts` §3b 宿主平面 `disabled` 清单（父/宿主 roster，坑 53） | 官方 **`dsh-base/cordis.patch.yml`**（把模型可见行注册在宿主平面）+ **`dsh-web-app/cordis.patch.yml`**（逐行 `disabled` 交回 agent 预设）；依据 = `dsh-tools` 的 `view(scope)` = 全局层 + scope 链（预设只能影子覆盖同名，屏蔽不掉全局层其它工具） | 🔴 高 | 上游升级后重跑 `npm run upstream:assess` 并逐条 diff 这两份官方 patch：① 官方是否新增/删除「模型可见行」（工具、`agent-instructions`、`plan-mode`、compaction 段）→ 本清单须同步增删；② 官方是否把某行重新搬回宿主平面；③ 漏对齐的后果 = 该行从全局层渗进**所有**预设（含极简模式），每轮白烧数千 token 且不报错（本清单 2026-09-10 按 0.1.5-alpha.2 对齐） |
 
 ### 7.4 升级逐条核查 SOP（M4-d 必执行）
 
