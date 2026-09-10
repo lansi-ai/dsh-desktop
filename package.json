@@ -1,7 +1,7 @@
 {
   "name": "dsh-forge",
   "productName": "DSH Forge",
-  "version": "0.1.1-alpha.8",
+  "version": "0.1.1-alpha.9",
   "description": "DSH Forge — 把桌面操作系统锻造成 DeepSeek Harness 可插拔能力层的桌面客户端（Electron 主进程内嵌 Cordis Host，零端口 IPC 载波，官方 Web UI 复用主面）",
   "main": "dist/desktop-shell/main.js",
   "private": true,
