@@ -425,6 +425,88 @@
   disabled: true
 
 # ═══════════════════════════════════════════════════════════════════════════
+# §3b 对齐官方 web profile：模型可见能力归 agent 预设所有（坑 53）
+# ═══════════════════════════════════════════════════════════════════════════
+# dsh-base 把工具 / 指令注入 / plan-compaction 段注册在宿主平面；官方 web profile
+# （dsh-web-app/cordis.patch.yml）逐行 disabled，改由 agent 预设的 agent.cordis.yml 声明。
+# dsh-tools 的 view(scope) = 全局层 + scope 链：预设只能影子覆盖同名工具，屏蔽不掉
+# 全局层其它工具 → 宿主平面残留行会渗进所有预设（含极简模式）。
+# 运行时权威值 = boot.ts DESKTOP_OVERLAY_PATCHES（此处为参考文档，两者必须同步）。
+
+- id: tool-bash
+  disabled: true
+
+- id: tool-pwsh
+  disabled: true
+
+- id: tool-jobs
+  disabled: true
+
+- id: tool-fs
+  disabled: true
+
+- id: tool-fs-search
+  disabled: true
+
+- id: skill-filesystem
+  disabled: true
+
+- id: tool-skill
+  disabled: true
+
+- id: command-goal
+  disabled: true
+
+- id: tool-goal
+  disabled: true
+
+- id: plan-mode
+  disabled: true
+
+- id: compaction-basic
+  disabled: true
+
+- id: command-compact
+  disabled: true
+
+- id: tool-result-pruner
+  disabled: true
+
+- id: tool-subagent-control
+  disabled: true
+
+- id: tool-subagent-list-agents
+  disabled: true
+
+- id: tool-subagent
+  disabled: true
+
+- id: tool-subagent-fork
+  disabled: true
+
+- id: workflow-worker-thread
+  disabled: true
+
+- id: tool-workflow
+  disabled: true
+
+- id: tool-ralph
+  disabled: true
+
+- id: agent-instructions
+  disabled: true
+
+- id: tool-todo
+  disabled: true
+
+- id: tool-web
+  disabled: true
+
+# 桌面遗留行：官方 base / web / 四个 shipped 预设均无此工具，对齐官方一并禁用。
+- id: tool-str-replace-editor
+  disabled: true
+
+# ═══════════════════════════════════════════════════════════════════════════
 # §4 桌面特定补丁（IPC 载波占位 + desktop 元数据）
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -446,7 +528,9 @@
 
 # 预置 roster。name 必须指向 dsh-agent-presets 插件：缺 name 时插件不加载，
 # host 侧无 agentPresets 域 → 官方设置面板 agent 预设 section 空白。
-# roots 指向仓库随附的裁剪预设（仅用已在 package.json 声明的 @deepseek-ai 插件）。
+# 预设来源与官方一致：shipped 根（包内 presets/）+ $DSH_HOME/.agent-presets（用户根）；
+# 仓库不再随附与官方同名的裁剪预设（shipped 根优先，副本必被遮蔽，见坑 53）。
+# roots 仅保留桌面自有扩展根（默认空目录，扫描 ENOENT 返回 [] 属合法部署态）。
 # 运行时权威值为 boot.ts buildPatches()（此处为参考文档）。
 - id: agent-presets
   name: '@deepseek-ai/dsh-agent-presets'

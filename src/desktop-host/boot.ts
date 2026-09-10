@@ -312,6 +312,42 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   // createSharedFetchHandler，是桌面传输背板的核心）；client-runtime 已删（无此行）。
   // 历史补丁条目（getIpcCarrierPatchEntries）已废弃，见 manifest.ts。
 
+  // ── §3b 对齐官方 web profile：模型可见能力归 agent 预设所有（坑 53）────────
+  // dsh-base 把「模型可见」行（工具 / 指令注入 / plan-compaction 段）注册在宿主平面，
+  // 官方 web profile 逐行 disabled 掉，改由 agent 预设的 agent.cordis.yml 各自声明。
+  // 依据：dsh-tools 的作用域解析 = 全局层 + scope 链（`view(scope)` 先取 global 层），
+  // 预设只能「影子覆盖」同名工具，无法屏蔽全局层的其它工具 → 宿主平面残留的每一行
+  // 都会渗进所有预设（含极简模式），每轮多出数千 token。
+  // 桌面此前只对齐了 web 传输层，未对齐本节 → 极简模式也会继承 fs/skill/goal/todo/
+  // web/subagent/workflow/ralph 等整套目录（官方极简只应有一个持久 shell 工具）。
+  // 对照：官方 dsh-web-app/cordis.patch.yml 同名 disabled 清单。
+  { id: 'tool-bash', disabled: true },
+  { id: 'tool-pwsh', disabled: true },
+  { id: 'tool-jobs', disabled: true },
+  { id: 'tool-fs', disabled: true },
+  { id: 'tool-fs-search', disabled: true },
+  { id: 'skill-filesystem', disabled: true },
+  { id: 'tool-skill', disabled: true },
+  { id: 'command-goal', disabled: true },
+  { id: 'tool-goal', disabled: true },
+  { id: 'plan-mode', disabled: true },
+  { id: 'compaction-basic', disabled: true },
+  { id: 'command-compact', disabled: true },
+  { id: 'tool-result-pruner', disabled: true },
+  { id: 'tool-subagent-control', disabled: true },
+  { id: 'tool-subagent-list-agents', disabled: true },
+  { id: 'tool-subagent', disabled: true },
+  { id: 'tool-subagent-fork', disabled: true },
+  { id: 'workflow-worker-thread', disabled: true },
+  { id: 'tool-workflow', disabled: true },
+  { id: 'tool-ralph', disabled: true },
+  { id: 'agent-instructions', disabled: true },
+  { id: 'tool-todo', disabled: true },
+  { id: 'tool-web', disabled: true },
+  // 桌面遗留行：官方 dsh-base / dsh-web-app / 四个 shipped 预设均无此工具，
+  // 属旧基线残留（rc.x 时代的宿主平面条目），对齐官方一并禁用。
+  { id: 'tool-str-replace-editor', disabled: true },
+
   // ── §4 桌面特定条目（storage + agent-presets）────────────────────────────
   // storage-json: workspace 域数据跟随 $DSH_HOME（与官方 dshHomePath('storages') 同义）；
   // 未就绪时回退运行时数据根（R7 硬编码已收口，见 userDataRoot()）。
@@ -328,7 +364,11 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'storage', name: '@deepseek-ai/dsh-storage' },
       { id: 'storage-json', name: '@deepseek-ai/dsh-storage-json', config: { root: join(userDataRoot(), 'storages') } },
       { id: 'storage-domain', name: '@deepseek-ai/dsh-storage-domain', config: { backend: 'json' } },
-      // roots 指向仓库随附的裁剪预设（仅用已装插件，避免缺依赖导致 mount 失败）。
+      // 预设来源与官方完全一致：shipped 根（dsh-agent-presets 包内 presets/，system 只读）
+      // + $DSH_HOME/.agent-presets（用户根）。includeShippedRoot 默认 true，且 shipped 根
+      // 排在 config.roots 之前、「同名 id 前一个根赢」——因此仓库自带一份与官方同名的
+      // 裁剪 standard 只会被永久遮蔽（跑的是官方 standard），故已随本轮对齐删除。
+      // 保留 roots 这一行为桌面自有扩展根（默认空目录），扫描 ENOENT 返回 [] 属合法部署态。
       {
         id: 'agent-presets',
         name: '@deepseek-ai/dsh-agent-presets',

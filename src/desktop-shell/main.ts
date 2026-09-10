@@ -409,7 +409,9 @@ async function bootstrap(): Promise<void> {
           `[dsh-boot] Agent 预设扫描：${scanned.length} 个 [${scanned.map((p) => p.id + (p.broken !== undefined ? '(broken)' : '')).join(', ')}]`,
         )
         if (scanned.length === 0) {
-          log.error('[dsh-boot] Agent 预设扫描结果为空——设置页将为纯空白，请检查构建产物 dist/resources/agent-presets')
+          log.error(
+            '[dsh-boot] Agent 预设扫描结果为空——设置页将为纯空白，请检查 dsh-agent-presets 包内 shipped 预设根（node_modules/@deepseek-ai/dsh-agent-presets/presets）',
+          )
         }
       }
     } catch (error) {
