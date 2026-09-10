@@ -108,8 +108,8 @@
       <h2>🎯 当前迭代目标</h2>
       <p><strong>阶段：</strong><b>M3 代码全部完成</b>（2026-08-26）→ <b>M6 全量自绘 UI 主线（D-20 · ADR-006）</b>；M3-b4 dogfood 进行中（= M3 收尾门禁，不阻塞自绘）；M4 分发整体延后，重启时机 = 自绘可日常使用。</p>
       <p><strong>M6 主线：</strong>逐槽位替换官方 <code>ui-*</code>（P1 骨架 ✅ → P2 外壳 → P3 侧栏 → P4 对话区 → P5 过程可视化 → P6 设置底座），每阶段可用可验证；数据面零新增（IPC 载波 + desktopBridge）。</p>
-      <p><strong>上游基线：</strong><code>dsh-v0.1.2-rc.1</code>（每日 02:00 北京时间定时任务跑 <code>npm run upstream:auto</code>；<strong>新版判据源 = GitHub releases</strong>，npm 仅作「是否可安装」校验，判定 safe 才动；升级后台账人工同步硬约束见 workflow.md 场景 D）。</p>
-      <p><strong>上游待办（pending）：</strong><code>dsh-v0.1.3-alpha.1</code>（2026-09-04 19:34 已 release）<strong>npm 未发行 → 装不了</strong>；预评 <strong>REVIEW</strong>（S2 载波 4 文件 / S3 <code>app-boot/index.ts</code> / ui-primitives·conversation·theme·chat 契约 / 官方 roster 新增 <code>dsh-client-file-upload</code>），且含破坏性变更（SessionHandle、<code>agentLoop.create()</code> 转异步、session 锁、session format v2）。npm 发行后人工对照适配，禁 auto 硬升（坑 31）。</p>
+      <p><strong>上游基线：</strong><code>dsh-v0.1.5-alpha.1</code>（2026-09-09 人工适配升级，跨 0.1.3/0.1.4/0.1.5 三线一次吃下；每日 02:00 北京时间定时任务跑 <code>npm run upstream:auto</code>；<strong>新版判据源 = GitHub releases</strong>，npm 仅作「是否可安装」校验，判定 safe 才动；升级后台账人工同步硬约束见 workflow.md 场景 D）。</p>
+      <p><strong>上游待办（pending）：</strong>无（原 <code>0.1.3-alpha.1</code> pending 随 C-5 升级一并跨越收口）；下一版本出现时按预评→人工对照流程，破坏性变更禁 auto 硬升（坑 31）。</p>
     </div>
 
     <!-- 02. 看板 -->
@@ -122,7 +122,7 @@
         <li class="task-item done"><span class="status-icon">[x]</span><span>M3-c 布局/标题栏/骨架宿主化 ✅（= M6-P1，2026-09-01 实机验证）</span></li>
         <li class="task-item deferred"><span class="status-icon">⏸</span><span>M3-a4 命令面板 + M3-a5 多窗口验证 ⏸️ 用户决策挂起（Ctrl+K 已隐藏；恢复 = revert <code>desktop-cmdpalette-client.js</code> 禁用壳）</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span>M4-a1 electron-builder 基建 ✅；v0.1.1-alpha.1~alpha.3 Win/mac 安装包发布 ✅；<strong>v0.1.1-alpha.4 发布 ✅（2026-09-08 · CI win+mac 双平台自动构建并上传 GitHub Releases pre-release；坑 41：资产名对齐 latest.yml path 后自动更新链路匿名 HEAD 200 验证）</strong>；<strong>v0.1.1-alpha.5 发布（2026-09-09 · 首载 M4-a4 数据目录分层/DSH Forge 命名/规则收敛，tag 推 CI 双平台构建）</strong>（打包链坑见 <code>docs/pitfalls.md</code>）</span></li>
-        <li class="task-item done"><span class="status-icon">[x]</span><span>M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>）→ alpha.4 → alpha.5（<code>scripts/upstream.cjs</code> 自动化首跑）→ rc.1（首次跨 next 线）；全部零破坏性变更，登记 <code>docs/upstream-migrations.md</code> C-1~C-4</span></li>
+        <li class="task-item done"><span class="status-icon">[x]</span><span>M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 <code>docs/m4-d3-012-alpha3-migration-plan.md</code>）→ alpha.4 → alpha.5（<code>scripts/upstream.cjs</code> 自动化首跑）→ rc.1（首次跨 next 线）→ <strong>0.1.5-alpha.1（2026-09-09 人工适配 · C-5：rightbar 契约 + 官方新增 9 包全装 + boot.ts 3 host 行 + workspaces state/owningGroupKey，typecheck/lint/build/17 单测/图谱 61 条目全绿）</strong>；登记 <code>docs/upstream-migrations.md</code> C-1~C-5</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span>M4-d6 工具修正 ✅（2026-09-07）：<code>check</code> 判据源 npm dist-tags → <strong>GitHub releases</strong>（npm 降级为可安装校验，新增 pending 三态），修「连续 3 天漏检 0.1.3-alpha.1」，见坑 31 / ADR-005 第 6 条</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>M4-a4 数据目录分层 ✅（2026-09-09 · ADR-008）</strong>：sessions/storages/themes/icons/window-state 归位 <code>$DSH_HOME</code>（幂等迁移，失败保持原位）+ 应用命名统一 <code>DSH Forge</code>（旧设备目录/旧注册表键自动迁移）+ 卸载删除路径安全校验 + <code>--data-dir</code> 与注册表种子；typecheck/lint/29 单测/build 全绿 + <strong>实机验证通过（2026-09-09）</strong></span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span>规则目录收敛 ✅（2026-09-09）：规则唯一来源 = <code>.trae/rules/</code>（6 文件，含 <code>rtk-usage.md</code>）并入 git 跟踪（<code>.gitignore</code> 加例外），陈旧副本 <code>.rules/</code> 已删（历史留 git）</span></li>
@@ -137,7 +137,7 @@
       <ul class="task-list">
         <li class="task-item todo"><span class="status-icon">[ ]</span><span>全量回归（M1+M2+M3 全链）+ <code>netstat</code> 零监听再验证 + 崩溃恢复/多窗口组合测试（多窗口仅验「不崩不干扰」）</span></li>
         <li class="task-item todo"><span class="status-icon">[ ]</span><span><strong>待实机点验（2026-09-04 批次）</strong>：外观 section V2（#8）· 图标需求清单+新建包（#9）· 图标光学归一（#10）· 标题栏图标主题化（#11）· 全局图标分层 D-23（#12）· 工作区图标槽位 4 项（搜索/视图选项/新建/文件夹两态；<code>ICON_SLOTS</code> 增 match 官方 path 特征，上传自动并写包内 ui-overrides.json，ui-icons 覆盖层升级 themeIcon 内联上色 + img 兜底）</span></li>
-        <li class="task-item todo"><span class="status-icon">[ ]</span><span>上游 0.1.2 系列实机冒烟随 dogfood 合并观察（重点：session 域重构后对话流/历史分页/审计无回归；rc.1 首次跨线验 UI 发行物装载与 roster 装配）</span></li>
+        <li class="task-item todo"><span class="status-icon">[ ]</span><span>上游 0.1.5-alpha.1 实机冒烟随 dogfood 合并观察（重点：rightbar 面板呈现/拖拽、文件上传流式路由经 IPC 载波、0.1.3 系 session 域重构后对话流/历史分页/审计无回归）</span></li>
         <li class="task-item done"><span class="status-icon">[x]</span><span><strong>#15 安装版无法聊天 ✅（2026-09-09 · 坑 45）</strong>：根锚点 cordis.yml 移入 asar（copy-web 生成 <code>dist/cordis.yml</code> + boot 打包分支改 <code>app.getAppPath()/dist/cordis.yml</code>），win-unpacked 实机验证预设 4 个无 broken + <code>session/prompt</code> 通 + 会话落盘；<strong>待发 alpha.6 方可到达存量安装版</strong></span></li>
         <li class="task-item sub"><span class="status-icon">ℹ</span><span>问题登记 <code>docs/dogfood-issues.md</code>（跨会话移交锚点，新会话按 #N 直取）；排障 <code>$env:DSH_VERBOSE='1'</code></span></li>
       </ul>
@@ -180,9 +180,9 @@
     <!-- 04. 即时行动 -->
     <div class="card highlight-box">
       <h2 style="border:none; padding:0; margin-bottom:8px; color: var(--accent);">⚡ 下一步即时行动</h2>
-      <p style="margin:0;"><strong>当前焦点</strong>：v0.1.1-alpha.5 已发布（2026-09-09 · tag 推 CI 双平台构建 pre-release，首载 M4-a4 数据目录分层/DSH Forge 命名/规则收敛）；主线 M6-P2 外壳小件 <code>@lansi-ai/dsh-desktop-brand</code>（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底。</p>
+      <p style="margin:0;"><strong>当前焦点</strong>：上游基线已升 <code>dsh-v0.1.5-alpha.1</code>（2026-09-09 · C-5 人工适配：rightbar 契约 + 官方新增 9 包全装 + boot.ts 3 host 行 + workspaces state/owningGroupKey）；主线 M6-P2 外壳小件 <code>@lansi-ai/dsh-desktop-brand</code>（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底。</p>
       <p style="margin:4px 0 0 0;"><strong>数据面（2026-09-09 已收口）</strong>：ADR-008 数据根分层落地——用户数据跟随 <code>$DSH_HOME</code>、设备目录只剩指针+Chromium 缓存+审计；实机验证通过（首启选目录、会话落 home、重启历史可读、旧 <code>dsh-desktop</code> 目录自动更名）。</p>
-      <p style="margin:4px 0 0 0;"><strong>日常</strong>：dogfood 问题按 <code>docs/dogfood-issues.md</code> #N 直取；上游升级 <code>npm run upstream:auto</code>（每日 02:00 自动，<strong>判据源=GitHub releases</strong>；升级成功后按脚本打印的 <code>[TODO] 台账待人工同步</code> 清单收口）。当前上游 pending：待 <code>0.1.3-alpha.1</code> 上 npm 后先 <code>assess</code> 再人工适配，勿硬升。</p>
+      <p style="margin:4px 0 0 0;"><strong>日常</strong>：dogfood 问题按 <code>docs/dogfood-issues.md</code> #N 直取；上游升级 <code>npm run upstream:auto</code>（每日 02:00 自动，<strong>判据源=GitHub releases</strong>；升级成功后按脚本打印的 <code>[TODO] 台账待人工同步</code> 清单收口）。当前上游基线 0.1.5-alpha.1 待实机冒烟；新版出现时按预评→人工对照流程，破坏性变更禁 auto 硬升。</p>
       <p style="margin:4px 0 0 0;"><strong>按需查阅台账</strong>：<code>docs/pitfalls.md</code>（坑 1~N 排障档案）· <code>docs/dogfood-issues.md</code>（dogfood 现场）· <code>docs/upstream-contracts.md</code>（拴合面速查 + 升级 SOP）· <code>docs/upstream-migrations.md</code>（升级台账 C 区）· <code>docs/11-risks.md</code>（风险全录）· <code>docs/adr/</code>（架构决策全文）。</p>
       <p style="margin:4px 0 0 0; color:#b45309;"><strong>⚠️ 环境红线（省 token 用）</strong>：<code>npm start</code> / <code>npm run dev</code> / <code>npm run dist</code> 在<strong>沙箱内必失败</strong>——运行时数据目录 <code>E:\Projects\DSHPath</code>（凭据 <code>.lock</code> / 搜索索引 <code>-shm</code>）与 <code>AppData</code> 缓存在工作区外；表现可能是业务错误壳（如 <code>loader entries failed to apply</code>），<strong>先看输出尾部 <code>TRAE Sandbox Error</code> 再动手</strong>，直接授权沙箱外运行即可；<code>git push</code> 报 <code>unable to write credential store</code> 属伪失败（推送已完成，坑 44）。见坑 0 / 38 / 42 / 44。</p>
     </div>

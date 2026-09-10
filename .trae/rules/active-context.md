@@ -11,8 +11,8 @@ alwaysApply: true
 ## 01. 当前迭代目标 (Current Sprint Goal)
 - **阶段**：M3 代码全部完成（2026-08-26）→ **M6 全量自绘 UI 主线（D-20 · ADR-006）**；M3-b4 dogfood 进行中（= M3 收尾门禁，不阻塞自绘）；M4 分发整体延后，重启时机 = 自绘可日常使用
 - **M6 主线**：逐槽位替换官方 ui-*（P1 骨架 ✅ → P2 外壳 → P3 侧栏 → P4 对话区 → P5 过程可视化 → P6 设置底座），每阶段可用可验证；数据面零新增（IPC 载波 + desktopBridge）
-- **上游基线**：`dsh-v0.1.2-rc.1`（每日 02:00 北京时间定时任务跑 `npm run upstream:auto`；**新版判据源 = GitHub releases**，npm 仅作「是否可安装」校验，判定 safe 才动；升级后台账人工同步硬约束见 workflow.md 场景 D）
-- **上游待办（pending）**：`dsh-v0.1.3-alpha.1`（2026-09-04 19:34 已 release）**npm 未发行 → 装不了**；预评 **REVIEW**（S2 载波 4 文件 / S3 `app-boot/index.ts` / ui-primitives·conversation·theme·chat 契约 / 官方 roster 新增 `dsh-client-file-upload`），且含破坏性变更（SessionHandle、`agentLoop.create()` 转异步、session 锁、session format v2）。npm 发行后人工对照适配，禁 auto 硬升（坑 31）
+- **上游基线**：`dsh-v0.1.5-alpha.1`（2026-09-09 人工适配升级，跨 0.1.3/0.1.4/0.1.5 三线一次吃下；每日 02:00 北京时间定时任务跑 `npm run upstream:auto`；**新版判据源 = GitHub releases**，npm 仅作「是否可安装」校验，判定 safe 才动；升级后台账人工同步硬约束见 workflow.md 场景 D）
+- **上游待办（pending）**：无（原 `0.1.3-alpha.1` pending 随 C-5 升级一并跨越收口）；下一版本出现时按预评→人工对照流程，破坏性变更禁 auto 硬升（坑 31）
 
 ## 02. 任务看板 (Task Kanban · 滚动窗口)
 
@@ -21,7 +21,7 @@ alwaysApply: true
 - M3-c 布局/标题栏/骨架宿主化 ✅（= M6-P1，2026-09-01 实机验证）
 - M3-a4 命令面板 + M3-a5 多窗口验证 ⏸️ 用户决策挂起（Ctrl+K 已隐藏；恢复 = revert `desktop-cmdpalette-client.js` 禁用壳）
 - M4-a1 electron-builder 基建 ✅；v0.1.1-alpha.1~alpha.3 Win/mac 安装包发布 ✅；**v0.1.1-alpha.4 发布 ✅（2026-09-08 · CI win+mac 双平台自动构建并上传 GitHub Releases pre-release；坑 41：资产名对齐 latest.yml path 后自动更新链路匿名 HEAD 200 验证）**；**v0.1.1-alpha.5 发布（2026-09-09 · 首载 M4-a4 数据目录分层/DSH Forge 命名/规则收敛，tag 推 CI 双平台构建）**（打包链坑见 `docs/pitfalls.md`）
-- M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 `docs/m4-d3-012-alpha3-migration-plan.md`）→ alpha.4 → alpha.5（`scripts/upstream.cjs` 自动化首跑）→ rc.1（首次跨 next 线）；全部零破坏性变更，登记 `docs/upstream-migrations.md` C-1~C-4
+- M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 `docs/m4-d3-012-alpha3-migration-plan.md`）→ alpha.4 → alpha.5（`scripts/upstream.cjs` 自动化首跑）→ rc.1（首次跨 next 线）→ **0.1.5-alpha.1（2026-09-09 人工适配 · C-5：rightbar 契约 + 官方新增 9 包全装 + boot.ts 3 host 行 + workspaces state/owningGroupKey，typecheck/lint/build/17 单测/图谱 61 条目全绿）**；登记 `docs/upstream-migrations.md` C-1~C-5
 - M4-d6 工具修正 ✅（2026-09-07）：`check` 判据源 npm dist-tags → **GitHub releases**（npm 降级为可安装校验，新增 pending 三态），修「连续 3 天漏检 0.1.3-alpha.1」，见坑 31 / ADR-005 第 6 条
 - **M4-a4 数据目录分层 ✅（2026-09-09 · ADR-008）**：sessions/storages/themes/icons/window-state 归位 `$DSH_HOME`（幂等迁移，失败保持原位）+ 应用命名统一 `DSH Forge`（旧设备目录/旧注册表键自动迁移）+ 卸载删除路径安全校验 + `--data-dir` 与注册表种子；typecheck/lint/29 单测/build 全绿 + **实机验证通过（2026-09-09）**
 - 规则目录收敛 ✅（2026-09-09）：规则唯一来源 = `.trae/rules/`（6 文件，含 `rtk-usage.md`）并入 git 跟踪（`.gitignore` 加例外），陈旧副本 `.rules/` 已删（历史留 git）
@@ -61,7 +61,7 @@ alwaysApply: true
 ## 04. 下一步即时行动 (Next Immediate Actions)
 - **当前焦点**：M6-P2 外壳小件 `@lansi-ai/dsh-desktop-brand`（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底
 - **数据面（2026-09-09 已收口）**：ADR-008 数据根分层落地——用户数据跟随 `$DSH_HOME`、设备目录只剩指针+Chromium 缓存+审计；实机验证通过（首启选目录、会话落 home、重启历史可读、旧 `dsh-desktop` 目录自动更名）
-- dogfood 问题按 `docs/dogfood-issues.md` #N 直取；上游升级 `npm run upstream:auto`（每日 02:00 自动，**判据源=GitHub releases**；升级成功后按脚本打印的 `[TODO] 台账待人工同步` 清单收口）。当前上游 pending：待 `0.1.3-alpha.1` 上 npm 后先 `assess` 再人工适配，勿硬升
+- dogfood 问题按 `docs/dogfood-issues.md` #N 直取；上游升级 `npm run upstream:auto`（每日 02:00 自动，**判据源=GitHub releases**；升级成功后按脚本打印的 `[TODO] 台账待人工同步` 清单收口）。当前上游基线 0.1.5-alpha.1 待实机冒烟；新版出现时按预评→人工对照流程，破坏性变更禁 auto 硬升
 - **按需查阅台账**：`docs/pitfalls.md`（坑 1~N 排障档案）· `docs/dogfood-issues.md`（dogfood 现场）· `docs/upstream-contracts.md`（拴合面速查 + 升级 SOP）· `docs/upstream-migrations.md`（升级台账 C 区）· `docs/11-risks.md`（风险全录）· `docs/adr/`（架构决策全文）
 - ⚠️ **环境红线（省 token 用）**：`npm start` / `npm run dev` / `npm run dist` 在**沙箱内必失败**——运行时数据目录 `E:\Projects\DSHPath`（凭据 `.lock` / 搜索索引 `-shm`）与 `AppData` 缓存在工作区外；表现可能是业务错误壳（如 `loader entries failed to apply`），**先看输出尾部 `TRAE Sandbox Error` 再动手**，直接授权沙箱外运行即可；`git push` 报 `unable to write credential store` 属伪失败（推送已完成，坑 44）。见坑 0 / 38 / 42 / 44
 
