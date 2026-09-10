@@ -466,8 +466,9 @@ function createBrowserWindow(
     }
   })
 
-  // 加载官方 UI
-  void win.loadURL('dsh-ui://app/index.html')
+  // 加载官方 UI（入口 URL 携带启动版本 query，理由同 main.ts 主窗口：index.html 注入的
+  // __DSH_BOOT__ 图谱随磁盘包变化，恒定 URL 会命中 Chromium 启发式缓存的旧副本）
+  void win.loadURL(`dsh-ui://app/index.html?v=${String(Date.now())}`)
 
   // 会话窗口创建完成回调（main.ts 注入：附加骨架外观注入等宿主能力）
   options.onSessionWindowCreated?.(win)

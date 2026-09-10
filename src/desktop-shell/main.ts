@@ -305,7 +305,11 @@ function createWindow(): BrowserWindow {
   // 官方 dist 资源使用根绝对路径（/assets/...）。页面用固定虚拟 host dsh-ui://app 布局，
   // 使这些绝对路径解析为 dsh-ui://app/assets/...；resolveRelative 仅取 pathname 映射到
   // dist 根（R5 修复：空 host 会被 Electron 规范化为 dsh-ui://index.html/ 导致资源 404）。
-  void win.loadURL('dsh-ui://app/index.html')
+  // 入口 URL 另携启动版本 query：index.html 由协议动态注入 __DSH_BOOT__ 图谱，图谱内容随
+  // node_modules 磁盘状态变化（新增/移除 client 插件包即变）；URL 恒定会让 Chromium 复用
+  // 启发式缓存的旧副本 → 新增条目永不生效（2026-09-10 实机排查）。协议侧另有
+  // cache-control: no-store 双保险。
+  void win.loadURL(`dsh-ui://app/index.html?v=${String(Date.now())}`)
   return win
 }
 

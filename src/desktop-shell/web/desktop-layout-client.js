@@ -339,7 +339,10 @@ window.__ModuleLoader__.load({
                 key: 'center',
                 className: 'dsh-desktop-layout-center',
                 style: { gridColumn: 2 },
-                children: renderSlot('conversation', {}),
+                // 渲染 `main` 槽位（对齐官方 ui-layout 的 MainPanel）：entryKey 固定
+                // 'conversation'（桌面无 main keyed 面板切换机制），挂到官方 ui-conversation
+                // 注册时声明的 key 上。
+                children: renderSlot('main', {}, { entryKey: 'conversation' }),
               }),
               // rightbar 为轨道而非盒子：占用方面板绝对定位锚定列右缘，
               // 无轨道时悬于中央列上方；fullscreen 走 position:fixed 全视口覆盖。
@@ -578,11 +581,37 @@ window.__ModuleLoader__.load({
         presenter.apply(snapshot)
       })
 
+      // panelInfo root hook —— 官方 ui-layout 的 provideRoot 是它的唯一来源，被
+      // ui-sidebar-right 的 RightbarRoot / ui-layout 的 DocumentTitle·MainPanel 经
+      // usePanelInfo 消费（0.1.5 新增 rightbar 契约）。接管 root 槽位时必须一并补齐，
+      // 否则消费端解构到 undefined → 调用即 TypeError（实机 2026-09-10：
+      // "usePanelInfo is not a function" → rightbar 槽位条目崩溃）。
+      // 桌面布局直渲染 conversation 槽位（无官方 main keyed 面板机制），故 activePanelId
+      // 恒 null —— 语义 = 无面板占用会话区，右栏由占用方经 ctx.layout.openRightbar 上报呈现。
+      const panelInfoSnapshot = { activePanelId: null }
+      const disposePanelInfo = ctx.slots.provideRoot({
+        hooks: {
+          panelInfo: {
+            getSnapshot: () => panelInfoSnapshot,
+            subscribe: () => () => {},
+          },
+        },
+      })
+
       const disposeRegistration = ctx.slots.register({
         name: 'root',
         children: {
           'titlebar': { kind: 'single', scope: 'root' },
           'sidebar': { kind: 'single', scope: 'root' },
+          // `main` 必须按官方 ui-layout 的语义声明（keyed + root）：官方 ui-conversation 以
+          // `slots.inject("main", cb)` 等待该槽位、再注册 key='conversation' 的会话面板。
+          // 若本插件不声明它，ui-conversation 的注册会把它隐式带成 session-maybe scope →
+          // 未选中会话时槽位条目被卸载，其内注册者（ui-agent-preset 的 hero chip / header
+          // action）随会话状态反复重建、effect 重跑，踩进 Cordis 的 fiber 激活窗口 →
+          // `cannot get required service "sessions" in inactive context` 启动期刷屏。
+          // （定位实验 2026-09-10：临时换回官方 ui-layout 后该报错完全消失。）
+          'main': { kind: 'keyed', scope: 'root' },
+          // 桌面遗留槽位：保留声明以兼容可能的注册者（当前无消费方）。
           'conversation': { kind: 'single', scope: 'session-maybe' },
           'rightbar': { kind: 'single', scope: 'session' },
           'shell.overlay': { kind: 'list', scope: 'root' },
@@ -597,6 +626,7 @@ window.__ModuleLoader__.load({
       return () => {
         offThemeChange()
         presenter.dispose()
+        disposePanelInfo()
         disposeRegistration()
         disposeService()
       }

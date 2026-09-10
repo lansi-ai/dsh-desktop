@@ -75,6 +75,10 @@ const CLIENT_EXCLUDE_IDS = new Set([
   //   ui-agent-preset 四者永久 PENDING 且不报错（坑 15）。故自研件必须自己 provide 同名服务。
   // 仅排除 client 半；host 半 lib/index.js 本就是空 apply 且 boot.ts 未插该行，host 侧无连坐。
   '@deepseek-ai/dsh-client-ui-workspace',
+  // 注：0.1.5 官方 documentpreview（textpreview 换代包）**不入排除**——排查期曾临时排除，
+  // 因其 apply 内 `provide("documentPreviews")` 的异步 effect 未落地即被同步访问而报
+  // `cannot get property "documentPreviews" without inject`。该症状实为「main 槽位缺失
+  // 引发槽位抖动」（坑 48）的连带表现，补齐 main 槽位后自行恢复（2026-09-10 复测通过）。
 ])
 
 // ── 内部状态 ─────────────────────────────────────────────────────────

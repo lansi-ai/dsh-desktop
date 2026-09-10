@@ -350,7 +350,15 @@ export function registerDshUiProtocol(): void {
       const isIndex = rel.endsWith('index.html')
       const body = isIndex ? injectBootManifest(data.toString('utf8'), useDist) : data
       logVerbose('dsh-ui-protocol', `200 ${request.url} → ${rel} (${contentType})`)
-      return new Response(body, { headers: { 'content-type': contentType } })
+      // index.html 必须禁缓存：模板文件恒定，但注入的 __DSH_BOOT__ 图谱随 node_modules
+      // 磁盘状态变化（新增/移除 client 插件包即变）。Chromium 对自定义协议在无缓存头时
+      // 会启发式缓存 → 图谱永久停留在首次加载版本，新增插件条目永不生效。
+      // bundle 自身由 ?rev= 内容哈希破缓存，无需在此处理（排查实录 2026-09-10）。
+      return new Response(body, {
+        headers: isIndex
+          ? { 'content-type': contentType, 'cache-control': 'no-store, must-revalidate' }
+          : { 'content-type': contentType },
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       log.warn(`[dsh-ui-protocol] 404 ${request.url} (${message})`)

@@ -507,3 +507,45 @@
   1. 「同一份代码 dev 正常、打包版挂」的路径类差异，先画**每个 base/anchor 的解析链**（`ctx.baseUrl`、`__dirname`、`cwd`、`DSH_HOME`）在两种模式下的值，再对差异点。
   2. 上游包的"健康检查/不变量"用的是**字面磁盘查找**而非 import 解析——两条链路（import vs existsSync）可能基于不同 base，修好一条不代表另一条通。
   3. `userData`（AppData）是**孤岛目录**：任何依赖"向上找 node_modules"的上游逻辑都不能以它为锚；asar 内路径反而是 Electron patched fs 下合法的查找起点。
+
+## 坑 46：自研布局接管 root 槽位漏补官方 `panelInfo` root hook → rightbar 槽位条目崩溃（`usePanelInfo is not a function`）
+
+- **现象**：启动后 renderer 连续报 `TypeError: usePanelInfo is not a function (line 56, dsh-ui://app/assets/index-CIp0YSTs.js)`，紧接 `slot entry crashed in 'rightbar': TypeError: usePanelInfo is not a function (line 526, .../dsh-client-ui-renderer/client.js)`（SlotErrorBoundary 捕获并打印）；同一批次还伴随 agent-preset 的 `cannot get required service "sessions" in inactive context` 刷屏（后者为伴生噪音，见 dogfood #17）。全部 60 个 entry 均 ACTIVE、无任何 `pending/import failed` 报告，极具迷惑性。
+- **根因**：0.1.5 上游引入 rightbar 契约——新包 `dsh-client-ui-sidebar-right`（`inject = ["slots","layout","locale","resources"]`）的 `RightbarRoot({ usePanelInfo, SessionProvider, renderSlot, ... })` 把 `usePanelInfo` 当**槽位 binding 注入的 props** 消费，其唯一来源是官方 `dsh-client-ui-layout` 的 `ctx.slots.provideRoot({ hooks: { panelInfo: { getSnapshot, subscribe } } })`（`ui-layout/lib/client.js:519`，与 `ctx.reflect.provide("layout", layout)` 是**同一次 apply 内的两件独立事**）。M6-P1 起自研 `@lansi-ai/dsh-desktop-layout` 接管 root 槽位并排除了官方 ui-layout，但只等价复刻了 `layout` 服务与槽位声明（titlebar/sidebar/conversation/rightbar/shell.overlay），**漏了 panelInfo root hook** → 消费端解构到 `undefined` → 调用即 TypeError → rightbar 条目崩溃。
+- **解法**：自研 layout 的 `apply` 内补齐 `ctx.slots.provideRoot({ hooks: { panelInfo: { getSnapshot: () => panelInfoSnapshot, subscribe: () => () => {} } } })`，快照 `{ activePanelId: null }`（桌面直渲染 `conversation` 槽位、无官方 main keyed 面板机制，恒 null 语义 = 无面板占用会话区），并在 fiber disposer 里调用其返回值。
+- **复盘要点**：
+  1. 「接管官方插件」= 接管其**全部**导出面（服务 + root hooks + 槽位声明）。只做服务等价映射是漏项高发区——本次即"服务在了、hook 没在"。
+  2. `assertEntriesActive` 只校验 **entry 级 fiber**：全部 active 也可能业务崩。别把"启动报告全绿"当成没问题，要结合 `unhandledrejection` 全文栈与槽位错误边界日志交叉定位。
+  3. 排除上游旧包前，先扫**新引入包**的 `use*` props 来源（谁 provideRoot）——上游迭代常让新包消费旧包的 root hook，排除面需同步扩张。
+
+## 坑 47：`dsh-ui://app/index.html` 无缓存头 → Chromium 启发式缓存致注入图谱陈旧（新增插件条目永不生效）
+
+- **现象**：图谱结构发生变化（新增/移除 client 插件包）后重启，新条目**永不生效**：renderer 从不请求其 `client.js`，而 host 侧插件清单（cordis-inventory）已包含它。本次以临时诊断插件（图谱第 62 条）暴露——该 bundle 零请求、apply 零执行，一度误判为"插件代码有问题"。
+- **根因**：`dsh-ui-protocol.ts` 的 index.html 响应只设了 `content-type`、**没有任何缓存头**，而入口 URL `dsh-ui://app/index.html` 恒定 → Chromium 对自定义协议在无缓存头时按启发式规则缓存该响应 → 页面反复使用首次生成的 `__DSH_BOOT__` 图谱。bundle 自身以 `?rev=<内容 hash>` 破缓存，所以**资源内容**总是最新、**图谱条目集合**却卡在旧版，两者错位极具迷惑性。
+- **解法**：① index.html 响应补 `cache-control: no-store, must-revalidate`；② 入口 URL 携启动版本 query —— `main.ts` 与 `window-manager.ts` 的 `loadURL` 改为 `dsh-ui://app/index.html?v=${Date.now()}`（多窗口各自取新值），两条双保险。
+- **复盘要点**：
+  1. 自定义协议 + 运行时注入内容 ⇒ **必须显式声明缓存策略**，不要依赖协议默认行为。
+  2. 「资源内容是最新的」与「清单/图谱是最新的」是两件事：带 hash 的 URL 只保证前者。
+  3. 图谱类问题的首选排查动作是做**实际请求清单 vs 当前图谱条目**差集——一眼区分"没请求"（装载/缓存）与"请求了没生效"（代码）。
+
+## 坑 48：自研布局只声明 `conversation` 而漏官方语义的 `main` 槽位 → 上游插件的注册被隐式降为 `session-maybe`，启动期 `sessions in inactive context` 刷屏
+
+- **现象**：升级到 `dsh-v0.1.5-alpha.2` 后，启动期 renderer 连续抛 `Uncaught (in promise) Error: cannot get required service "sessions" in inactive context`（约 30 次，栈头恒为 `ui-agent-preset` client.js:1371 → `AgentPresetSeatController.apply` → `scope.sessions.list.subscribe` 回调）；同一批次还伴随 `usePanelInfo is not a function`（已单独修为坑 46）。**官方 web 版（`dsh web`，同一 `node_modules`、同一 Cordis 4.0.2）console 完全干净**——这一步直接证明问题出在桌面侧集成，而不是上游。
+- **根因**：自研 `@lansi-ai/dsh-desktop-layout` 接管 root 槽位时，按桌面三列布局声明了 `conversation`（`single` + `session-maybe`），**却未声明官方语义的 `main`（keyed + root）**。而上游 `dsh-client-ui-conversation` 是这么切入的（`ui-conversation/lib/client.js:16823-16836`）：
+  ```js
+  slots.inject("main", function* () {
+    yield slots.register({ name: "main", key: "conversation",
+      children: { "main.conversation": { kind: "single", scope: "session-maybe" } } }, ConversationPanel);
+    ...
+  });
+  ```
+  缺少 layout 的 `main` 声明后，该槽位由这次注册隐式建立并带上 `session-maybe` scope → **未选中会话时槽位条目被卸载** → 其中 `ui-agent-preset` 注册的 hero chip / session header action 随会话状态反复卸载重建、其 `ctx.effect` 随之重跑 → 重跑落在 Cordis 的 fiber 激活窗口内，`scope.sessions` 解析即抛 `inactive context`。Cordis 侧机制：`_getImpl(name, strict)` 要求提供者 fiber `state === 2` 才认服务可用（`cordis/lib/index.js:765`），而 effect 清理是异步的，故窗口内访问必炸。
+- **解法**：自研 layout 的 `slots.register({ name: 'root', children })` 补上 `'main': { kind: 'keyed', scope: 'root' }`，并把 AppFrame 中心列由 `renderSlot('conversation', {})` 改为 `renderSlot('main', {}, { entryKey: 'conversation' })`——与官方 ui-layout 的 MainPanel 语义一致。修复后启动日志只剩清单与「页面加载完成」，零报错。
+- **定位手法（可迁移）**：
+  1. 先跑 **官方 web 版**（`node --input-type=module -e "process.argv=[process.argv[0],'dsh','web'];const m=await import('./node_modules/@deepseek-ai/dsh/lib/bin.js');await m.runCli()"`，Node 22.16 下 `import.meta.main` 为 undefined 会静默不执行，必须显式调 `runCli()`）——确立"上游是否同样出错"的基线。
+  2. 再做**单变量对照**：临时把某个自研件换回对应官方件，看报错是否消失。本次换回官方 `ui-layout` 后报错**完全消失**（换 `ui-workspace` / `ui-sidebar` 均无变化），一步锁定到 layout 的槽位声明。
+- **连带症状（同一根因）**：`dsh-client-ui-sidebar-documentpreview`（0.1.5 的 `textpreview` 换代包）的 apply 也曾失败，报 `cannot get property "documentPreviews" without inject`——其 apply 内 `provide("documentPreviews")` 的异步 effect（Cordis 的 provide 本身即 effect）未落地即被同函数体同步访问。排查期曾据此把它临时排除，但补齐 `main` 槽位后该包**自行恢复**（槽位抖动消失，其 fiber 不再被扰动）。**结论：该包不入 `CLIENT_EXCLUDE_IDS`**（2026-09-10 复测：59 个插件装载、零报错）。
+- **复盘要点**：
+  1. 「接管官方插件的槽位」不止要对齐**服务**与 **root hooks**，还必须对齐**槽位名 + kind + scope**。上游插件用 `slots.inject(<槽位名>)` 等待父槽位，缺声明会让它**自建槽位并继承错误的 scope**，症状出现在下游而非本插件，极难反查。
+  2. **scope 决定条目生命周期**：`session-maybe` 会在未选中会话时卸载条目，任何在其中注册 effect 的插件都会被反复重建；`root` 才是常驻。槽位 kind 同理（`single` 会被替换，`keyed` 按 key 常驻）。
+  3. 别把结论推给上游——**先跑官方同版本做对照**。本次若不跑 `dsh web`，极易误判为"Cordis 固有竞态"而放弃。

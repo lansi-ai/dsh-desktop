@@ -229,3 +229,25 @@
 - 遗留待决策：① 无凭据时聊天报错的用户引导（是否立项）；② `migrateRuntimeDataIntoHome` 增加旧 userData runtime 源兜底（更名失败场景 storages 不搁浅）；③ 修复需发 v0.1.1-alpha.6 才能到达存量安装版用户
 - 状态：**fixed（代码侧 2026-09-09，坑 45）**——待 win-unpacked 实机验证聊天链路后收口
 
+### #16 · 启动期 renderer 报 `usePanelInfo is not a function` + `slot entry crashed in 'rightbar'`（0.1.5 rightbar 契约）
+
+- 环境：dev（`npm start`，基线 0.1.5-alpha.2；0.1.5 上游新增 `dsh-client-ui-sidebar-right` 后首次实机）
+- 第一现场：`[renderer] TypeError: usePanelInfo is not a function (line 56, dsh-ui://app/assets/index-CIp0YSTs.js)` → `slot entry crashed in 'rightbar': TypeError: usePanelInfo is not a function (line 526, .../dsh-client-ui-renderer/client.js)`；宿主侧无任何 entry 失败报告（60 个全 ACTIVE）
+- 状态：**fixed（2026-09-10，坑 46）**——已实机验证该两条报错消失
+- 根因：自研 `@lansi-ai/dsh-desktop-layout` 接管 root 槽位时只复刻了官方 ui-layout 的 `layout` 服务与槽位声明，漏了同次 apply 内 `provideRoot({ hooks: { panelInfo } })`；rightbar 契约的消费端 `RightbarRoot` 依赖它
+- 修复：自研 layout 补 `panelInfo` root hook（`activePanelId` 恒 null）+ disposer 收口
+- 附带发现：本次排查另修得坑 47（`dsh-ui://app/index.html` 无缓存头致注入图谱陈旧，入口 URL 已加启动版本 query）
+
+### #17 · renderer 启动期 `cannot get required service "sessions" in inactive context` 刷屏（**已根治 · 坑 48**）
+
+- 环境：dev（`npm start`）；与 #16 同批次出现，修复 #16 后仍单独存在
+- 第一现场（完整栈，经临时 hook `unhandledrejection` 取得）：
+  `AgentPresetSeatController.currentSession (:1438)` ← `AgentPresetSeatController.apply (:1341)` ← `agent-preset client.js:1455`（`scope.sessions.list.subscribe(() => seat.apply())` 回调）← `dsh-client-store` 的 `set → setState → Set.forEach`（store 变更通知）
+- 排查中被否定的假设（均附实测证据）：① 服务缺失——稳态下全部就绪；② 服务闪断——`provide` hook 全程**零 UNPROVIDE**；③ bundle 到达时序——全量 `immediately` 预取后报错不变；④ 被 #16 或 documentpreview 装载失败连锁——两者修复/排除后报错均不变
+- **官方对照（决定性一步）**：启动官方 web 版（`dsh web`，**同一 `node_modules` + 同一 Cordis 4.0.2**），console 无此报错 → 确认是**桌面侧集成差异**，不是上游问题（推翻早期"上游时序竞态"的误判）
+- 真根因（坑 48）：自研 `@lansi-ai/dsh-desktop-layout` 只声明 `conversation`（single + session-maybe）而**未声明官方语义的 `main`（keyed + root）**；上游 `ui-conversation` 以 `slots.inject("main", cb)` 等待并注册 `key='conversation'`，缺声明使其**自建槽位并继承 `session-maybe` scope** → 未选中会话时条目被卸载 → `agent-preset` 注册的 hero chip / header action 反复重建、effect 重跑，踩进 Cordis fiber 激活窗口（`_getImpl(name, strict)` 要求提供者 fiber `state === 2`）即抛 `inactive context`
+- 定位手法：**单变量对照** —— 换回官方 `ui-workspace`、`ui-sidebar` 报错均不变，**换回官方 `ui-layout` 报错完全消失**，一步锁定 layout 的槽位声明
+- 修复（2026-09-10）：自研 layout 的 root `children` 补 `'main': { kind: 'keyed', scope: 'root' }`；AppFrame 中心列由 `renderSlot('conversation', {})` 改为 `renderSlot('main', {}, { entryKey: 'conversation' })`。实测启动日志仅剩插件清单与「页面加载完成」，**零报错**
+- 连带恢复：`dsh-client-ui-sidebar-documentpreview`（0.1.5 右侧栏文档预览、`textpreview` 换代包）此前的 apply 失败属同一根因的连带症状，随本修复**自行恢复**，已从 `CLIENT_EXCLUDE_IDS` 复原装载（59 个插件、零报错）
+- 状态：**fixed（2026-09-10 · 坑 48）**
+
