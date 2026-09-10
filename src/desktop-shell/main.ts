@@ -134,6 +134,8 @@ let desktopAutostartHandle: (() => void) | null = null
 
 /** 应用自动更新句柄（仅打包版生效，退出前清理）。 */
 let autoUpdaterHandle: AutoUpdaterHandle | null = null
+/** 网络代理设置句柄（无监听器/定时器，无需 dispose；仅经 bridge 读写）。 */
+let desktopProxyHandle: import('../desktop-host/desktop-proxy.js').DesktopProxyHandle | null = null
 
 /** 骨架外观句柄（宿主面：:root 外观变量注入，主窗口 + 会话窗口共用）。 */
 let desktopAppearanceHandle: import('../desktop-host/desktop-appearance.js').DesktopAppearanceHandle | null = null
@@ -650,6 +652,27 @@ async function bootstrap(): Promise<void> {
     } else {
       log.warn('[dsh-desktop] ctx.desktop 未就绪，跳过托盘/通知')
     }
+
+    // 8.5 网络代理设置（Chromium 网络栈 · 三态 direct/system/manual）。设置项落
+    // settings `desktop` 命名空间；装配即按持久化值 apply 一次。必须同时覆盖
+    // electron-updater 的独立 session 分区，否则「检查更新」仍走直连（见
+    // desktop-proxy.ts 头注）。置于更新装配之前，保证更新探测已带代理。
+    const { registerMethod: registerNetworkMethod } = await import('../desktop-host/bridge.js')
+    const { installDesktopProxy } = await import('../desktop-host/desktop-proxy.js')
+    desktopProxyHandle = installDesktopProxy({ desktop: desktopCore ?? null })
+    registerNetworkMethod('desktop.network.getProxy', async () => {
+      return desktopProxyHandle?.getState() ?? { mode: 'system', rules: '', applied: false }
+    })
+    registerNetworkMethod('desktop.network.setProxy', async (params: unknown) => {
+      const { mode, rules } = (params ?? {}) as {
+        mode?: import('../desktop-host/desktop-proxy.js').ProxyMode
+        rules?: string
+      }
+      if (mode !== 'direct' && mode !== 'system' && mode !== 'manual') {
+        return { ok: false, message: '无效代理模式（应为 direct/system/manual）' }
+      }
+      return (await desktopProxyHandle?.apply(mode, rules)) ?? { ok: false, message: '代理服务未就绪' }
+    })
 
     // 9. 应用自动更新（electron-updater · 仅打包版生效；dev 下返回禁用句柄）。
     // 启动即装配（内部带 20s 延迟静默检查），状态变更刷新托盘菜单并下行桌面事件。

@@ -376,6 +376,10 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // M7 关于页独立插件：仅依赖 desktopBridge.updater（版本号 + 检查更新），
     // 与桌面设置解耦（各自可独立增删）。
     { id: '@lansi-ai/dsh-desktop-about', path: resolveLocalWebBundle('desktop-about-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
+    // M4-b 配套 · 网络代理设置：向通用设置分区注入「网络设置」分组（三态
+    // direct/system/manual）。仅依赖 desktopBridge.network，与桌面设置/关于页解耦
+    // （各自可独立增删）；代理生效在 host 侧，本件只做 UI。
+    { id: '@lansi-ai/dsh-desktop-network', path: resolveLocalWebBundle('desktop-network-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
     // 桌面主题设置（V1 图标更改）：设置页「主题」section，经 desktopBridge.theme 读写；
     // 依赖 themeIcon 做卡片预览的内联渲染（方案 A）。
     { id: '@lansi-ai/dsh-desktop-theme', path: resolveLocalWebBundle('desktop-theme-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client', '@lansi-ai/dsh-desktop-icons'], immediately: true },

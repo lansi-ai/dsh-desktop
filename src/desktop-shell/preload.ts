@@ -172,8 +172,9 @@ interface DesktopUpdater {
   }>
   /** 重启并安装已下载更新。 */
   install(): Promise<{ ok: boolean }>
-  /** 订阅更新状态变更（action='app-update:status' 的下行桌面事件）。返回注销函数。 */
-  onStatus(cb: (state: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string }) => void): () => void
+  /** 订阅更新状态变更（action='app-update:status' 的下行桌面事件）。返回注销函数。
+   *  `manual=true` 表示该状态由用户手动检查产生（渲染侧据此才给结果提示）。 */
+  onStatus(cb: (state: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string; manual?: boolean }) => void): () => void
   /** 读取当前更新渠道（stable/rc/off）。 */
   getChannel(): Promise<{ channel: 'stable' | 'rc' | 'off' }>
   /** 运行时切换更新渠道（主进程持久化 + 即时生效，off↔on 补/撤检查）。 */
@@ -182,6 +183,18 @@ interface DesktopUpdater {
   getAutoCheck(): Promise<{ enabled: boolean }>
   /** 运行时切换自动检查开关（主进程持久化 + 即时生效）。 */
   setAutoCheck(enabled: boolean): Promise<{ ok: boolean; message?: string }>
+}
+
+/**
+ * 网络代理设置操作（M4-b 配套 · 三态 direct/system/manual）。
+ * 生效范围仅 Chromium 网络栈（含 electron-updater 的独立 session 分区），
+ * 走 Node 栈的请求不在覆盖内；配置真源在主进程（setProxy 成功后落 settings）。
+ */
+interface DesktopNetwork {
+  /** 读取当前代理设置快照（rules 为原始输入，供输入框回显）。 */
+  getProxy(): Promise<{ mode: 'direct' | 'system' | 'manual'; rules: string; applied: boolean; error?: string }>
+  /** 应用一组代理设置（manual 需带 host:port；主进程校验后逐 session 生效并持久化）。 */
+  setProxy(mode: 'direct' | 'system' | 'manual', rules?: string): Promise<{ ok: boolean; message?: string }>
 }
 
 /**
@@ -262,6 +275,8 @@ export interface DesktopBridge {
   autostart: DesktopAutostart
   /** 应用自动更新操作（关于页检查更新）。 */
   updater: DesktopUpdater
+  /** 网络代理设置操作（通用设置「网络设置」· 三态）。 */
+  network: DesktopNetwork
   /** 桌面图标主题操作（图标主题与颜色主题独立设置，颜色主题后续版本）。 */
   iconTheme: DesktopIconTheme
   /** 全局快捷键操作。 */
@@ -555,7 +570,7 @@ function createDesktopBridge(): DesktopBridge {
       onStatus(cb) {
         // 复用下行桌面事件通道：主进程 auto-updater 经 sendDesktopEvent 推送
         // action='app-update:status'，这里过滤后回调。
-        const handler = (_event: Electron.IpcRendererEvent, desktopEvent: { action: string; payload?: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string } }): void => {
+        const handler = (_event: Electron.IpcRendererEvent, desktopEvent: { action: string; payload?: { phase: string; currentVersion: string; newVersion?: string; percent?: number; error?: string; manual?: boolean } }): void => {
           if (desktopEvent.action === 'app-update:status' && desktopEvent.payload) cb(desktopEvent.payload)
         }
         ipcRenderer.on(IPC_CHANNELS.DESKTOP_EVENT, handler)
@@ -589,6 +604,24 @@ function createDesktopBridge(): DesktopBridge {
           rpcId: generateUuid(),
           method: 'desktop.updater.setAutoCheck',
           params: { enabled },
+        }) as Promise<{ ok: boolean; message?: string }>
+      },
+    },
+
+    // ── 网络代理设置（Chromium 网络栈 · 三态 direct/system/manual）──
+    network: {
+      getProxy(): Promise<{ mode: 'direct' | 'system' | 'manual'; rules: string; applied: boolean; error?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.network.getProxy',
+          params: undefined,
+        }) as Promise<{ mode: 'direct' | 'system' | 'manual'; rules: string; applied: boolean; error?: string }>
+      },
+      setProxy(mode: 'direct' | 'system' | 'manual', rules?: string): Promise<{ ok: boolean; message?: string }> {
+        return ipcRenderer.invoke(IPC_CHANNELS.DESKTOP_INVOKE, {
+          rpcId: generateUuid(),
+          method: 'desktop.network.setProxy',
+          params: { mode, rules },
         }) as Promise<{ ok: boolean; message?: string }>
       },
     },

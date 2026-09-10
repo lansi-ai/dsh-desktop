@@ -30,6 +30,13 @@ window.__ModuleLoader__.load({
       { id: 'off', label: '关闭' },
     ]
 
+    /** 失败原因展示上限：可见文本截断 200 字符，title 全文上限 2000（防超长 XML 撑爆 DOM）。 */
+    const ERROR_VIEW_LIMIT = 200
+    const ERROR_TITLE_LIMIT = 2000
+
+    /** 按上限截断文本（超长时补省略号）。 */
+    const clamp = (text, limit) => (text.length > limit ? `${text.slice(0, limit)}…` : text)
+
     // ── 插件声明：注册 settings.section slot ──────────────────────
 
     exports.inject = ['slots']
@@ -57,19 +64,49 @@ window.__ModuleLoader__.load({
      *  即 @deepseek-ai/dsh 依赖包的实际安装版本）。
      *  开发模式（未打包）下 updater 为禁用句柄，按钮仅记录日志、不报错；
      *  渠道为 off 时自动检查与「检查更新」一并置灰（off = 完全关闭）。
+     *  error 相位额外显示失败原因原文（等宽小字，可见部分截断、title 挂全文）——
+     *  安装版无控制台，主进程终端日志取不到，这里是用户唯一可见的诊断面；
+     *  同一条原因也会由主进程写入 audit.jsonl（审计查看器可查）。
+     *  「检查更新」属手动检查：结果（无新版/失败/有新版）在页内给一条短暂提示
+     *  （6s 自动消失），窗口未聚焦时主进程另发一条系统通知。启动静默自检不带
+     *  `manual`，全程安静。
      */
     function AboutSettings() {
       const [status, setStatus] = React.useState(null)
       const [channel, setChannel] = React.useState('stable')
       const [autoCheck, setAutoCheck] = React.useState(true)
       const [hint, setHint] = React.useState('')
+      /** 手动检查的短暂结果提示（6s 自动消失；静默自检不带 manual，不触发）。 */
+      const [flash, setFlash] = React.useState(null)
+      const flashTimer = React.useRef(null)
+
+      /** 显示一条结果提示；新提示会重置消失计时。 */
+      const showFlash = (kind, text) => {
+        if (flashTimer.current !== null) clearTimeout(flashTimer.current)
+        setFlash({ kind, text })
+        flashTimer.current = setTimeout(() => {
+          flashTimer.current = null
+          setFlash(null)
+        }, 6000)
+      }
+      React.useEffect(() => () => {
+        if (flashTimer.current !== null) clearTimeout(flashTimer.current)
+      }, [])
+
       React.useEffect(() => {
         const bridge = window.desktopBridge
         if (!bridge?.updater) return
         bridge.updater.getStatus().then(setStatus).catch(() => { /* bridge 未就绪 */ })
         bridge.updater.getChannel().then((res) => setChannel(res.channel)).catch(() => { /* bridge 未就绪 */ })
         bridge.updater.getAutoCheck().then((res) => setAutoCheck(res.enabled)).catch(() => { /* bridge 未就绪 */ })
-        return bridge.updater.onStatus(setStatus)
+        // 仅对「用户手动发起」的检查给结果提示（manual 由主进程随事件下发）
+        return bridge.updater.onStatus((next) => {
+          setStatus(next)
+          if (next.manual !== true) return
+          if (next.phase === 'not-available') showFlash('ok', `已是最新版本（v${next.currentVersion}）`)
+          else if (next.phase === 'available') showFlash('ok', `发现新版本 v${next.newVersion ?? ''}，正在后台下载…`)
+          else if (next.phase === 'error') showFlash('warn', String(next.error ?? '检查更新失败').split('\n')[0])
+        })
       }, [])
 
       /** off 渠道 = 完全关闭：自动检查与手动检查均不可用。 */
@@ -80,6 +117,8 @@ window.__ModuleLoader__.load({
       const baselineVersion = window.__DSH_BASE_VERSION__ || '未知'
       const newVersion = status?.newVersion
       const percent = status?.percent ?? 0
+      /** 失败原因原文（仅 error 相位有值；用于排查，如渠道不匹配 / 网络超时）。 */
+      const errorDetail = phase === 'error' && status?.error ? String(status.error) : ''
 
       let statusText
       if (updateDisabled) statusText = '已关闭自动更新'
@@ -170,6 +209,22 @@ window.__ModuleLoader__.load({
           style: { width: '18px', height: '18px', cursor: updateDisabled ? 'not-allowed' : 'pointer', opacity: updateDisabled ? 0.4 : 1, accentColor: 'var(--dsw-alias-button-info-fill)' },
         }), true),
         hint !== '' ? h('div', { style: { fontSize: '12px', lineHeight: '18px', color: '#fbbf24', padding: '8px 0 0' } }, hint) : null,
+        // 失败原因原文：不替换主文案（长错误串会破坏行布局），仅作下方补充诊断行
+        errorDetail !== '' ? h('div', {
+          title: clamp(errorDetail, ERROR_TITLE_LIMIT),
+          style: {
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+            fontSize: '12px', lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)',
+            padding: '8px 0 0', wordBreak: 'break-word',
+          },
+        }, clamp(errorDetail, ERROR_VIEW_LIMIT)) : null,
+        // 手动检查结果提示（成功绿 / 失败琥珀，6s 自动消失）
+        flash !== null ? h('div', {
+          style: {
+            fontSize: '12px', lineHeight: '18px', padding: '8px 0 0',
+            color: flash.kind === 'ok' ? '#16a34a' : '#fbbf24',
+          },
+        }, flash.text) : null,
         row(statusText, actionButton, false),
       )
     }

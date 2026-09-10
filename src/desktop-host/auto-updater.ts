@@ -16,6 +16,10 @@
  *   - `setChannel` / `setAutoCheck` 支持运行时切换：off↔on 即时补/撤检查并触发一次
  *     查询；rc↔stable 仅切换 feed（latest-rc.yml ↔ latest.yml），结果于下次检查或
  *     用户手动「检查更新」时生效
+ *   - 关键相位落审计（checking / available / not-available / downloaded / error，
+ *     经 `ctx.desktop.log` → `audit.jsonl`，含当前渠道与错误堆栈）：安装版从资源管理器
+ *     启动时无控制台，终端日志等于丢失，审计是失败原因的唯一事后排查面；downloading
+ *     为高频进度帧，不入审计以免刷爆日志文件
  *
  * 由 main.ts bootstrap 装配；返回清理句柄（dispose 解除事件监听）。
  */
@@ -100,6 +104,23 @@ const CHANNEL_FEED: Record<Exclude<UpdaterChannel, 'off'>, string | null> = {
   rc: 'rc',
 }
 
+/** 落审计的关键相位（`downloading` 为高频进度帧，不入审计以免刷爆 audit.jsonl）。 */
+const AUDIT_PHASES: ReadonlySet<UpdaterPhase> = new Set<UpdaterPhase>([
+  'checking',
+  'available',
+  'not-available',
+  'downloaded',
+  'error',
+])
+
+/** 审计文本字段长度上限（防超长 XML/堆栈把单条 JSONL 撑爆）。 */
+const AUDIT_TEXT_LIMIT = 2000
+
+/** 截断超长审计文本（保留截断标记，便于识别非完整原文）。 */
+function truncateForAudit(text: string): string {
+  return text.length > AUDIT_TEXT_LIMIT ? `${text.slice(0, AUDIT_TEXT_LIMIT)}…[truncated]` : text
+}
+
 /**
  * 创建自动更新句柄。dev / 非打包模式 / off 渠道下返回禁用句柄（check 仅记录日志）。
  *
@@ -108,6 +129,9 @@ const CHANNEL_FEED: Record<Exclude<UpdaterChannel, 'off'>, string | null> = {
 export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandle {
   const { desktop, getWindow, onStateChange, initialDelayMs = INITIAL_DELAY_MS } = options
   const state: UpdaterState = { phase: 'idle', currentVersion: app.getVersion() }
+
+  /** 最近一次错误的堆栈（仅入审计，用于定位网络层超时等 message 不足以说明的失败）。 */
+  let lastErrorStack: string | undefined
 
   // 运行时可变渠道与自动检查开关（setChannel / setAutoCheck 修改；defaultValue 兜底）。
   let currentChannel: UpdaterChannel = options.channel ?? 'stable'
@@ -119,12 +143,34 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
   let initialized = false
   let checkTimer: ReturnType<typeof setTimeout> | null = null
   let disposeEvents: (() => void) | null = null
+  /** 本次检查是否为用户手动发起（决定终态是否给可见反馈；见 checkInternal）。 */
+  let lastCheckManual = false
 
-  /** 合并状态快照：更新内部状态 + 下行事件 + 托盘刷新回调。 */
+  /** 组装审计载荷（含当前渠道；失败时附加截断后的错误堆栈）。 */
+  const buildAuditPayload = (): Record<string, unknown> => ({
+    phase: state.phase,
+    currentVersion: state.currentVersion,
+    channel: currentChannel,
+    manual: lastCheckManual,
+    ...(state.newVersion !== undefined ? { newVersion: state.newVersion } : {}),
+    ...(state.error !== undefined ? { error: truncateForAudit(state.error) } : {}),
+    ...(state.phase === 'error' && lastErrorStack !== undefined
+      ? { errorStack: truncateForAudit(lastErrorStack) }
+      : {}),
+  })
+
+  /** 合并状态快照：更新内部状态 + 下行事件 + 托盘刷新回调 + 关键相位审计。 */
   const setState = (patch: Partial<UpdaterState>): void => {
+    const prevPhase = state.phase
     Object.assign(state, patch)
-    desktop?.sendDesktopEvent({ action: 'app-update:status', payload: { ...state } })
+    // manual 随事件下行：渲染侧据此只对「用户手动发起」的结果给提示（静默自检保持安静）
+    desktop?.sendDesktopEvent({ action: 'app-update:status', payload: { ...state, manual: lastCheckManual } })
     onStateChange?.(state)
+    // 审计落盘（R-15 事后排查面）：仅关键相位；error 每次必写（失败原因不能因相位未变
+    // 而丢），其余相位变化才写。downloading 进度帧被 AUDIT_PHASES 拦截。
+    if (AUDIT_PHASES.has(state.phase) && (state.phase === 'error' || state.phase !== prevPhase)) {
+      desktop?.log('app-update:status', buildAuditPayload())
+    }
   }
 
   /** 触发一条系统通知；点击 → 可选动作。 */
@@ -143,6 +189,23 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
       })
     }
     n.show()
+  }
+
+  /**
+   * 手动检查的结果反馈：仅当主窗口未聚焦时才发系统通知。
+   * 窗口在前台时关于页已有结果提示，再弹通知是重复打扰。
+   */
+  const notifyResult = (title: string, body: string): void => {
+    const win = getWindow()
+    if (win !== null && !win.isDestroyed() && win.isFocused()) return
+    notify(title, body, () => { /* 点击由 notify 内部聚焦主窗口 */ })
+  }
+
+  /** 取错误首行摘要（通知体不宜过长；完整原文在关于页与 audit.jsonl）。 */
+  const summarizeError = (error: unknown): string => {
+    const text = error instanceof Error ? error.message : String(error)
+    const firstLine = text.split('\n')[0]
+    return firstLine.length > 160 ? `${firstLine.slice(0, 160)}…` : firstLine
   }
 
   /** 取消尚未触发的延迟检查定时器。 */
@@ -179,9 +242,16 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
       event: 'checking-for-update' | 'update-available' | 'update-not-available' | 'download-progress' | 'update-downloaded' | 'error'
       handler: (...args: unknown[]) => void
     }> = [
-      { event: 'checking-for-update', handler: () => { setState({ phase: 'checking' }); log.info(`${TAG} 正在检查更新…`) } },
+      { event: 'checking-for-update', handler: () => { lastErrorStack = undefined; setState({ phase: 'checking', error: undefined }); log.info(`${TAG} 正在检查更新…`) } },
       { event: 'update-available', handler: (info) => { const v = (info as { version?: string }).version; setState({ phase: 'available', newVersion: v }); log.ok(`${TAG} 发现新版本 v${v}，开始后台下载`) } },
-      { event: 'update-not-available', handler: () => { setState({ phase: 'not-available', newVersion: undefined, percent: undefined }); log.info(`${TAG} 已是最新版本 (v${state.currentVersion})`) } },
+      {
+        event: 'update-not-available',
+        handler: () => {
+          setState({ phase: 'not-available', newVersion: undefined, percent: undefined })
+          log.info(`${TAG} 已是最新版本 (v${state.currentVersion})`)
+          if (lastCheckManual) notifyResult('检查更新', `已是最新版本（v${state.currentVersion}）`)
+        },
+      },
       { event: 'download-progress', handler: (progress) => { const p = progress as { percent: number }; const percent = Math.round(p.percent); setState({ phase: 'downloading', percent }); if (isVerbose()) logVerbose('dsh-updater', `下载进度 ${p.percent.toFixed(1)}%`) } },
       {
         event: 'update-downloaded',
@@ -192,7 +262,15 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
           notify('更新已就绪', `DSH Forge v${v} 已下载完成，点击可立即重启以更新。`, () => restartToInstall())
         },
       },
-      { event: 'error', handler: (error) => { setState({ phase: 'error', error: error instanceof Error ? error.message : String(error) }); log.error(`${TAG} 检查/下载更新失败:`, error) } },
+      {
+        event: 'error',
+        handler: (error) => {
+          lastErrorStack = error instanceof Error ? error.stack : undefined
+          setState({ phase: 'error', error: error instanceof Error ? error.message : String(error) })
+          log.error(`${TAG} 检查/下载更新失败:`, error)
+          if (lastCheckManual) notifyResult('检查更新失败', summarizeError(error))
+        },
+      },
     ]
     for (const reg of offs) autoUpdater.on(reg.event, reg.handler as never)
     disposeEvents = () => {
@@ -205,27 +283,33 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
     if (autoCheckEnabled) {
       checkTimer = setTimeout(() => {
         checkTimer = null
-        if (state.phase === 'downloaded' || state.phase === 'checking') return
-        autoUpdater.checkForUpdates().catch((error) => {
-          log.error(`${TAG} 初始更新检查失败:`, error)
-        })
+        checkInternal(false)
       }, initialDelayMs)
     }
   }
 
-  /** 手动检查更新。 */
-  const check = (): void => {
+  /**
+   * 检查更新内核。
+   *
+   * @param manual 是否为用户手动发起 —— 决定终态是否给可见反馈（关于页结果提示 +
+   *   窗口未聚焦时的系统通知）。启动静默自检与渠道/开关联动检查传 false，保持安静。
+   */
+  const checkInternal = (manual: boolean): void => {
     if (isDisabled()) {
       log.info(`${TAG} 自动更新在开发模式（未打包）或 off 渠道下不可用`)
       return
     }
     if (!initialized) initialize()
     if (state.phase === 'downloaded' || state.phase === 'checking') return
+    lastCheckManual = manual
     syncChannelFeed()
     autoUpdater.checkForUpdates().catch((error) => {
-      log.error(`${TAG} 手动检查更新失败:`, error)
+      log.error(`${TAG} ${manual ? '手动' : '静默'}检查更新失败:`, error)
     })
   }
+
+  /** 手动检查更新（用户入口：关于页按钮 / 托盘菜单）。 */
+  const check = (): void => { checkInternal(true) }
 
   /** 重启并安装已下载更新。 */
   const restartToInstall = (): void => {
@@ -254,12 +338,8 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
     }
     if (!initialized) initialize()
     syncChannelFeed()
-    // 离线→在线切换后触发一次即时检查，让新渠道立即生效。
-    if (prev === 'off' && state.phase !== 'downloaded' && state.phase !== 'checking') {
-      autoUpdater.checkForUpdates().catch((error) => {
-        log.error(`${TAG} 渠道切换后检查失败:`, error)
-      })
-    }
+    // 渠道切换后的即时检查属系统联动（非「检查更新」点击）→ 静默
+    if (prev === 'off') checkInternal(false)
   }
 
   /** 运行时切换「启动静默自动检查」开关。 */
@@ -269,12 +349,8 @@ export function createAutoUpdater(options: AutoUpdaterOptions): AutoUpdaterHandl
     if (enabled && currentChannel !== 'off') {
       clearCheckTimer()
       if (!initialized) initialize()
-      if (state.phase !== 'downloaded' && state.phase !== 'checking') {
-        syncChannelFeed()
-        autoUpdater.checkForUpdates().catch((error) => {
-          log.error(`${TAG} 开启自动检查后检查失败:`, error)
-        })
-      }
+      // 开关联动检查属系统行为 → 静默
+      checkInternal(false)
     }
   }
 
