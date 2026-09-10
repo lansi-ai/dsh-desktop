@@ -1,6 +1,6 @@
 # Upstream 同步与拴合面迁移登记表（sync-upstream · ADR-005）
 
-> 基线版本：**已升级至 `dsh-v0.1.5-alpha.1`**（2026-09-09 人工适配执行，详见「C-5」；**跨 0.1.3/0.1.4/0.1.5 三线一次吃下**，含 rightbar 契约与文件上传全量 diff）；前基线 `0.1.2-rc.1` 由 2026-09-04 C-4 自动升级；再前 `0.1.2-alpha.5` 由 2026-09-03 C-3 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订
+> 基线版本：**已升级至 `dsh-v0.1.5-alpha.2`**（2026-09-10 人工适配执行，详见「C-6」；REVIEW 判定经用户决策升级，textpreview 随官方换代 documentpreview）；前基线 `0.1.5-alpha.1` 由 2026-09-09 C-5 人工适配升级（跨 0.1.3/0.1.4/0.1.5 三线一次吃下，含 rightbar 契约与文件上传全量 diff）；再前 `0.1.2-rc.1` 由 2026-09-04 C-4 自动升级；再前 `0.1.2-alpha.5` 由 2026-09-03 C-3 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订
 > **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`** 为官方 `latest`/`next` 稳定基线；文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`。`0.1.2-alpha.3` 为官方实验性版本，**虽非官方转正基线，但已由桌面按 M4-d3 专项实际升级采用**（用户决策，推翻 C-1 预评估「不选」结论）。该两版本 3 类拴合面 diff 均已登记于「C. 升级核查」与「C-1」。
 > **2026-09-04 事实刷新**：官方 `next` 线已推进至 `dsh-v0.1.2-rc.1`（`latest` 仍为 `0.1.1-rc.2`，四包 `next` 标签全部对齐），0.1.2 系列由此转正进入 rc 阶段；桌面已按 C-4 自动升级至该基线。
 > 本表随每次上游基线升级滚动更新；升级时必须逐行核对「3 类拴合面」，未核对完不得宣告升级完成。
@@ -157,3 +157,23 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 
 **验证记录（2026-09-09）**：`npm install` 成功（经 registry.npmjs.org，npmmirror 未同步新包 404）；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功；workspaces 派生层单测 17 项全过（16 原有 + owningGroupKey 新增 1 项）；boot-graph 图谱验证 61 条目（6 新 client 包全部入图，3 个官方互斥包保持排除，sidebar-right 对已排除官方 layout 的悬空 inject 信息边无拓扑影响）。
 **待办**：实机冒烟随 M3-b4 dogfood 合并观察（重点：rightbar 面板实机呈现与拖拽、文件上传流式路由经 IPC 载波转发、0.1.3 系 session 域重构后对话流/历史分页/审计无回归——见坑 31 预评四条）。
+
+### C-6 升级核查：`0.1.5-alpha.1` → `0.1.5-alpha.2`（2026-09-10 人工适配 · REVIEW 判定经用户决策升级）
+
+> **结论：assess 判定 REVIEW（ui-* 契约六包有差异）→ 自动升级 ABORT → 人工摸底确认无破坏后经用户决策升级**。拴合面 S1/S2/S3/S3b **零差异**；roster 95 包全部存在（无 blocked）；官方 web-app roster **新增 `documentpreview` / 移除 `textpreview`**。适配一件：package.json 依赖随官方换代（textpreview → documentpreview）。
+
+| 拴合面 | 0.1.5-alpha.1 → 0.1.5-alpha.2 diff 结论 | 桌面影响 | 迁移风险 |
+| --- | --- | --- | --- |
+| S1 · 装载协议面 | 零差异 | 无 | 🟢 低 |
+| S2 · IPC 载波面 | 零差异 | 无 | 🟢 低 |
+| S3 · 装配 profile 面 | 零差异 | 无 | 🟢 低 |
+| S3b · roster/manifest 面 | 零差异（95 包全存在） | 无 | 🟢 低 |
+| ui-primitives | **图标体系重构**：+4（CodeFileIcon/FileTypeIcon×2/code-file-types）、−1（DocumentFileIcon）、~6（LinkIcon/Menu/icons/index/index/markdown-CodeBlock×2） | **桌面消费导出全部保留**：workspaces 硬解构 13 图标 + 守卫 require（Modal/Button/FishLogo/BrandWordmark）经 tarball 实查均在；**npm 依赖图移除 primitives 包（官方内联进 dist staticModules，`index-*.js` 注册 `"@deepseek-ai/dsh-client-ui-primitives"` 模块）**——桌面 4 处 require 走官方 dist 模块表，node_modules 无包不影响运行时 | 🟡 中 |
+| ui-sidebar | ~5（SidebarRoot×2/slots/index/locales） | 槽位 ID（sidebar.brand.mark/brand.name/workspaces/settings）经 tarball 实查全部保留，desktop-sidebar 字符串槽位对接兼容 | 🟢 低 |
+| ui-conversation / ui-chat / ui-layout / ui-settings-general | +1 ConversationPanel（conversation）、其余 ~5/~5/~5/~1 | 项目侧仅 boot.ts/boot-graph/splash roster 包名装载，无导出消费（P4 自绘未开始、settings 自绘不 require 官方包） | 🟢 低 |
+| 官方 roster 包集 | **+documentpreview / −textpreview** | **textpreview 未发行 0.1.5-alpha.2（npm E404）**——直接 bump 必致 install 失败；项目不 require textpreview（boot.ts 仅注释提及），随官方换代替换为 documentpreview@0.1.5-alpha.2 | 🟡 中 |
+
+**人工适配一件（2026-09-10 执行）**：package.json `@deepseek-ai/dsh-client-ui-sidebar-textpreview@0.1.5-alpha.1` → `@deepseek-ai/dsh-client-ui-sidebar-documentpreview@0.1.5-alpha.2`（按字母序落位），其余 38 个官方依赖统一 bump `0.1.5-alpha.1 → 0.1.5-alpha.2`。
+
+**验证记录（2026-09-10）**：`npm install` 成功（+3/−19/改 241 包；EBADENGINE 无害告警：undici@8.10.2、@earendil-works/pi-ai、pi-telemetry 需 node≥22.19.0，当前 v22.16.0）；lock 实测 dsh/dsh-web-frontend/documentpreview 均 0.1.5-alpha.2；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功（22 静态文件 + resources + cordis.yml）。
+**待办**：实机冒烟（重点：workspaces 13 图标消费经官方 dist 内联模块正常渲染、sidebar-files 文件树预览链路随 textpreview→documentpreview 换代验证、0.1.5-alpha.2 dist 装载无回归）。
