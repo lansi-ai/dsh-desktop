@@ -354,6 +354,7 @@
 29. **判断「某个 agent 预设实际看到什么」要按注册表作用域推，不能按预设声明推**：`dsh-tools` / `dsh-system-prompt` 一律「全局层（宿主平面 root 注册）+ scope 链（预设/子 agent）」**并集**解析，预设自有声明只能影子遮蔽**同名项**，全局层里的**其它**项照样进请求；宿主 roster 抄官方时必须连官方 profile 的 `disabled` 关停表一起抄（坑 53）。计量证据双读：本地 `contextBreakdown`（system/tools/message 估算）+ 模型侧真实 `tokenUsage`（uncached + cacheRead），两者差一个量级就是泄漏信号；`$DSH_HOME/storages/session_projcache/sessions/*.json` 是免解压的第一现场。
 30. **「用户可自定义的资源目录」必须能区分「随包资源」与「用户自己的」**：只按 `existsSync` 跳过已存在文件的"迁移"其实是一次性种子，随包资源更新永远到不了存量安装；解法 = 修订号 + 写入哈希（一致才覆盖，改过就保留），并明确「内置资源 vs 激活包」的真源归属（坑 54）。验证资源类改动是否生效，直接读**运行期真源目录**（如 `$DSH_HOME/icons`）的文件与哈希，不要只看仓库里的资源文件已更新。
 31. **服务缺席要查「有没有 insert 行」，不是「有没有 disabled 行」**：非 insert 补丁只按 id 覆盖已存在条目，`{ id, disabled: true }` 写在一条从未插入的行上是**空操作**（坑 55）。诊断顺序 = 报错里的服务名 → `rg -uu` 找提供它的官方包（看 `static inject` / `provide`）→ 回本仓 roster 核对 **insert** 清单 + 客户端图谱排除表；agent 预设/list 类 `inject` 是硬契约，缺一个服务即整块挂不上（`N row(s) did not activate`），恢复时「宿主提供行 + 客户端半 + 宿主 UI 槽位」必须同批回填。
+32. **`git status` 显示 `M` 而 `git diff` 为空 = 索引 stat 缓存尺寸失配（行尾变化是常见诱因，不是判据）**：判别三查——`git hash-object <path>` 与 `git rev-parse HEAD:<path>` 相等（**内容零差异**，这是决定性证据）、`git ls-files --debug <path>` 的 `size` 与实际字节数不符、`git ls-files --eol`（仅辅助）；修复用 **`git add <path>`** 刷新 stat（内容相同即不产生暂存变更）。实测无效：`git update-index --refresh`、`Remove-Item` + `git checkout`（编辑器把行尾再归一化即复发）。此类假改动会卡住 `git merge --ff-only` 与 `scripts/release.cjs` 预检，且报错伪装成真实冲突（坑 56）。
 
 ## 结论
 
@@ -705,3 +706,51 @@
   2. **agent 预设的 `inject` 是宿主平面的硬契约**：预设行声明了服务就要求宿主提供，缺一个服务 = 整个预设 mount 失败（`N row(s) did not activate`），报错行点名「等待的服务」是最直接的定位线索；新增/裁剪宿主 roster 时要按「官方 profile 提供了什么」做全集对账（坑 53 的姊妹规则：那边是「多抄了会渗进所有预设」，这边是「少抄了预设挂不上」）。
   3. **清噪式的排除会留下运行期债**：当年为消 404 把 client 半整体移出图谱是对的（当时宿主半确实不存在），但必须把「谁依赖谁、恢复条件是什么」写进台账——本次即靠这条线索一次性把三处（host insert / client 回填 / 面板槽位）配齐；恢复时**三处必须同批**，只回填一半会出现「工具能跑但审批页不存在，带浏览器半的包永久挂起」这种更难查的态。
   4. **历史理由要复核**：文档里「零端口架构冲突」的说法经复核不成立（runner 是进程内 vm，不监听端口）。判断一条架构性禁用理由是否仍有效，看**该行实际占用了什么外部资源**（端口/路径/全局单例），不要只看当年的结论词。
+
+## 坑 56 · `git status` 报 `M` 而 `git diff` 为空：索引 stat 缓存尺寸失配（旧版把它误判成「行尾不同」，见复盘要点 1）
+
+- **现象**：合并/发版被拦住，但差异根本不存在——报错伪装成「你真的改了代码」：
+  ```
+  $ git merge --ff-only trae/renameplugin
+  error: Your local changes to the following files would be overwritten by merge:
+          docs/adr/adr-002-inprocess-host.md
+  Aborting
+
+  $ git diff --numstat            # 空输出（零内容差异）
+  $ git status --short
+   M docs/adr/adr-002-inprocess-host.md
+  warning: in the working copy of 'docs/adr/adr-002-inprocess-host.md',
+           LF will be replaced by CRLF the next time Git touches it
+  ```
+  同一形态也会让 `npm run release` 预检失败（`工作区不干净，请先提交或暂存以下改动`）、CI 门禁中止。
+
+- **根因**（实测证据，非推断）：
+  1. **索引里的 stat 缓存 `size` 与实际不符**：`git ls-files --debug <path>` 读出的 `size: 1558`，而工作区文件实际 **1532 字节**；差额 26 恰是 26 行的 CRLF 膨胀量 → 索引记录的是「CRLF 版尺寸」，工作区已是 LF 版。
+  2. 工作区行尾变成 LF 之后（工具写入落 LF，或 git 写出 CRLF 后被编辑器/工具归一化为 LF），**索引 stat 未同步**。`git diff` 会走 clean filter 规范化后再比较 → 内容一致 → **输出为空**；`git status` 先比 stat → 尺寸不符 → **报 M**。两者结论相反，就是本坑的指纹。
+  3. 决定性判别 = **内容哈希完全相同**：
+     ```
+     $ git rev-parse HEAD:docs/adr/adr-002-inprocess-host.md
+     9633746aa1193743290a3e33b10c36238af50d39
+     $ git hash-object docs/adr/adr-002-inprocess-host.md
+     9633746aa1193743290a3e33b10c36238af50d39    # 相等 → 纯 stat 失配，零内容差异
+     ```
+  4. 附带现象：`--ff-only` 合并时 git 判定「目标内容与工作区一致」→ **跳过重写文件** → 失配被原样保留，报错在后续每次操作里反复出现。
+
+- **解法**：
+  ```powershell
+  # ① 判别：确认是纯 stat 失配（两个哈希相等），而不是真的改了内容
+  git hash-object <path>                              # 工作区字节哈希
+  git rev-parse HEAD:<path>                           # 库内 blob 哈希
+  git ls-files --debug <path> | Select-String size    # 索引 stat 尺寸 vs 实际字节数
+  git ls-files --eol <path>                           # 行尾（辅助信息，非判据）
+
+  # ② 修复：重新 add 一次刷新 stat —— 内容相同则不会产生任何暂存变更
+  git add <path>
+  git status --short                                  # 该文件应从列表消失
+  ```
+
+- **复盘要点**：
+  1. **`git diff` 空 + `git status` 报 `M` 的第一嫌疑是「索引 stat 尺寸失配」，不是「行尾不同」**——后者只是最常见的触发方式。本坑最初被误判成行尾问题，写出了一版「删文件 + `git checkout`」的错解法，靠哈希比对才纠正。判别顺序固定：`git hash-object` vs `git rev-parse HEAD:`（内容）→ `git ls-files --debug`（stat 尺寸）→ `git ls-files --eol`（行尾，仅辅助）。
+  2. **`git add <path>` 才是正解**：内容一致时它只刷新 stat、不产生暂存变更。实测**无效**的两种写法：`git update-index --refresh`（不修此类失配，`M` 依旧）、`Remove-Item` + `git checkout -- <path>`（把工作区写回 CRLF——若是 LF 与 CRLF 尺寸差导致的失配，此时会「暂时」变干净；但只要编辑器/工具随后把行尾再归一化为 LF，失配立刻复发。本次就这样反复了两次，一度以为已修好）。
+  3. **别被 `--ff-only` 的报错文案带偏**：`Your local changes ... would be overwritten` / `工作区不干净` 都把矛头指向「本地改动」，而本例一个字节都没改。判断口诀：**报错说你有本地改动、但你确信没碰过代码 → 先跑 `git hash-object` 与 `git rev-parse HEAD:<path>` 对哈希**，相等就不要再找代码差异了。
+  4. **别据此去改全局行尾策略**：实测全仓有 39 个文件是 `w/lf`（`.gitignore`、`tsconfig.json`、`website/**`、多数 `docs/adr/*` 等）却长期「干净」→ 在 `core.autocrlf=true` 下 LF 工作区**并不必然**报 `M`，真正触发的是「索引 stat 尺寸与实际字节数不符」的那一个文件。顺手去改 `core.autocrlf` 或加 `.gitattributes` 只会把问题转移到另一批文件上。
