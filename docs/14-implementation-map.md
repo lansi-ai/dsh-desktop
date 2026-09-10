@@ -82,7 +82,7 @@ userData 重定向(dev) → parseArgv(--serve/--hidden) → 注册 dsh-ui scheme
 - 根配置 = `.runtime/cordis.yml`（内容 `[]`，仅作 Include 根锚点），全部配置由 **overlay patches** 覆盖：
   - **§1 insert**：全量核心 host 服务（llm/session/agent/sandbox/fs/tools/skill/subagent/workflow…约 70 条），含 `api-gateway`（ctx.apiProxy，下行事件流来源）与第三方 `opencode-usage`。
   - **§2 覆盖**：`system-prompt` 桌面 persona。
-  - **§3 禁用**：`webserver/web-runtime/web-startup/connection/client-runtime/cordis-host-runner` 等 Web 传输层（零端口红线）。
+  - **§3 禁用**：`webserver/web-runtime/web-startup/connection/client-runtime` 等 Web 传输层（零端口红线）。`cordis-host-runner` 自 2026-09-10 起**改为 §1 insert 启用**（创造模式 · dogfood #23）。
   - **§4 insert**：`storage/storage-json/storage-domain/agent-presets`（坑 16：必须经 insert 数组进树，非 insert 补丁对空根配置是静默 no-op）。
   - 补丁值策略：原 `!!js` 表达式全部在 TS 中直接求值（R6 规避）。
 - **prepare 钩子**（Loader 安装后、插件树挂载前）注入：
@@ -226,7 +226,7 @@ scheme 特权：standard/secure/supportFetchAPI/corsEnabled（注册须在 whenR
 | R10 协议安全 | **open（M4-a2 第一优先级）** | `dsh://` 来源校验 + 参数 zod 强校验（session id 格式/query 长度）分发前必补 |
 | R6 `!!js` | open（已规避） | overlay patches 中不生效，已在 TS 求值替代 |
 | R7 硬编码 `.runtime` 路径 | open（已打包收口） | dshHomePath 服务可用前以 RUNTIME_ROOT 兜底，完整可配置化留 M5 |
-| `dsh-cordis-host-runner` 未装载 | 技术债 | `dynamicCordisRunner/*` inspect 类 service-unavailable，MVP 非阻断，M5 评估 |
+| ~~`dsh-cordis-host-runner` 未装载~~ | ~~技术债~~ | **已收口（2026-09-10 · 坑 55 / dogfood #23）**：宿主半 insert 启用（创造模式预设 `cordis` 的硬依赖），客户端两半（cordis-client-runner / ui-cordis）回填装载；`cordis-inventory` 兼容面随之只保留 `pluginInventory/list` |
 | M3-a4 命令面板 / M3-a5 多窗口全量验证 | 挂起 | 2026-08-27 用户决策；恢复路径见 active-context.md |
 
 ## 15. 排障速查

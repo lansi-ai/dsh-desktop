@@ -351,7 +351,9 @@
 26. **分阶段替换 UI 的「可后置」判据 = 是否唯一交互入口，不是视觉复杂度**：把某个槽位实现成 `return null` 是合法渲染、静态门禁全绿，却可能锁死整条下游链（本例 picker ⇒ 无 session ⇒ 官方输入框判 `inert` 置灰）。唯一入口类控件必须与服务接管同批落地；验收要顺依赖链看到最终用户动作，别只看本槽位是否渲染（坑 35）。
 27. **用 `vm` 沙箱单测浏览器 bundle 时，`deepStrictEqual` 对跨 realm 对象必误报**：`node:assert/strict` 的 `deepEqual` 会把 vm realm 的对象与宿主 realm 的字面量判「same structure but not reference-equal」，连空数组 `[]` 都不放过（Array/对象原型主 realm 不同）。解法：断言别用 deepEqual 比较跨 realm 数组/对象——改投影为基本值逐字段 `assert.equal(arr.length, n)` + `arr[i].field === x`。仅当 bundle 导出的是**基本值**时方可整体深比（W2 派生层单测教训，`test/workspace-tree.test.cjs`）。
 28. **沙箱内跑 Electron（启动/打包）先看输出尾部，不要先看错误头**：拦截是环境坑但会以业务错误形态出现（`loader entries failed to apply` / 打包中途卡死），真正的根因永远在最后一行 `TRAE Sandbox Error: hit restricted` 的「被拒路径」里。被拒路径落在工作区外（数据目录 `$DSH_HOME`、IME 日志、系统色彩配置、`AppData` 缓存）→ 直接授权沙箱外运行或加白名单放行，**改代码是空转**（坑 0 / 38 / 42）。
-29. **判断「某个 agent 预设实际看到什么」要按注册表作用域推，不能按预设声明推**：`dsh-tools` / `dsh-system-prompt` 一律「全局层（宿主平面 root 注册）+ scope 链（预设/子 agent）」**并集**解析，预设自有声明只能影子遮蔽**同名项**，全局层里的**其它**项照样进请求；宿主 roster 抄官方时必须连官方 profile 的 `disabled` 关停表一起抄（坑 53）。计量证据双读：本地 `contextBreakdown`（system/tools/message 估算）+ 模型侧真实 `tokenUsage`（`uncached + cacheRead`），两者差一个量级就是泄漏信号；`$DSH_HOME/storages/session_projcache/sessions/*.json` 是免解压的第一现场。
+29. **判断「某个 agent 预设实际看到什么」要按注册表作用域推，不能按预设声明推**：`dsh-tools` / `dsh-system-prompt` 一律「全局层（宿主平面 root 注册）+ scope 链（预设/子 agent）」**并集**解析，预设自有声明只能影子遮蔽**同名项**，全局层里的**其它**项照样进请求；宿主 roster 抄官方时必须连官方 profile 的 `disabled` 关停表一起抄（坑 53）。计量证据双读：本地 `contextBreakdown`（system/tools/message 估算）+ 模型侧真实 `tokenUsage`（uncached + cacheRead），两者差一个量级就是泄漏信号；`$DSH_HOME/storages/session_projcache/sessions/*.json` 是免解压的第一现场。
+30. **「用户可自定义的资源目录」必须能区分「随包资源」与「用户自己的」**：只按 `existsSync` 跳过已存在文件的"迁移"其实是一次性种子，随包资源更新永远到不了存量安装；解法 = 修订号 + 写入哈希（一致才覆盖，改过就保留），并明确「内置资源 vs 激活包」的真源归属（坑 54）。验证资源类改动是否生效，直接读**运行期真源目录**（如 `$DSH_HOME/icons`）的文件与哈希，不要只看仓库里的资源文件已更新。
+31. **服务缺席要查「有没有 insert 行」，不是「有没有 disabled 行」**：非 insert 补丁只按 id 覆盖已存在条目，`{ id, disabled: true }` 写在一条从未插入的行上是**空操作**（坑 55）。诊断顺序 = 报错里的服务名 → `rg -uu` 找提供它的官方包（看 `static inject` / `provide`）→ 回本仓 roster 核对 **insert** 清单 + 客户端图谱排除表；agent 预设/list 类 `inject` 是硬契约，缺一个服务即整块挂不上（`N row(s) did not activate`），恢复时「宿主提供行 + 客户端半 + 宿主 UI 槽位」必须同批回填。
 
 ## 结论
 
@@ -669,3 +671,37 @@
   3. **判据要双读**：本地 `contextBreakdown`（估算）vs 模型侧 `tokenUsage`（真实），差一个量级即泄漏信号；缓存命中率高只代表"便宜"，不代表"小"。
   4. **同名资源 id 的遮蔽是静默的**：`dsh-agent-presets` root 顺序（shipped → config.roots → user）+ "前一个根赢"会让仓库自带同名副本变死代码——"改了没生效"先查优先级，再查代码。
 - **实机验证**：2026-09-10 用户确认通过（极简模式「本轮用量」回落、标准模式能力不回归）。
+
+## 坑 54：全局图标目录「只增不改」——随包品牌资源（应用/托盘图标）更新永远到不了存量安装
+
+- **现象**：应用图标与托盘图标由「透明底金标」改为「黑底圆角实底 + 金标」（用户指定），脚本、资源、宿主代码全部改完且 `npm run build` 通过，**本机启动后图标照旧**。运行期真源 `$DSH_HOME/icons`（本例 `E:\Projects\DSHPath\icons`）里 4 个文件仍在，ready 阶段的 `migratePackIconsToGlobal()` 只做「全局缺失才从包根复制」，已有文件一律跳过 → 新图标永远进不来。哈希对照更进一步：运行期这 4 个文件与 `HEAD` 里的随包资源**也不相同**（早期本地生成与提交时机错位），即「存量的来源已不可追溯」。
+- **根因**：`migratePackIconsToGlobal()` 的唯一判据是 `existsSync`。全局目录被当成"用户真源"（动机正确：用户自己上传的图标不能被覆盖），但代码里**没有任何手段区分「随包资源」与「用户自定义」** → 任何随包品牌变更都被收敛成"第一次装上以后永不更新"。附带问题：该函数的源顺序是「激活包优先、其余包次之」，而品牌其实与激活包无关（D-23 之后全局图标与图标包解耦），非 default 包残留的历史 app/tray PNG 会被误当品牌源。
+- **解法**：引入**品牌资产修订号**——`BRAND_REVISION`（形态每次变化递增）+ 全局目录内 `.brand-revision.json`（记录修订号 + 各文件写入时的 sha256）；`syncGlobalBrandAssets()` 取代 `migratePackIconsToGlobal()`：
+  - 修订号一致 → 直接返回（常规启动零额外 IO）；
+  - 修订号变化 → 逐文件判定：全局缺失，**或**内容等于上次随包写入的哈希（含无标记的存量安装）→ 覆盖为新版；内容已被用户改过 → 保留并在日志列出被保留的文件名；
+  - 真源由「激活包根」改为**内置 web 目录**（`resolveDefaultIconPath` → `dist/desktop-shell/web/`），品牌与激活包彻底解耦；写入完成后落盘新修订号 + 哈希表（落盘失败只告警，下次启动重试）。
+- **复盘要点**：
+  1. **「用户可自定义的目录」+「随产品迭代的资源」共存时，必须有来源标记**（修订号 / 内容哈希），否则只能在"永不更新"与"每次覆盖用户自定义"两个坏选项里二选一。
+  2. 判据只有 `existsSync` 的"迁移"函数，其真实语义是**一次性种子**，不能当"同步"用；文件名里写 migrate 也别信。
+  3. **存量安装的现状文件可能不等于任何一次随包资源**（本地生成/提交时机错位）→ 设计刷新策略时按「未知来源 = 可刷新」处理，但要把刷新/保留的数量与文件名写进日志，事后可追溯。
+  4. 资源类改动验效要**读运行期真源目录**（`$DSH_HOME/icons` 的文件 + 哈希），只看仓库里资源已更新等于没验证。
+  5. 品牌类资源改动的效力边界要分清：任务栏/窗口/托盘/Dock 图标运行时读全局目录（重启即变），**桌面快捷方式与安装包图标**取自 electron-builder 的 `icon:` 源图（需重新打包/安装）。
+
+## 坑 55：agent 预设的「静态 inject」是宿主 roster 的硬门禁 —— `cordis-host-runner` 从未插入，创造模式必然挂载失败
+
+- **现象**：切到「创造模式」（agent 预设 `cordis`）报
+  `preset "cordis" failed to mount: 1 row(s) did not activate: tool-cordis (@deepseek-ai/dsh-tool-cordis): waiting for dynamicCordisRunner, cordisInspect`，
+  预设整块挂不上（该模式不可用），而 `standard`/`minimal` 等预设正常。
+- **根因**（两层）：
+  1. 预设最后一行 `tool-cordis` 静态 `inject: [dynamicCordisRunner, cordisInspect]`；这两个服务由官方 `@deepseek-ai/dsh-cordis-host-runner` 提供，而桌面 `boot.ts` **从未 insert 这一行** —— 记录的只有 §3 里一条 `{ id: 'cordis-host-runner', disabled: true }`。该条目其实是**空操作**：dsh-base 的 roster 里根本没有这一行（对照 `node_modules/@deepseek-ai/dsh-base/cordis.patch.yml`，`rg 'cordis-host-runner'` 零命中），非 insert 补丁只按 id 覆盖已存在条目。
+  2. 配套的浏览器两半（`dsh-cordis-client-runner`、`dsh-client-ui-cordis`）被列入 `CLIENT_EXCLUDE_IDS`（2026-09-01 因宿主半缺席致 `syncInspectManifest` 404 刷屏而清噪）→ 即使宿主半回来，没有面板也无人能审批带浏览器半的包。
+- **解法**（对齐官方 web profile：`dsh-web-app/cordis.patch.yml` 第 122 行 host insert + 客户端两半在 browser roster）：
+  - `boot.ts` §1 insert `cordis-host-runner`（它自身只 `inject: ['tools']`，而 `tools` 服务行早已在 §1）；§3 删掉两条空操作禁用项。
+  - `boot-graph.ts` 回填两个 client 半；`cordis-inventory.ts` 退役 `dynamicCordisRunner/inventory` 兼容注册（unary 表优先于 apiProxy，继续注册会遮蔽官方实现），只留自研设置页用的 `pluginInventory/list`。
+  - 自绘侧栏补声明并渲染 `sidebar.footer.action`（`list`/`root`，官方 ui-sidebar 同款）→ ui-cordis 的面板入口有落点（缺声明会走「上游自建槽位」路径，坑 48 同款）。
+  - 安全口径登记 `docs/08-security.md` §4：动态包 ≈ bash 访问，`node:vm` 非安全边界，带浏览器半的包需页面审批。
+- **复盘要点**：
+  1. **「禁用一条不存在的行」是空操作**：非 insert 补丁（`{ id, disabled }`）只覆盖已存在条目，若服务的**提供行从未插入**，写多少条 `disabled: true` 都只是文档；判「某服务为什么缺席」的正确顺序 = 报错里的服务名 → 找提供它的官方包 → 回 roster 查**有没有 insert 行**（不是查有没有 disabled 行）。
+  2. **agent 预设的 `inject` 是宿主平面的硬契约**：预设行声明了服务就要求宿主提供，缺一个服务 = 整个预设 mount 失败（`N row(s) did not activate`），报错行点名「等待的服务」是最直接的定位线索；新增/裁剪宿主 roster 时要按「官方 profile 提供了什么」做全集对账（坑 53 的姊妹规则：那边是「多抄了会渗进所有预设」，这边是「少抄了预设挂不上」）。
+  3. **清噪式的排除会留下运行期债**：当年为消 404 把 client 半整体移出图谱是对的（当时宿主半确实不存在），但必须把「谁依赖谁、恢复条件是什么」写进台账——本次即靠这条线索一次性把三处（host insert / client 回填 / 面板槽位）配齐；恢复时**三处必须同批**，只回填一半会出现「工具能跑但审批页不存在，带浏览器半的包永久挂起」这种更难查的态。
+  4. **历史理由要复核**：文档里「零端口架构冲突」的说法经复核不成立（runner 是进程内 vm，不监听端口）。判断一条架构性禁用理由是否仍有效，看**该行实际占用了什么外部资源**（端口/路径/全局单例），不要只看当年的结论词。

@@ -39,11 +39,13 @@ alwaysApply: true
 - [x] **#17 `sessions in inactive context` 启动刷屏 ✅（2026-09-10 · 坑 48）**：真因＝自研 layout 只声明 `conversation` 而漏官方语义的 `main`（keyed+root），致上游 ui-conversation 自建该槽位并继承 `session-maybe` → agent-preset 条目随会话状态反复重建、踩 Cordis 激活窗口；单变量对照（官方 web 版无此错 / 换回官方 ui-layout 报错消失）锁定，补齐 `main` 槽位后启动零报错
 - [x] **#21 极简模式 token 远超官方 ✅（2026-09-10 · 坑 53）**：宿主 roster 抄了官方 `dsh-base` 全量 insert，却漏抄官方 web profile 的 **23 行「模型可见」关停表** → 全局层工具渗进所有预设（`view(scope) = global + 链`，`persona.complete` 只裁提示词段落）；已补 `boot.ts` §3b 24 行 disabled + 删除被 shipped 根永久遮蔽的自带 standard 预设（预设来源回归官方 shipped 根）；typecheck/lint/build/30 测试全绿 + **实机验证通过（2026-09-10 · 用户确认）**
 - 问题登记 `docs/dogfood-issues.md`（跨会话移交锚点，新会话按 #N 直取）；排障 `$env:DSH_VERBOSE='1'`
+- [x] **#23 创造模式（`cordis` 预设）挂载失败 ✅（2026-09-10 · 坑 55）**：预设行 `tool-cordis` 静态 inject `dynamicCordisRunner`/`cordisInspect`，而宿主半 `cordis-host-runner` **从未 insert**（§3 那条 `disabled` 是「禁用未插入行」的空操作）；已按官方 web profile 回填三处——§1 insert 宿主半 + boot-graph 回填 client 两半（cordis-client-runner / ui-cordis）+ 自绘侧栏补声明并渲染 `sidebar.footer.action`；`cordis-inventory` 兼容面退役 `dynamicCordisRunner/inventory`（只留 `pluginInventory/list`，防遮蔽官方实现）；安全口径登记 `docs/08-security.md` §4；typecheck/lint/build 全绿 —— **待实机点验**
 
 ### M6 · 全量自绘 UI（🔥 主线）
 - [x] P1 骨架 = M3-c ✅；sidebar 壳 `@lansi-ai/dsh-desktop-sidebar` ✅（2026-09-01 实机验证）；`@lansi-ai/dsh-desktop-session-export` ✅（2026-09-02）；**2026-09-10 补齐接管面：官方 ui-layout 的 `panelInfo` root hook（坑 46）+ `main`(keyed/root) 槽位语义（坑 48 —— 缺它致上游 ui-conversation 的注册被隐式降为 session-maybe scope）**
 - ✅ **标题栏版本号自有化（2026-09-10 · 用户指定 · dogfood #20）**：`.dsh-desktop-titlebar-brand-version` 由上游基线（`__DSH_BASE_VERSION__`）改显自有版本 `v${__DSH_APP_VERSION__}`（协议层新增注入 = `app.getVersion()`，与基线合成同一 script）；上游基线降为悬停 `title`，关于页两者仍并存
-- [ ] **P2 外壳小件 · 当前焦点 = `@lansi-ai/dsh-desktop-brand`（sidebar.brand.mark + sidebar.brand.name 洞）**，会话 header 重排评估（✅ 前置：标题栏 logo 复用 app-icon PNG 已落地，见 dogfood #14）
+- ✅ **品牌资产 v2 · 黑底（2026-09-10 · 用户指定 · dogfood #22 · 坑 54）**：应用/托盘/Dock 图标改「纯黑 `#000000` + 22% 圆角实底 + 金标」（`process-logo.cjs`，浅深两版同形）；标题栏品牌标记**独立为透明底 `brand-mark-{light,dark}.png`**（新 global 槽位，revert dogfood #14 的复用口径）；存量安装靠**品牌修订号 `BRAND_REVISION` + 哈希标记**自动刷新（`syncGlobalBrandAssets` 取代只增不改的包根迁移）；typecheck/lint/30 测试/build 全绿 —— **待实机点验**；桌面快捷方式/安装包图标需重新打包
+- [ ] **P2 外壳小件 · 当前焦点 = `@lansi-ai/dsh-desktop-brand`（sidebar.brand.mark + sidebar.brand.name 洞）**，会话 header 重排评估（✅ 前置：标题栏品牌标记已独立为 `brand-mark-*.png` 全局槽位，见 dogfood #22）
 - [ ] **P3 侧栏已全量完成 ✅（2026-09-08 实机验收）**：workspaces W1–W5（含 picker 承重、派生层、行组件/视图选项、内容搜索 + 索引开启），见里程碑索引
 - [ ] P4 对话主区（最大单件）：ui-conversation/ui-renderer/ui-input-trigger/ui-attachment/ui-reference → 自研 dsh-desktop-conversation 族
 - [ ] P5 过程可视化：ui-tool/ui-subagent/ui-plan/ui-goal/ui-jobs/ui-skill/ui-workflow-run/ui-trajectory
@@ -60,14 +62,15 @@ alwaysApply: true
 - [ ] M4-c 离线 e2e · M4-e 门禁（≥3 人安装即用 + SHA256SUMS 外部可验证）
 
 ## 03. 活跃决策与风险（一行索引；全文找 git 历史 / `docs/adr/`）
-- **活跃决策**：D-18 布局接管 root 槽位 · D-19 scope=`@lansi-ai/dsh-*` · D-20 全量自绘 · D-21 骨架宿主化（`--dsd-*` 外观契约）· D-22 启动即时响应 · D-23 图标资产 global（`userData/icons/`）/pack（包内 `icons/`）分层 · **D-24 用户数据跟随 `$DSH_HOME`、设备数据（指针/Chromium 缓存/审计）留 userData（ADR-008）** · **D-25 品牌 logo 自有化（2026-09-09）**：应用图标（标题栏品牌 logo/窗口/任务栏/安装包）与托盘图标均为自有金标（`logo.png` → `scripts/process-logo.cjs`；托盘为圆角实底 + 放大金标，保 16px 可辨识）
+- **活跃决策**：D-18 布局接管 root 槽位 · D-19 scope=`@lansi-ai/dsh-*` · D-20 全量自绘 · D-21 骨架宿主化（`--dsd-*` 外观契约）· D-22 启动即时响应 · D-23 图标资产 global（`userData/icons/`）/pack（包内 `icons/`）分层 · **D-24 用户数据跟随 `$DSH_HOME`、设备数据（指针/Chromium 缓存/审计）留 userData（ADR-008）** · **D-25 品牌 logo 自有化（2026-09-09）**：应用图标（标题栏品牌 logo/窗口/任务栏/安装包）与托盘图标均为自有金标（`logo.png` → `scripts/process-logo.cjs`；托盘为圆角实底 + 放大金标，保 16px 可辨识）· **D-26 cordis 双半启用（2026-09-10 · 创造模式）**：宿主半 `cordis-host-runner` insert + 客户端两半（cordis-client-runner / ui-cordis）回填 + 侧栏 `sidebar.footer.action` 槽位（dogfood #23）；安全口径 = 动态包 ≈ bash 访问、vm 非安全边界（`docs/08-security.md` §4）
 - **基座决策**：D-1 主进程内嵌 Cordis Host · D-2 IPC fetch 载波零端口 · D-5 roster/manifest 覆盖不改 dist · D-6 `ctx.webServer` 等价面 · D-8 第三方经 `buildThirdPartyBundleDecl` 装载（详见 `docs/adr/`）
 - **铁律**：绝不改官方代码；官方未自有化处只走适配器；官方 `#root` 保留原生自适应，只用 padding/圆角垫层（坑 20）；自绘样式一律 important 化（坑 19）；**宿主 roster 抄官方必须连官方 profile 的 `disabled` 关停表一起抄——模型可见能力（工具/指令/计划段）归 agent 预设所有，宿主平面残留会渗进所有预设（坑 53）**
 - **风险 open**：R6 `!!js` 不求值 · R9 多窗口内存（M5 验）；R10 协议安全已收口（M4-a2 白名单+降级，2026-09-08）· 原「R7 `.runtime` 硬编码」已由 ADR-008 收口；全录见 `docs/11-risks.md`
-- **技术债**：`dsh-cordis-host-runner` 未装载 → 动态插件运行不支持（客户端半已清噪，插件清单经 cordis-inventory 兼容面查看；M5 评估装载链）
+- **技术债**：无新增待记项（原「`dsh-cordis-host-runner` 未装载 → 动态插件运行不支持」已随 dogfood #23 / 坑 55 收口）
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 - **当前焦点**：M6-P2 外壳小件 `@lansi-ai/dsh-desktop-brand`（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底
+- **待实机点验（2026-09-10 批次）**：**品牌资产 v2 黑底**（dogfood #22）—— `npm start` 重启应见任务栏/托盘/Dock 黑底金标 + 标题栏仍为透明金标；启动日志应有 `[dsh-theme] 品牌资产已同步到全局图标目录（修订号 legacy → 2…）`（坑 54 刷新链路）；外观页应出现「品牌标记」独立上传项。桌面快捷方式/安装包图标需重新打包（alpha.10）才更新。**创造模式 cordis 双半**（dogfood #23 · 坑 55）—— 切到创造模式无 `did not activate` 报错；侧栏底部出现动态插件面板入口；`cordis_define` + `cordis_run` 跑一个纯 host 包；带浏览器半的包出现页面审批
 - **更新链待决策（2026-09-10 · 坑 50 / dogfood #18）**：诊断面已补（审计落盘 + 关于页显示失败原文），用户侧排障不再靠猜；**open 三项**——① 渠道命名对齐（方案 A `rc`→`alpha` 立刻可用但与「正式」等价；方案 B 让发布真正产出 `-rc.N` tag + `rc.yml`）② 更新源去 `github.com` 依赖（Gitee 已实测：无 `releases.atom` → 必须 generic provider、raw 可作 yml 固定宿主、`releases/download/{tag}` 匿名可读；待验 132MB 单文件上传上限；或国内对象存储 + 自有域名，或就在可用代理下使用）③ 手动检查在阻断环境下挂起约 24 秒且无进度反馈（实测 12:49:33→12:49:57），待定是否加显式超时；**新增可用路径**：通用设置→网络设置→手动设置（如 127.0.0.1:7890）可让更新与页面请求走本地代理；**链路本身已端到端验证通过**（alpha.7→alpha.8→alpha.9 连续自更新跑通），①② 属面向陌生环境的加固、③ 仅在无代理的阻断环境下出现
 - **数据面（2026-09-09 已收口）**：ADR-008 数据根分层落地——用户数据跟随 `$DSH_HOME`、设备目录只剩指针+Chromium 缓存+审计；实机验证通过（首启选目录、会话落 home、重启历史可读、旧 `dsh-desktop` 目录自动更名）
 - dogfood 问题按 `docs/dogfood-issues.md` #N 直取；上游升级 `npm run upstream:auto`（每日 02:00 自动，**判据源=GitHub releases**；升级成功后按脚本打印的 `[TODO] 台账待人工同步` 清单收口）。当前上游基线 0.1.5-alpha.2 待实机冒烟（重点：workspaces 图标消费、文件预览换代 documentpreview）；新版出现时按预评→人工对照流程，破坏性变更禁 auto 硬升

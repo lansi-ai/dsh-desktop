@@ -47,9 +47,10 @@
 | `dsh-client-ui-directory-picker-browse` | 与 native 形态 single slot 冲突（桌面走 Electron chooser） |
 | `dsh-session-log-export` | 导出 UI 自有化（client 半；host 半保留，见上） |
 | `dsh-client-hmr` | dev SSE `/plugins/events` 桌面不存在，轮询必 404（终端静音） |
-| `dsh-cordis-client-runner` + `dsh-client-ui-cordis` | 动态双半插件子系统对端 host-runner 已禁用（零端口架构）；插件清单经 cordis-inventory 兼容面在设置页查看 |
 | `dsh-client-ui-settings-general` | 设置外壳自研（`@lansi-ai/dsh-desktop-settings-shell` 接管 `sidebar.settings` / `settings.trigger` 等，双激活抛 "already has a registration"）。**2026-09-07 补登记**：boot-graph 早已排除但本清单漏记 |
 | `dsh-client-ui-workspace` | M6-P3 工作区浏览区自研（`@lansi-ai/dsh-desktop-workspaces` 顶替，2026-09-07 W1）。⚠ **非纯 UI 排除**：该包还对外提供 `uiWorkspace` ctx 服务 + `useWorkspaces` 全局贡献 + `workspace` 字典，排除前必须逐项接管（见 §〇 已自有化明细与 `upstream-contracts.md` §2/§7.1） |
+
+> **2026-09-10 起 `dsh-cordis-client-runner` + `dsh-client-ui-cordis` 不再排除**（创造模式 · dogfood #23）：宿主半 `cordis-host-runner` 已 insert（`dynamicCordisRunner`/`cordisInspect`），客户端两半同批回填装载，面板入口注册进自绘侧栏新声明的 `sidebar.footer.action` 槽位（`list`/`root`，对齐官方 ui-sidebar）。
 
 ### 自有化待办（按阶段）
 
@@ -225,7 +226,7 @@
 | `@deepseek-ai/cordis-plugin-timer` | 定时器服务 | ✅ |
 | `@deepseek-ai/cordis-plugin-hmr` | 热重载（桌面不需要） | ⛔ 已禁用 |
 | `@lnyanhongyan/dsh-opencode-usage` | 第三方用量统计 | ⛔ 暂移除（0.1.2 不兼容，待其升版重装） |
-| webserver / web-runtime / web-startup / client-hmr / cordis-host-runner | 官方 Web 传输层与动态装载器（禁用 = 零端口红线；host-runner 未装载致 `dynamicCordisRunner/*` 部分不可用，M5 评估） | ⛔ 已禁用 |
+| webserver / web-runtime / web-startup / client-hmr | 官方 Web 传输层与 dev 热重载（禁用 = 零端口红线；client-hmr 为纯 dev 工具） | ⛔ 已禁用 |
 
 ### 15. Host 进程内注入（prepare 钩子，非插件，5 项）
 
@@ -331,7 +332,7 @@
 |---|---|---|---|
 | `@lansi-ai/dsh-ipc-connection` | `ipc-connection.js` | 零端口 IPC 载波占位（0.1.2：传输经 HTML boot 脚本注入 `__DSH_TRANSPORT__`，官方 client-connection 自行 provide connection；本条目为图谱激活占位） | ✅ |
 | `@lansi-ai/dsh-desktop-layout` | `desktop-layout-client.js` | **三列 grid 布局**（sidebar\|center\|details）+ ctx.layout 服务 + rAF 拖拽 + 窄屏折叠 + ThemePresenter 等价 + 官方主题 token（接管 root 槽位，D-18；inject: slots+theme） | ✅（2026-09-01 实机验证通过） |
-| `@lansi-ai/dsh-desktop-titlebar` | `desktop-titlebar-client.js` | titlebar 行：品牌区（官方 FishLogo/BrandWordmark，坑 23）+ 折叠钮 + 中部拖拽区 + 窗控三钮；**v5：logo + 窗控四枚 + 折叠两枚全部支持主题槽位 `icons/titlebar-*.svg`**（状态对成对提供才启用，缺失回退内置，peekSvg 防首帧空窗）（inject: slots+layout+themeIcon） | ✅（2026-09-04 v5，待实机点验） |
+| `@lansi-ai/dsh-desktop-titlebar` | `desktop-titlebar-client.js` | titlebar 行：品牌区（**v7：全局 `brand-mark-{light,dark}.png` 透明底金标**，缺失回退官方 FishLogo/占位）+ 折叠钮 + 中部拖拽区 + 窗控三钮；**v5：logo + 窗控四枚 + 折叠两枚全部支持主题槽位 `icons/titlebar-*.svg`**（状态对成对提供才启用，缺失回退内置，peekSvg 防首帧空窗）（inject: slots+layout+themeIcon） | ✅（2026-09-04 v5 / 2026-09-10 v7，待实机点验） |
 | `@lansi-ai/dsh-desktop-sidebar` | `desktop-sidebar-client.js` | 侧栏壳（M6-P3）：fold 状态机 + 新会话（经 **`ctx.get('uiWorkspace').startSession`**，坑 32 修复件——非 domain 服务）+ 4 子槽位声明（brand.mark/name、workspaces、settings），子槽位注册者无改动继续工作。**2026-09-07 注**：`sidebar.workspaces` 现由自研 `dsh-desktop-workspaces` 顶替（原为官方 ui-workspace）；`sidebar.settings` 仍为官方注册者 | ✅（2026-09-01 实机验证通过） |
 | `@lansi-ai/dsh-desktop-session-export` | `desktop-session-export-client.js` | Session 日志导出 UI（M6-P2 首件）：header 导出胶囊 + 结果弹层 + 下载 controller，文案修正桌面语义；host 半官方保留 | ✅（2026-09-02 实机验证通过） |
 | `@lansi-ai/dsh-desktop-workspaces` | `desktop-workspaces-client.js` | 工作区浏览区（M6-P3 W1 骨架）：顶替官方 `ui-workspace`，承接**五项接管面**——`uiWorkspace` 服务（六方法）+ `provideRoot(hooks.workspaces)` + `workspace` 字典 63 键 + 双注册（`sidebar.workspaces` / `conversation.hero.workspace` 各带 directoryFlow 子洞）+ 十三项动作注入面（薄转发官方 domain，数据面零新增）。store persist key 沿用 `dsh.workspace.view.v5`。**选/加工作区已可用**（官方 `WorkspacePickFlow` 等价内核：有工作区列菜单+底部固定「添加」，无工作区 open 即直抬系统目录选择器，收养失败落弹层可重试；侧栏 `addOnly` + 收养后 `startSession`）；**tree 派生层已完成（W2）**（deriveGroups/deriveFlat/deriveSearchResults + indexSubagentDescendants 血缘等纯函数内联进 bundle，`exports.derive` 钩子供 W3/W4 复用 + node:test 单测守护）；**Rows 行组件 + 视图选项已完成（W3）**（组行/会话行 + 状态点 琥珀>蓝>绿 + Manual 拖拽持久排序 + flat 单列表 + 分组/排序下拉，纯函数 8 项单测追加）；**内容搜索已完成（W4）**（wide 内联搜索槽 + narrow 搜索入口 + Host `session.search` 防抖 + sanitizeSearchQuery 线缆护栏 + 本地/内容命中合并派生，单测追加 sanitizeSearchQuery） | 🔄 W1+picker+**W2 派生层 + W3 Rows/视图选项 + W4 内容搜索**（2026-09-08，图谱实测 + 冒烟 40 项 + pickflow 行为 21 项 + 字典 diff + **派生/行/搜索单测 16 项** 全通过，**待实机点验**） |

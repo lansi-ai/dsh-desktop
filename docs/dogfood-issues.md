@@ -217,6 +217,7 @@
   2. `desktop-theme.ts`：移除 `titlebar-logo` 槽位定义 + `GLOBAL_SLOT_IDS` 条目（设置页「外观」图标清单动态渲染 `ICON_SLOTS`，自动收敛，无需改动前端）
   3. `make-theme-assets.cjs`：停用 `titlebar-logo.svg` 生成；源码与 dist 各 3 个旧 `.svg` 资源已删
 - 副作用：设置页「外观」不再有独立的「标题栏品牌 logo」上传项 —— 标题栏 logo 跟随应用图标槽位（app-icon-light/dark），换应用图标即同步标题栏
+- 后续（2026-09-10 · #22）：应用图标改黑底后不再适合标题栏复用（会在标题栏贴出黑方块），品牌 logo 重新独立为 `brand-mark-{light,dark}.png` 全局槽位，本条「复用 app-icon」的口径作废
 
 ### #15 · 打包版（v0.1.1-alpha.5）无法聊天：根锚点 cordis.yml 落 userData 致 agent-presets 全挂（dev/start 正常；早期误判为凭据缺失）
 
@@ -289,4 +290,30 @@
 - 状态：**fixed + 实机验证通过（2026-09-10 · 坑 53 · 用户确认）**
 - 修复：`boot.ts` 新增 §3b 24 行 `disabled`（官方 23 行 + 桌面遗留 `tool-str-replace-editor`），`desktop-patch.yml` 同步为参考文档；删除**从未生效**的 `resources/agent-presets/standard/`（与官方同名 id，被 shipped 根永久遮蔽），预设来源回归 shipped 根 + `$DSH_HOME/.agent-presets`；`main.ts`「扫描为空」文案改指 shipped 根；拴合面登记 `upstream-contracts` §6 / §7.3
 - 验证点：极简模式开新会话发一句话 →「本轮用量」应回落到 ~400 tok 量级；标准模式能力不回归（子代理 / 工作流 / 技能 / 计划照旧）
+
+### #22 · 应用图标 / 托盘 / Dock 改黑底，标题栏品牌标记独立（承接 #14 · 用户指定，非 bug）
+
+- 环境：dev / 打包版均适用（应用资源与宿主代码，需重新打包才能更新安装包与桌面快捷方式图标）
+- 需求（2026-09-10 用户）：「桌面图标想用黑底的，而不是现在的透明底；右下角托盘、和 dock 栏也都是黑底的」
+- 决策（当轮问答确认）：① 标题栏品牌 logo **保持透明金标**（不复用黑底应用图标）；② 黑底形态 = **圆角黑方块**（纯黑 `#000000` + 22% 圆角）
+- 变更：
+  1. `scripts/process-logo.cjs`：应用图标（512）与托盘图标（64）改为「纯黑圆角实底 + 居中金标」，浅/深两版内容一致（纯黑底上金色对比度已最高，不必再按任务栏明暗分版）；新增**透明底** `brand-mark-{light,dark}.png`（256）专供标题栏
+  2. `desktop-theme.ts`：`ICON_FILES` 新增 `brand` 件套；`ICON_SLOTS` 新增 `brand-mark-light/dark`（`scope='global'`，设置页「外观」自动出现独立上传项——**#14 的"不再有独立标题栏 logo 槽位"在此被推翻**）；`migratePackIconsToGlobal()` → `syncGlobalBrandAssets()`（品牌修订号 `BRAND_REVISION='2'` + `.brand-revision.json` 哈希标记，用户自定义不覆盖）—— 见坑 54
+  3. `desktop-titlebar-client.js` v7：品牌 logo 指向 `brand-mark-{light,dark}.png`（`<img>` 与回退链不变）
+- 生效边界：任务栏/窗口/托盘/Dock 图标**运行时读 `$DSH_HOME/icons`** → 重启即变（存量安装由品牌修订号机制自动刷新，见坑 54）；**桌面快捷方式与安装包图标**取自 electron-builder `icon: src/desktop-shell/web/app-icon-light.png` → 需重新打包/安装
+- 状态：**fixed（2026-09-10 · 坑 54）**——待实机点验（检查点：任务栏/托盘/Dock 黑底金标、标题栏仍是透明金标无黑方块、外观页出现「品牌标记」独立上传项）
+
+### #23 · 切到「创造模式」（`cordis` agent 预设）报 `preset "cordis" failed to mount: 1 row(s) did not activate`
+
+- 环境：dev（`npm start`，基线 0.1.5-alpha.2）；报告 2026-09-10
+- 第一现场：`[dsh-bridge] RPC 失败 (agentPresets/select): Error: agent-presets: preset "cordis" failed to mount: 1 row(s) did not activate: tool-cordis (@deepseek-ai/dsh-tool-cordis): waiting for dynamicCordisRunner, cordisInspect (node_modules/@deepseek-ai/dsh-agent-presets/presets/cordis/agent.cordis.yml)`
+- 根因（坑 55）：预设最后一行 `tool-cordis` 静态 `inject: [dynamicCordisRunner, cordisInspect]`，两服务由官方 `@deepseek-ai/dsh-cordis-host-runner` 提供；桌面 roster 里**从未插入该行**（`boot.ts` §3 只有一条 `{ id: 'cordis-host-runner', disabled: true }`，而 dsh-base 本就没有这一行 → 空操作），浏览器两半（`cordis-client-runner`/`ui-cordis`）也在 `CLIENT_EXCLUDE_IDS` 内 → 服务永不存在，预设挂载必失败
+- 复核结论：当年记为「零端口架构冲突」不成立——runner 本体是进程内 `node:vm`（不监听端口），浏览器半走既有 `remote`/api-gateway 通路（`main.ts` 载波桥已用官方 `connection.createSharedFetchHandler('/api')` + 两步 wire 规范化），`cordis/*` 事件由已在位的 `api-remotes` 投递；它只 `inject: ['tools']`，而 `tools` 服务行在 §1 早已激活（M2 时期缺的是工具链，不是端口）
+- 变更（方案 A：对齐官方 web）：
+  1. `boot.ts` §1 insert `{ id: 'cordis-host-runner', name: '@deepseek-ai/dsh-cordis-host-runner' }`；§3 删除两条「禁用未插入行」的空操作条目
+  2. `boot-graph.ts` 回填 `@deepseek-ai/dsh-cordis-client-runner` + `@deepseek-ai/dsh-client-ui-cordis`（当年排除的直接原因是宿主半不存在致 `syncInspectManifest` 404 刷屏）
+  3. `cordis-inventory.ts` 退役 `dynamicCordisRunner/inventory`（+ `agent:` 形态）兼容注册，只留设置页用的 `pluginInventory/list`——unary 表优先于 apiProxy，继续注册会遮蔽官方实现
+  4. `desktop-sidebar-client.js` 补声明并渲染 `sidebar.footer.action`（`list`/`root`，对齐官方 ui-sidebar；缺声明会让上游自建槽位，坑 48 同款）→ ui-cordis 的「动态插件」面板入口可见
+- 安全口径（登记 `docs/08-security.md` §4）：动态包 ≈ bash 访问，vm 非安全边界；带浏览器半的包需页面审批（人在环），定义只存内存、不落盘
+- 状态：**fixed（2026-09-10 · 坑 55）**——待实机点验（检查点：切换到创造模式无报错；侧栏底部出现动态插件面板入口；`cordis_define`+`cordis_run` 一个纯 host 包可跑；`cordis/*` 事件与审批页在带浏览器半的包上可用）
 
