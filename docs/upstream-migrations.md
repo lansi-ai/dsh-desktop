@@ -1,6 +1,6 @@
 # Upstream 同步与拴合面迁移登记表（sync-upstream · ADR-005）
 
-> 基线版本：**已升级至 `dsh-v0.1.2-rc.1`**（2026-09-04 自动工具执行，详见「C-4」；**首次跨线升至 `next` 稳定线**；前基线 `0.1.2-alpha.5` 由 2026-09-03 C-3 自动升级；再前 `0.1.2-alpha.4` 由 2026-09-02 C-2 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订）
+> 基线版本：**已升级至 `dsh-v0.1.5-alpha.1`**（2026-09-09 人工适配执行，详见「C-5」；**跨 0.1.3/0.1.4/0.1.5 三线一次吃下**，含 rightbar 契约与文件上传全量 diff）；前基线 `0.1.2-rc.1` 由 2026-09-04 C-4 自动升级；再前 `0.1.2-alpha.5` 由 2026-09-03 C-3 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订
 > **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`** 为官方 `latest`/`next` 稳定基线；文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`。`0.1.2-alpha.3` 为官方实验性版本，**虽非官方转正基线，但已由桌面按 M4-d3 专项实际升级采用**（用户决策，推翻 C-1 预评估「不选」结论）。该两版本 3 类拴合面 diff 均已登记于「C. 升级核查」与「C-1」。
 > **2026-09-04 事实刷新**：官方 `next` 线已推进至 `dsh-v0.1.2-rc.1`（`latest` 仍为 `0.1.1-rc.2`，四包 `next` 标签全部对齐），0.1.2 系列由此转正进入 rc 阶段；桌面已按 C-4 自动升级至该基线。
 > 本表随每次上游基线升级滚动更新；升级时必须逐行核对「3 类拴合面」，未核对完不得宣告升级完成。
@@ -134,3 +134,26 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 
 **验证记录（2026-09-04）**：`npm install` 成功（30 依赖对齐升 `0.1.2-rc.1`，214 包变更）；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功。install 期 3 条 `EBADENGINE` 告警为无害项（`@earendil-works/pi-ai`、`pi-telemetry`、`undici` 要求 node ≥22.19.0，本机 22.16.0，属上游依赖的引擎声明偏严，未影响安装与构建）。
 **待办**：实机冒烟随 M3-b4 dogfood 合并观察；`next` 线为首次跨线升级，重点关注官方 UI 发行物装载与 roster 装配无回归。
+
+### C-5 升级核查：`0.1.2-rc.1` → `0.1.5-alpha.1`（2026-09-09 人工适配 · **含破坏性变更，四件适配**）
+
+> **结论：经评估（REVIEW 判定）后人工适配升级**（用户决策：跳过 `0.1.3-alpha.2` 中间版直取当日发布的 `0.1.5-alpha.1`，一次吃下右侧栏/文件上传全量 diff；官方新增 9 包全装）。上游 `0.1.3-alpha.1` 曾因 npm 未发行判 pending，本次随 0.1.5 一并跨越（坑 31 口径：破坏性变更禁 auto）。
+
+| 拴合面 | 0.1.2-rc.1 → 0.1.5-alpha.1 diff 结论 | 桌面影响 | 迁移风险 |
+| --- | --- | --- | --- |
+| S1 · 装载协议面 | `BootSeams` 结构稳定（loadBundle 覆写面不变） | 无 | 🟢 低 |
+| S2 · IPC 载波面 | 载波 4 文件 diff（SessionHandle、`agentLoop.create()` 转异步、session 锁、session format v2） | 载波变体经官方同版本 dist 对齐，帧协议四象限不变 | 🟡 中 |
+| S3 · 装配 profile 面 | `dsh-app-boot/lib/index.js` diff（profile 层装载机制） | 桌面 boot() 不走官方 profile 机制，纯等价面无感 | 🟢 低 |
+| S3b · roster/manifest 面 | 官方 web-app patch 新增 8 行（open-in-app×2、workspace-files、file-upload、resources、sidebar-right、sidebar-textpreview、sidebar-files） | boot.ts 补 3 条 host 行（双半包），6 条 client 行自动入图谱 | 🟡 中 |
+| ui-* 槽位契约 | **layout 契约破坏性变更**：`details` 槽位演进为 `rightbar`（报告式呈现 `openRightbar(track, fullscreen)`/`closeRightbar()`，布局层移除会话切换自动关闭）；CENTER_MIN 640→400 | desktop-layout 件四项适配（槽位声明/服务方法/收缩策略/手柄样式） | 🟡 中 |
+| ui-workspace 契约 | 快照新增 `state: 'idle'\|'loading'\|'error'` 流状态；`owningGroupKey` 提为独立导出函数；SessionNode 新增 `runningSubagentCount` | desktop-workspaces 件适配（state 读取 + workspaceReady 门控 + owningGroupKey 提取） | 🟢 低 |
+| roster 包存在性 | 新增 9 包全部在 npm 发行（npmmirror 滞后 404，经官方 registry 安装） | package.json 依赖 +9，全部 `0.1.5-alpha.1` | 🟢 低 |
+
+**人工适配四件（2026-09-09 执行）**：
+1. **A1 装配面**：package.json 全量 bump `0.1.2-rc.1` → `0.1.5-alpha.1`（+新增 9 包：file-upload、api-workspace-files、host/client-open-in-app、sidebar-files、sidebar-right、sidebar-textpreview、client-resources、ui-dockkit）。
+2. **A1b boot.ts host 半**：补 3 条 host 行——`workspace-files`（workspaceFiles Remote：bounded read/目录列举/Agent 写变更 feed）、`file-upload`（fileUploads Remote + connection.fetch 流式上传路由，inject agents/attachments/commands/connection 均已装配）、`open-in-app`（config 三超时参数对齐官方 web-app patch，inject webServer/connection/subprocess 走 compat 等价面）。其余 6 包 node 半均为空 apply（官方仅为 Loader 存在性设计），经 `dsh.client` 声明由 boot-graph 自动扫描入图谱；`ui-dockkit` 为纯 UI 库（无 dsh 声明，作 sidebar-right bundle 内部依赖）不入图谱。
+3. **A2 layout 件**：root 槽位 children `details` → `rightbar`（scope `session`，经 SessionProvider 绑定并传 `{ width, viewportWidth, canShow }` 呈现参数）；`LayoutController` 服务 `openDetails/closeDetails` → `openRightbar(track, fullscreen)/closeRightbar()`；store 四态（rightbarShown/Track/Fullscreen/Instant）；`computeColumns` 对齐官方 0.1.5 收缩策略（右侧先收缩再失轨道，CENTER_MIN 400）；右侧手柄全屏隐藏 + instant 过渡抑制。rightbar 为轨道而非盒子：占用方面板绝对定位锚列右缘，fullscreen 走 position:fixed 全视口覆盖。
+4. **A3 workspaces 件**：新增快照流状态读取 `useWorkspaces((state) => state.state)` 与 `workspaceReady`（phase ready 且流非 loading）判定，SessionTree 接收 `workspaceReady` prop 门控 `currentGroup`（流 loading 期间旧投影不可信，不自动展开组）；`owningGroupKey(workspaces, sessionId)` 提为独立函数（替换 deriveGroups/WorkspaceBrowser/SessionTree 三处内联），`currentBlankAccount` 加 phase 门控；`exports.derive` 注册表新增 `owningGroupKey` 供单测共享真源。
+
+**验证记录（2026-09-09）**：`npm install` 成功（经 registry.npmjs.org，npmmirror 未同步新包 404）；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功；workspaces 派生层单测 17 项全过（16 原有 + owningGroupKey 新增 1 项）；boot-graph 图谱验证 61 条目（6 新 client 包全部入图，3 个官方互斥包保持排除，sidebar-right 对已排除官方 layout 的悬空 inject 信息边无拓扑影响）。
+**待办**：实机冒烟随 M3-b4 dogfood 合并观察（重点：rightbar 面板实机呈现与拖拽、文件上传流式路由经 IPC 载波转发、0.1.3 系 session 域重构后对话流/历史分页/审计无回归——见坑 31 预评四条）。
