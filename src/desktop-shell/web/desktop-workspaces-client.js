@@ -291,6 +291,14 @@ window.__ModuleLoader__.load({
       return (session.projectionValues?.schedule?.length ?? 0) > 0
     }
 
+    /**
+     * 解析会话所属的工作区浏览组键（0.1.5 官方 tree.ts 同名函数：会话归属唯一，
+     * find 首中即真源）；无归属返回空串（未分组桶 UNGROUPED_KEY）。
+     */
+    function owningGroupKey(workspaces, sessionId) {
+      return workspaces.find((workspace) => workspace.sessionIds.includes(sessionId))?.workspaceId ?? ''
+    }
+
     /** 按祖先聚合不受中断的子代理后代，running 计数仅对 running 后代累加。 */
     function indexSubagentDescendants(summaries) {
       const indexed = new Map()
@@ -390,9 +398,7 @@ window.__ModuleLoader__.load({
       const archived = new Set(archivedSessionIds)
       const expandedGroups = new Set(view.expandedGroups)
       const descendants = indexSubagentDescendants(list.byId)
-      const currentGroup = list.current === undefined
-        ? undefined
-        : workspaces.find((w) => w.sessionIds.includes(list.current))?.workspaceId ?? ''
+      const currentGroup = list.current === undefined ? undefined : owningGroupKey(workspaces, list.current)
       const groups = []
       for (const g of groupByWorkspace(list, workspaces, archived, view.ungroupedOrder)) {
         const expanded = expandedGroups.has(g.key)
@@ -1315,6 +1321,10 @@ window.__ModuleLoader__.load({
       const home = useHostInfo((info) => info.home)
       const workspaces = useWorkspaces((state) => state.items)
       const workspacePhase = useWorkspaces((state) => state.phase)
+      // 0.1.5 新增：快照流状态（'idle' | 'loading' | 'error'）——载波重连期间
+      // 旧投影仍可见但不再可信，就绪判定须叠加 `!== 'loading'`。
+      const workspaceStreamState = useWorkspaces((state) => state.state)
+      const workspaceReady = workspacePhase === 'ready' && workspaceStreamState !== 'loading'
       const archivedSessionIds = useWorkspaces((state) => state.archivedSessionIds)
       const groupBy = useStore((s) => s.groupBy)
       const orderBy = useStore((s) => s.orderBy)
@@ -1326,7 +1336,9 @@ window.__ModuleLoader__.load({
         const current = state.current
         return current !== undefined && state.byId[current]?.blank === true ? current : undefined
       })
-      const currentBlankAccount = currentBlankSessionId === undefined ? undefined : (workspaces.find((workspace) => workspace.sessionIds.includes(currentBlankSessionId))?.workspaceId ?? '')
+      const currentBlankAccount = currentBlankSessionId === undefined || workspacePhase !== 'ready'
+        ? undefined
+        : owningGroupKey(workspaces, currentBlankSessionId)
       const promotedBlank = useRef(undefined)
       useEffect(() => {
         if (currentBlankSessionId === undefined || currentBlankAccount === undefined) {
@@ -1550,6 +1562,7 @@ window.__ModuleLoader__.load({
                 useSessions,
                 useSessionPendingInteraction,
                 workspaces,
+                workspaceReady,
                 archivedSessionIds,
                 open,
                 startSession,
@@ -2288,7 +2301,7 @@ window.__ModuleLoader__.load({
      * 数据经 props 注入（useSessions/useSessionPendingInteraction 钩子 + store 派生态
      * + browserInjected 动作），不持自建 store。
      */
-    function SessionTree({ useSessions, useSessionPendingInteraction, startSession, open, forkSession, workspaces, archivedSessionIds, onWorkspaceRename, onWorkspaceDelete, onSessionRename, onSessionArchive, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t }) {
+    function SessionTree({ useSessions, useSessionPendingInteraction, startSession, open, forkSession, workspaces, workspaceReady, archivedSessionIds, onWorkspaceRename, onWorkspaceDelete, onSessionRename, onSessionArchive, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t }) {
       const list = useSessions((s) => s)
       const pendingInteractions = useSessionPendingInteraction((s) => s)
       const current = list.current
@@ -2299,7 +2312,9 @@ window.__ModuleLoader__.load({
       const workspaceDropCommitted = useRef(false)
       const previousOrderBy = useRef(orderBy)
       useNativeDragAcceptance(drag !== null || workspaceDrag !== null)
-      const currentGroup = current === undefined ? undefined : (workspaces.find((w) => w.sessionIds.includes(current))?.workspaceId ?? '')
+      // 0.1.5：未就绪（phase 未 ready 或流 loading）期间旧投影不可信，不解析当前组
+      // （否则可能按陈旧归属把错误的组自动展开）。
+      const currentGroup = current === undefined || !workspaceReady ? undefined : owningGroupKey(workspaces, current)
       // 当前会话所在组若未显式记录展开态，自动展开（保持当前项可见）。
       useEffect(() => {
         if (current === undefined || currentGroup === undefined || Object.hasOwn(groupExpansion, currentGroup)) return
@@ -2536,6 +2551,7 @@ window.__ModuleLoader__.load({
     // 亦供 W3 Rows / W4 Browser 复用；生产运行时 cordis 只消费 inject/apply，此面纯只读。
     exports.derive = {
       indexSubagentDescendants,
+      owningGroupKey,
       deriveGroups,
       deriveFlat,
       deriveSearchResults,

@@ -130,6 +130,13 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'session-controller', name: '@deepseek-ai/dsh-api-session-controller' },
       { id: 'settings-controller', name: '@deepseek-ai/dsh-api-settings-controller' },
       { id: 'workspace-controller', name: '@deepseek-ai/dsh-api-workspace-controller' },
+      // 0.1.5 新增双半 API：workspaceFiles Remote（bounded read / 目录列举 / Agent 写变更
+      // feed，sidebar-files 文件树与 textpreview 均消费）；client 半经 dsh.client 自动入图谱。
+      { id: 'workspace-files', name: '@deepseek-ai/dsh-api-workspace-files' },
+      // 0.1.5 新增双半 API：fileUploads Remote + connection.fetch 流式上传路由
+      // （inject agents/attachments/commands/connection 均已在 base/overlay 装配）；
+      // 官方 web patch 同名行（id `file-upload`），Node 半经本行激活。
+      { id: 'file-upload', name: '@deepseek-ai/dsh-client-file-upload' },
       // directoryPicker 服务：ApiProxyService.inject 必需。官方 -auto 版依赖 webServer
       // （已禁用），改为在 prepare 钩子直接实例化 native 版注入（见 boot() 内注释），
       // 此处不设 cordis 条目，避免 auto 版因缺 webServer 激活失败。
@@ -224,6 +231,11 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       // 精确路由表为空）。inject ['commands','connection']，导出依赖 sessionQuery/
       // sessionPersistence/attachments（本清单均已装载）。
       { id: 'session-log-download', name: '@deepseek-ai/dsh-session-log-export' },
+      // 0.1.5 新增：在应用中打开 host 半（对齐官方 web-app `open-in-app` 行，含 config 三
+      // 超时参数）。注册 open-in-app 探测/启动路由；浏览器半 ui-open-in-app 经 dsh.client
+      // 自动入图谱。inject ['webServer','connection','subprocess']：webServer 为 prepare 钩子
+      // 的 compat 等价面，connection 为 host-connection 行的 fetch registry，subprocess 在 base。
+      { id: 'open-in-app', name: '@deepseek-ai/dsh-host-open-in-app', config: { probeTimeoutMs: 10000, iconTimeoutMs: 10000, launchWatchMs: 1000 } },
       { id: 'goal', name: '@deepseek-ai/dsh-goal' },
       { id: 'goal-round-driver', name: '@deepseek-ai/dsh-goal-round-driver' },
       { id: 'command-goal', name: '@deepseek-ai/dsh-command-goal' },

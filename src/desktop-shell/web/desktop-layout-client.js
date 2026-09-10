@@ -2,11 +2,18 @@
  * @lansi-ai/dsh-desktop-layout —— 桌面版布局插件（方案 B：接管 root 槽位）。
  *
  * 职责：
- *   1. 注册 root 槽位，提供三列布局（sidebar | center | details）
- *   2. 实现状态管理（侧边栏/详情列宽度、窄屏模式）
+ *   1. 注册 root 槽位，提供三列布局（sidebar | center | rightbar）
+ *   2. 实现状态管理（侧边栏宽度、视口测量、右侧面板偏好与呈现上报）
  *   3. 提供 ctx.layout 服务（与官方布局插件兼容）
- *   4. 支持拖拽调整宽度（rAF 节流）
+ *   4. 支持拖拽调整宽度（rAF 节流 + 指针取消/丢捕获兜底）
  *   5. 响应式：< 1024px 自动折叠侧边栏
+ *
+ * 0.1.5-alpha.1 适配（A2）：details 槽位演进为 rightbar 报告式契约——占用方
+ * （官方 ui-sidebar-right）经 ctx.layout.openRightbar(track, fullscreen) 上报
+ * 呈现，本件只解析几何（轨道列宽 + 手柄定位）；面板本体由占用方绝对定位
+ * 自绘（锚定列右缘，无轨道时悬于中央列上方；fullscreen 走 position:fixed
+ * 全视口覆盖），列容器只承担 position:relative。会话门控由占用方自管
+ * （官方 0.1.5 移除了布局层的会话切换自动关闭逻辑）。
  *
  * 注：本文件为浏览器侧 bundle（含 window 全局），不参与 Node 编译。
  */
@@ -18,8 +25,6 @@ window.__ModuleLoader__.load({
 
     const React = require('react')
     const { useRef, useEffect, useLayoutEffect, useState, useCallback } = React
-    // 0.1.2：defineStore 从已删除的 @deepseek-ai/dsh-client-runtime 迁至
-    // @deepseek-ai/dsh-client-store（引擎与签名不变，仅发行位置迁移）。
     const runtime = require('@deepseek-ai/dsh-client-store')
 
     // ── 常量 ──────────────────────────────────────────────────
@@ -33,13 +38,13 @@ window.__ModuleLoader__.load({
     const SIDEBAR_DEFAULT = 280
     const SIDEBAR_RAIL = 56
 
-    /** 详情列宽度范围（px）。 */
-    const DETAILS_MIN = 300
-    const DETAILS_MAX = 520
-    const DETAILS_DEFAULT = 360
+    /** 右侧面板宽度契约（0.1.5：下限 + 比例上限/默认值）。 */
+    const RIGHTBAR_MIN = 300
+    const RIGHTBAR_MAX_RATIO = 0.7
+    const RIGHTBAR_DEFAULT_RATIO = 0.45
 
-    /** 中心列最小宽度（px）。 */
-    const CENTER_MIN = 640
+    /** 中央列最小宽度（0.1.5 官方由 640 收窄为 400）。 */
+    const CENTER_MIN = 400
 
     // ── 工具函数 ──────────────────────────────────────────────────
 
@@ -47,51 +52,73 @@ window.__ModuleLoader__.load({
     const clampWidth = (px, min, max) => Math.min(max, Math.max(min, Math.round(px)))
 
     /**
-     * 计算三列布局宽度。
+     * 计算三列布局宽度（对齐官方 0.1.5 columns.ts）。
+     * 右侧先收缩、再失轨道，中央列才可能低于 CENTER_MIN（可降至 0）。
      */
-    const computeColumns = (viewport, sidebar, details) => {
+    const computeColumns = (viewport, sidebar, rightbar) => {
       const s = sidebar === 0 ? SIDEBAR_RAIL : clampWidth(sidebar, SIDEBAR_MIN, SIDEBAR_MAX)
-      const d0 = details === 0 ? 0 : clampWidth(details, DETAILS_MIN, DETAILS_MAX)
-
-      if (s + d0 + CENTER_MIN <= viewport) {
-        return { sidebar: s, center: viewport - s - d0, details: d0 }
-      }
-
-      const d1 = d0 === 0 ? 0 : Math.max(DETAILS_MIN, viewport - s - CENTER_MIN)
-      if (s + d1 + CENTER_MIN <= viewport) {
-        return { sidebar: s, center: CENTER_MIN, details: d1 }
-      }
-
-      return { sidebar: s, center: Math.max(0, viewport - s), details: 0 }
+      const available = viewport - s - CENTER_MIN
+      const r = rightbar === 0 || available < RIGHTBAR_MIN
+        ? 0
+        : Math.min(available, clampWidth(rightbar, RIGHTBAR_MIN, viewport * RIGHTBAR_MAX_RATIO))
+      return { sidebar: s, center: Math.max(0, viewport - s - r), rightbar: r }
     }
 
     // ── 状态管理 ──────────────────────────────────────────────────
 
     /**
-     * 创建布局状态存储（与官方布局插件兼容）。
+     * 创建布局状态存储（对齐官方 0.1.5 布局插件 stores.ts）。
+     * rightbar* 呈现四态由占用方经 openRightbar 上报（shown/track/fullscreen），
+     * instant 为全屏退出的瞬时过渡抑制标记。
      */
     function createLayoutStore() {
       return runtime.defineStore({
         init: () => ({
           sidebar: SIDEBAR_DEFAULT,
-          details: 0,
-          narrow: false,
+          viewportWidth: window.innerWidth,
           narrowExpanded: false,
+          rightbar: null,
+          rightbarShown: false,
+          rightbarTrack: false,
+          rightbarFullscreen: false,
+          rightbarInstant: false,
         }),
         actions: {
-          setSidebar: (d, px) => { d.sidebar = clampWidth(px, SIDEBAR_MIN, SIDEBAR_MAX) },
-          setDetails: (d, px) => { d.details = clampWidth(px, DETAILS_MIN, DETAILS_MAX) },
+          setSidebar: (d, px) => {
+            d.rightbarInstant = false
+            d.sidebar = clampWidth(px, SIDEBAR_MIN, SIDEBAR_MAX)
+          },
           toggleSidebar: (d) => {
-            if (d.narrow) d.narrowExpanded = !d.narrowExpanded
+            d.rightbarInstant = false
+            if (d.viewportWidth < SIDEBAR_AUTO_COLLAPSE) d.narrowExpanded = !d.narrowExpanded
             else d.sidebar = d.sidebar === 0 ? SIDEBAR_DEFAULT : 0
           },
-          setNarrow: (d, narrow) => {
-            if (d.narrow === narrow) return
-            d.narrow = narrow
-            d.narrowExpanded = false
+          setViewportWidth: (d, width) => {
+            if (d.viewportWidth === width) return
+            d.rightbarInstant = false
+            if (d.viewportWidth < SIDEBAR_AUTO_COLLAPSE !== width < SIDEBAR_AUTO_COLLAPSE) d.narrowExpanded = false
+            d.viewportWidth = width
           },
-          openDetails: (d) => { if (d.details === 0) d.details = DETAILS_DEFAULT },
-          closeDetails: (d) => { d.details = 0 },
+          setRightbar: (d, px) => {
+            d.rightbarInstant = false
+            d.rightbar = clampWidth(px, RIGHTBAR_MIN, Math.max(RIGHTBAR_MIN, d.viewportWidth * RIGHTBAR_MAX_RATIO))
+          },
+          openRightbar: (d, track, fullscreen) => {
+            if (!d.rightbarShown || d.rightbarTrack !== track || d.rightbarFullscreen !== fullscreen) {
+              d.rightbarInstant = d.rightbarFullscreen && !fullscreen
+            }
+            if (!d.rightbarShown && d.viewportWidth < SIDEBAR_AUTO_COLLAPSE) d.narrowExpanded = false
+            d.rightbar ??= Math.max(RIGHTBAR_MIN, Math.round(d.viewportWidth * RIGHTBAR_DEFAULT_RATIO))
+            d.rightbarShown = true
+            d.rightbarTrack = track
+            d.rightbarFullscreen = fullscreen
+          },
+          closeRightbar: (d) => {
+            if (d.rightbarShown) d.rightbarInstant = d.rightbarFullscreen
+            d.rightbarShown = false
+            d.rightbarTrack = false
+            d.rightbarFullscreen = false
+          },
         },
       })
     }
@@ -99,7 +126,9 @@ window.__ModuleLoader__.load({
     // ── LayoutController 服务 ──────────────────────────────────────────
 
     /**
-     * 跨插件面板操作服务（ctx.layout）。
+     * 跨插件面板操作服务（ctx.layout，对齐官方 0.1.5 ILayout）。
+     * openRightbar 为报告式 API：占用方上报 track（是否保留轨道列）与
+     * fullscreen（全视口覆盖、隐藏外层手柄）。
      */
     class LayoutController {
       #panels
@@ -112,12 +141,12 @@ window.__ModuleLoader__.load({
         this.#require().toggleSidebar()
       }
 
-      openDetails() {
-        this.#require().openDetails()
+      openRightbar(track, fullscreen) {
+        this.#require().openRightbar(track, fullscreen)
       }
 
-      closeDetails() {
-        this.#require().closeDetails()
+      closeRightbar() {
+        this.#require().closeRightbar()
       }
 
       #require() {
@@ -130,40 +159,62 @@ window.__ModuleLoader__.load({
 
     // ── 拖拽手柄组件 ──────────────────────────────────────────────────
 
+    /**
+     * 拖拽手柄（对齐官方 0.1.5 实现：主键守卫 + 捕获句柄 + 指针取消/丢捕获兜底）。
+     */
     function DragHandle({ side, left, onStart, onDrag, onEnd }) {
       const [dragging, setDragging] = useState(false)
       const originRef = useRef(0)
       const latestRef = useRef(0)
       const rafRef = useRef(null)
+      const captureRef = useRef(null)
+      const callbacksRef = useRef({ onStart, onDrag, onEnd })
+      callbacksRef.current = { onStart, onDrag, onEnd }
 
-      const onPointerDown = useCallback((e) => {
-        e.preventDefault()
-        e.currentTarget.setPointerCapture(e.pointerId)
-        originRef.current = e.clientX
-        latestRef.current = e.clientX
-        onStart()
-        setDragging(true)
-      }, [onStart])
-
-      const onPointerMove = useCallback((e) => {
-        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-        latestRef.current = e.clientX
-        rafRef.current ??= requestAnimationFrame(() => {
-          rafRef.current = null
-          onDrag(latestRef.current - originRef.current)
-        })
-      }, [onDrag])
-
-      const onPointerUp = useCallback((e) => {
-        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-        e.currentTarget.releasePointerCapture(e.pointerId)
+      const endDrag = useCallback(() => {
+        const active = captureRef.current
+        if (active === null) return
+        captureRef.current = null
         if (rafRef.current !== null) {
           cancelAnimationFrame(rafRef.current)
           rafRef.current = null
         }
-        onEnd()
+        if (active.element.hasPointerCapture(active.id)) active.element.releasePointerCapture(active.id)
         setDragging(false)
-      }, [onEnd])
+        callbacksRef.current.onEnd()
+      }, [])
+
+      useEffect(() => endDrag, [endDrag])
+
+      const onPointerDown = useCallback((e) => {
+        if (e.button !== 0 || captureRef.current !== null) return
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        captureRef.current = { element: e.currentTarget, id: e.pointerId }
+        originRef.current = e.clientX
+        latestRef.current = e.clientX
+        callbacksRef.current.onStart()
+        setDragging(true)
+      }, [])
+
+      const onPointerMove = useCallback((e) => {
+        if (captureRef.current?.id !== e.pointerId) return
+        latestRef.current = e.clientX
+        rafRef.current ??= requestAnimationFrame(() => {
+          rafRef.current = null
+          callbacksRef.current.onDrag(latestRef.current - originRef.current)
+        })
+      }, [])
+
+      const onPointerUp = useCallback((e) => {
+        if (captureRef.current?.id !== e.pointerId) return
+        callbacksRef.current.onDrag(e.clientX - originRef.current)
+        endDrag()
+      }, [endDrag])
+
+      const onPointerCancel = useCallback((e) => {
+        if (captureRef.current?.id === e.pointerId) endDrag()
+      }, [endDrag])
 
       return React.createElement('div', {
         className: 'dsh-desktop-layout-handle',
@@ -173,73 +224,66 @@ window.__ModuleLoader__.load({
         onPointerDown,
         onPointerMove,
         onPointerUp,
+        onPointerCancel,
+        onLostPointerCapture: onPointerCancel,
       })
     }
 
     // ── AppFrame 组件 ──────────────────────────────────────────────────
 
     /**
-     * 桌面版 AppFrame：三列布局根组件。
-     * 0.1.2：details 槽位为 strict session scope，须经 SessionProvider 提供 scope
-     * 绑定（对齐官方 ui-layout AppFrame 的 `<SessionProvider>{renderSlot('details')}</SessionProvider>`），
-     * 否则报 "strict session slot 'details' rendered without a scope binding"。
+     * 桌面版 AppFrame：三列布局根组件（行1 标题栏 + 行2 三列内容区）。
+     * rightbar 为 strict session scope 槽位，须经 SessionProvider 提供 scope
+     * 绑定，并向占用方传 { width, viewportWidth, canShow } 呈现参数（对齐
+     * 官方 ui-layout AppFrame）；会话门控由占用方（ui-sidebar-right）自管。
      */
-    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider }) {
+    function AppFrame({ useStore, actions, renderSlot, SessionProvider }) {
       const panels = useStore(s => s)
-      const detailsSession = useSessions(s => {
-        const current = s.current
-        return current !== undefined && s.byId[current]?.blank === false ? current : undefined
-      })
 
       const frameRef = useRef(null)
-      const [viewport, setViewport] = useState(() => window.innerWidth)
-      const lastSession = useRef(detailsSession)
-      const colsRef = useRef({ sidebar: SIDEBAR_DEFAULT, center: 0, details: 0 })
-      const sidebarBase = useRef(0)
-      const detailsBase = useRef(0)
-      const [dragging, setDragging] = useState(false)
+      const viewport = panels.viewportWidth
 
-      // 详情列会话变化时自动关闭
+      // 视口测量：写入 store（narrow 判定/右侧默认宽度随帧变化重新解析）
       useLayoutEffect(() => {
-        if (detailsSession === undefined) return
-        if (lastSession.current !== undefined && lastSession.current !== detailsSession) {
-          actions.closeDetails()
-        }
-        lastSession.current = detailsSession
-      }, [actions, detailsSession])
-
-      // 监听容器宽度变化
-      useEffect(() => {
         const el = frameRef.current
         if (el === null) return
         let raf = null
+        let disposed = false
+        const measure = () => {
+          const width = el.getBoundingClientRect().width
+          if (width > 0) actions.setViewportWidth(width)
+        }
+        measure()
         const observer = new ResizeObserver(() => {
+          if (disposed) return
           raf ??= requestAnimationFrame(() => {
             raf = null
-            const width = el.getBoundingClientRect().width
-            if (width > 0) setViewport(width)
+            measure()
           })
         })
         observer.observe(el)
         return () => {
+          disposed = true
           observer.disconnect()
           if (raf !== null) cancelAnimationFrame(raf)
         }
-      }, [])
+      }, [actions])
 
-      // 响应式：窄屏自动折叠
       const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
-      useEffect(() => {
-        actions.setNarrow(narrow)
-      }, [actions, narrow])
-
       const sidebarCollapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
-      const cols = computeColumns(
-        viewport,
-        sidebarCollapsed ? 0 : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar,
-        detailsSession === undefined ? 0 : panels.details,
-      )
+      const sidebarPreference = sidebarCollapsed ? 0 : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
+      const rightbarPreference = panels.rightbar ?? viewport * RIGHTBAR_DEFAULT_RATIO
+      // normal：面板期望几何（手柄定位 + 槽位参数）；cols：实际网格（轨道由 track 决定）
+      const normal = computeColumns(viewport, !panels.rightbarShown && narrow ? 0 : sidebarPreference, rightbarPreference)
+      const cols = computeColumns(viewport, sidebarPreference, panels.rightbarTrack ? rightbarPreference : 0)
+
+      const colsRef = useRef(cols)
       colsRef.current = cols
+      const rightbarWidth = useRef(normal.rightbar)
+      rightbarWidth.current = normal.rightbar
+      const sidebarBase = useRef(0)
+      const rightbarBase = useRef(0)
+      const [dragging, setDragging] = useState(false)
 
       // 拖拽处理
       const onDragEnd = useCallback(() => setDragging(false), [])
@@ -249,8 +293,8 @@ window.__ModuleLoader__.load({
         setDragging(true)
       }, [])
 
-      const onDetailsStart = useCallback(() => {
-        detailsBase.current = colsRef.current.details
+      const onRightbarStart = useCallback(() => {
+        rightbarBase.current = rightbarWidth.current
         setDragging(true)
       }, [])
 
@@ -258,15 +302,14 @@ window.__ModuleLoader__.load({
         actions.setSidebar(sidebarBase.current + dx)
       }, [actions])
 
-      const onDetailsDrag = useCallback((dx) => {
-        actions.setDetails(detailsBase.current - dx)
+      const onRightbarDrag = useCallback((dx) => {
+        actions.setRightbar(rightbarBase.current - dx)
       }, [actions])
 
       return React.createElement('div', {
         ref: frameRef,
         className: 'dsh-desktop-layout-frame',
         'data-sidebar-collapsed': sidebarCollapsed || undefined,
-        'data-details-collapsed': cols.details === 0 || undefined,
         'data-dragging': dragging || undefined,
         children: [
           // 行1：标题栏区（flex:0 0 固定高，不随窗口放大而变高）
@@ -275,13 +318,16 @@ window.__ModuleLoader__.load({
             className: 'dsh-desktop-layout-titlebar',
             children: renderSlot('titlebar', { collapsed: sidebarCollapsed }),
           }),
-          // 行2：三列内容区（flex:1 撑满剩余高度；内部用 grid 排 sidebar/center/details）
+          // 行2：三列内容区（flex:1 撑满剩余高度；内部用 grid 排 sidebar/center/rightbar）
           React.createElement('div', {
             key: 'body',
             className: 'dsh-desktop-layout-body',
             style: {
-              gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px`,
+              gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.rightbar}px`,
             },
+            'data-rightbar-collapsed': cols.rightbar === 0 || undefined,
+            'data-rightbar-fullscreen': panels.rightbarFullscreen || undefined,
+            'data-rightbar-instant': panels.rightbarInstant || undefined,
             children: [
               React.createElement('div', {
                 key: 'sidebar',
@@ -295,12 +341,17 @@ window.__ModuleLoader__.load({
                 style: { gridColumn: 2 },
                 children: renderSlot('conversation', {}),
               }),
+              // rightbar 为轨道而非盒子：占用方面板绝对定位锚定列右缘，
+              // 无轨道时悬于中央列上方；fullscreen 走 position:fixed 全视口覆盖。
               React.createElement('div', {
-                key: 'details',
-                className: 'dsh-desktop-layout-details',
+                key: 'rightbar',
+                className: 'dsh-desktop-layout-rightbar',
                 style: { gridColumn: 3 },
-                // 0.1.2：strict session 槽位须经 SessionProvider 绑定 scope。
-                children: React.createElement(SessionProvider, {}, renderSlot('details', {})),
+                children: React.createElement(SessionProvider, {}, renderSlot('rightbar', {
+                  width: normal.rightbar,
+                  viewportWidth: viewport,
+                  canShow: normal.rightbar > 0,
+                })),
               }),
             ],
           }),
@@ -320,13 +371,13 @@ window.__ModuleLoader__.load({
             onDrag: onSidebarDrag,
             onEnd: onDragEnd,
           }),
-          // 详情列拖拽手柄
-          cols.details > 0 && React.createElement(DragHandle, {
-            key: 'details-handle',
-            side: 'details',
-            left: viewport - cols.details,
-            onStart: onDetailsStart,
-            onDrag: onDetailsDrag,
+          // 右侧面板手柄（全屏时隐藏外层手柄；仅在面板期望宽度可容纳时出现）
+          panels.rightbarShown && !panels.rightbarFullscreen && normal.rightbar > 0 && React.createElement(DragHandle, {
+            key: 'rightbar-handle',
+            side: 'rightbar',
+            left: viewport - normal.rightbar,
+            onStart: onRightbarStart,
+            onDrag: onRightbarDrag,
             onEnd: onDragEnd,
           }),
         ],
@@ -357,7 +408,7 @@ window.__ModuleLoader__.load({
   position: relative;
   z-index: 30;
 }
-/* 内容区（行2，flex:1 撑满剩余高度）：内部用 grid 排 sidebar/center/details。
+/* 内容区（行2，flex:1 撑满剩余高度）：内部用 grid 排 sidebar/center/rightbar。
    flex:1 保证窗口放大时内容区随高度增长，而 titlebar 保持固定。 */
 .dsh-desktop-layout-body {
   flex: 1 1 auto;
@@ -368,7 +419,9 @@ window.__ModuleLoader__.load({
   transition: grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out);
   position: relative;
 }
-.dsh-desktop-layout-frame[data-dragging] .dsh-desktop-layout-body {
+.dsh-desktop-layout-frame[data-dragging] .dsh-desktop-layout-body,
+.dsh-desktop-layout-body[data-rightbar-fullscreen],
+.dsh-desktop-layout-body[data-rightbar-instant] {
   transition: none;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -385,14 +438,12 @@ window.__ModuleLoader__.load({
   overflow: hidden;
   padding: 0 15px 15px 15px;
 }
-.dsh-desktop-layout-details {
-  border-left: 1px solid var(--dsw-alias-border-l2);
+/* rightbar 轨道列：只承担锚定（面板本体由占用方自绘，绝对定位锚右缘，
+   无轨道时悬于中央列上方），故不画背景/边框。 */
+.dsh-desktop-layout-rightbar {
   min-width: 0;
-  overflow: hidden;
-  background: var(--dsw-alias-bg-base);
-}
-.dsh-desktop-layout-frame[data-details-collapsed] .dsh-desktop-layout-details {
-  border-left: none;
+  position: relative;
+  overflow: visible;
 }
 .dsh-desktop-layout-handle {
   cursor: col-resize;
@@ -429,8 +480,8 @@ window.__ModuleLoader__.load({
 .dsh-desktop-layout-handle[data-dragging="true"]::after {
   opacity: 1;
 }
-.dsh-desktop-layout-handle[data-side="details"]:hover::after,
-.dsh-desktop-layout-handle[data-side="details"][data-dragging="true"]::after {
+.dsh-desktop-layout-handle[data-side="rightbar"]:hover::after,
+.dsh-desktop-layout-handle[data-side="rightbar"][data-dragging="true"]::after {
   background: var(--dsw-alias-button-floating-hover);
   border-color: var(--dsw-alias-border-l3);
 }
@@ -533,7 +584,7 @@ window.__ModuleLoader__.load({
           'titlebar': { kind: 'single', scope: 'root' },
           'sidebar': { kind: 'single', scope: 'root' },
           'conversation': { kind: 'single', scope: 'session-maybe' },
-          'details': { kind: 'single', scope: 'session' },
+          'rightbar': { kind: 'single', scope: 'session' },
           'shell.overlay': { kind: 'list', scope: 'root' },
         },
         store: createLayoutStore,

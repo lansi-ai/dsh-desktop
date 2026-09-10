@@ -74,6 +74,15 @@ test('indexSubagentDescendants：血缘沿父链归并，running 计数只累加
   assert.equal(indexed.get('s1'), undefined)
 })
 
+test('owningGroupKey：会话归属首中即真源；无归属返回空串（未分组桶）', () => {
+  // s1/s2/b1/sub1/sub2 ∈ w1；s3 游离
+  assert.equal(derive.owningGroupKey(workspaces, 's1'), 'w1')
+  assert.equal(derive.owningGroupKey(workspaces, 'sub2'), 'w1')
+  assert.equal(derive.owningGroupKey(workspaces, 's3'), '')
+  // 空工作区集恒为未分组
+  assert.equal(derive.owningGroupKey([], 's1'), '')
+})
+
 test('deriveGroups：按工作区分组 + 展开/折叠 + blank 仅当前可见 + containsCurrent + 未分组桶', () => {
   const groups = derive.deriveGroups(list, workspaces, ['a1'], new Map(), { expandedGroups: ['w1'] })
   assert.equal(groups.length, 3, 'w1 + w2 + 未分组桶')
