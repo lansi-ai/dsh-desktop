@@ -51,6 +51,9 @@ alwaysApply: true
 ### M4 · 分发与更新（⏸️ 剩余项延后）
 - ✅ M4-a2 R10 协议安全白名单（dsh:// 来源校验 + zod 强校验）· ✅ M4-b 三通道稳定自动更新（stable/rc/off + 运行时切换，v0.1.1-alpha.4 链路验证）· M4-a3 零依赖实机验证 🔄（首轮已验，待新包复验）
 - ✅ **发版脚本 + 坑 41 根治（2026-09-09）**：`npm run release -- <version> [--local] [--clean] [--push]`（预检→门禁→bump→commit/tag→push 一条链，push 以 `ls-remote` 回验避坑 44）+ `scripts/align-release-assets.cjs` 产物名对齐 latest.yml path（本地与 CI 共用，win/mac workflow 已插入该步）；用法见 `docs/10-development.md` §9 + README「发版（维护者）」
+- ✅ **#18 更新失败零可观测性 → 诊断面已验证（2026-09-10 · 坑 50/51）**：updater 关键相位落 `audit.jsonl`（`downloading` 进度帧拦截，含 channel / errorStack）+ 关于页 error 相位显示 `status.error` 原文；顺带修 `error` 字段从不重置。**open：① `rc` 渠道名与 tag `-alpha.N` 不匹配（预发布渠道必然失败）② 更新源依赖 `github.com`，国内呈 IP 级不可达（Gitee 备选已实测链路，待验 132MB 上传上限）**；实机验证已闭环：真因捕获 = `net::ERR_CONNECTION_RESET`（关于页显示原文 + 审计落盘 `checking`/`error`）
+- ✅ **网络代理设置（通用设置「网络设置」）✅（2026-09-10 · M4-b 配套）**：三态 direct/system/manual —— host 模块 `src/desktop-host/desktop-proxy.ts` + 自研插件 `@lansi-ai/dsh-desktop-network`（注入 `settings.general.item`）；**关键点：updater 走独立 session 分区 `electron-updater`，必须对其单独 `setProxy`（只设 defaultSession 会静默失效）**；作用域限 Chromium 栈（模型 API 等 Node 栈请求不在内，UI 已标注）；立即生效无需重启，配置落 settings `desktop`；typecheck/lint/30 单测/build 全绿，**待实机验证**；拴合面已登记 `docs/upstream-contracts.md` §7.1/§7.2
+- ✅ **#19 手动「检查更新」结果零反馈 ✅（2026-09-10 · 坑 52）**：`check()` 拆 `checkInternal(manual)` 分流手动/静默；手动检查的 `not-available`/`error` 补系统通知（**仅主窗口未聚焦**，错误取首行摘要）+ `manual` 随 `app-update:status` 下行 → 关于页 6 秒结果提示；静默自检与渠道/开关联动保持安静（无契约破坏，payload 本为 `z.unknown()`）
 - [ ] M4-c 离线 e2e · M4-e 门禁（≥3 人安装即用 + SHA256SUMS 外部可验证）
 
 ## 03. 活跃决策与风险（一行索引；全文找 git 历史 / `docs/adr/`）
@@ -62,6 +65,7 @@ alwaysApply: true
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
 - **当前焦点**：M6-P2 外壳小件 `@lansi-ai/dsh-desktop-brand`（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底
+- **更新链待决策（2026-09-10 · 坑 50 / dogfood #18）**：诊断面已补（审计落盘 + 关于页显示失败原文），用户侧排障不再靠猜；**open 三项**——① 渠道命名对齐（方案 A `rc`→`alpha` 立刻可用但与「正式」等价；方案 B 让发布真正产出 `-rc.N` tag + `rc.yml`）② 更新源去 `github.com` 依赖（Gitee 已实测：无 `releases.atom` → 必须 generic provider、raw 可作 yml 固定宿主、`releases/download/{tag}` 匿名可读；待验 132MB 单文件上传上限；或国内对象存储 + 自有域名，或就在可用代理下使用）③ 手动检查在阻断环境下挂起约 24 秒且无进度反馈（实测 12:49:33→12:49:57），待定是否加显式超时；**新增可用路径**：通用设置→网络设置→手动设置（如 127.0.0.1:7890）可让更新与页面请求走本地代理
 - **数据面（2026-09-09 已收口）**：ADR-008 数据根分层落地——用户数据跟随 `$DSH_HOME`、设备目录只剩指针+Chromium 缓存+审计；实机验证通过（首启选目录、会话落 home、重启历史可读、旧 `dsh-desktop` 目录自动更名）
 - dogfood 问题按 `docs/dogfood-issues.md` #N 直取；上游升级 `npm run upstream:auto`（每日 02:00 自动，**判据源=GitHub releases**；升级成功后按脚本打印的 `[TODO] 台账待人工同步` 清单收口）。当前上游基线 0.1.5-alpha.2 待实机冒烟（重点：workspaces 图标消费、文件预览换代 documentpreview）；新版出现时按预评→人工对照流程，破坏性变更禁 auto 硬升
 - **按需查阅台账**：`docs/pitfalls.md`（坑 1~N 排障档案）· `docs/dogfood-issues.md`（dogfood 现场）· `docs/upstream-contracts.md`（拴合面速查 + 升级 SOP）· `docs/upstream-migrations.md`（升级台账 C 区）· `docs/11-risks.md`（风险全录）· `docs/adr/`（架构决策全文）

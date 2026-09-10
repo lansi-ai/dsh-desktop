@@ -566,3 +566,84 @@
   1. 与本仓坑 44（`git push` 报凭据错但推送已成功）**同族**：沙箱与命令包装层会篡改命令的**表面结果**，退出码与 stdout 都不可作为唯一判据。
   2. 关键操作后**先回验状态、再决定是否重试**；盲目重试可能造成空提交、版本号跳号或 tag 冲突。
   3. 报错信息要结合上下文读：`目标版本 X 必须高于当前版本 X`（两者相同）本身就是"已被前一遍改过"的强信号。
+
+## 坑 50：安装版「检查更新」失败原因完全不可见 —— 渠道名不匹配 × github.com 不可达 × 零诊断面三因叠加
+
+- **现象**：v0.1.1-alpha.6 安装版点设置 → 关于 → 「检查更新」提示「检查更新失败，请稍后重试」，且**无论切「正式」还是「预发布」都一样失败**。安装版从资源管理器启动无控制台，终端日志取不到；界面只显示硬编码文案，`status.error` 原文仅在 DevTools 可见 —— 排查耗了两轮对话才定位。
+- **根因**（三个独立问题叠加，不是单一"网络不通"）：
+  1. **渠道名与 tag 命名段不匹配（预发布渠道必然失败）**：`CHANNEL_FEED.rc = 'rc'` 原样传给 electron-updater；GitHub provider 判定某条 release 属哪个渠道是**从版本号的预发布段取名**（`v0.1.1-alpha.7` → `alpha`），与 GitHub 页面的 pre-release 复选框无关。仓库全部 tag 都是 `-alpha.N`、无 `-rc.N` → 匹配循环走完 `tag` 仍为 null → **在请求任何 yml 之前**即抛 `No published versions on GitHub`（`electron-updater/out/providers/GitHubProvider.js:110-112`）。「正式」传 null，退化为用**当前安装版本自身**的预发布段（`alpha`）匹配，命中 alpha.7 后走 `alpha.yml` 404 → 回退 `latest.yml` 的兜底链成功 —— 即「正式」能用属**歪打正着**。
+  2. **本机到 `github.com` 不可达（本次真正主因，也是两渠道共同失败的原因）**：实测 `github.com:443` TCP 连接失败、`releases.atom` / `raw.githubusercontent.com` / `release-assets.githubusercontent.com` 全部超时，而 `api.github.com`（3s）与 `lansi-ai.github.io`（1s）正常 —— 属 **IP 级选择性阻断**。GitHub provider 第一步就取 `{repo}/releases.atom`（上游注释明确"不用 API 是为绕开限流"），此域不通则渠道匹配与 yml 请求都没机会执行。
+  3. **失败原因零留痕（诊断面缺失）**：`auto-updater.ts` 的 error 分支只调 `log.error`（stdout/stderr），安装版无控制台即丢失；错误原文虽在 `state.error` 并经 `app-update:status` 下行，但 `desktop-about-client.js` 在 `phase === 'error'` 时只渲染硬编码文案，从不显示 `status.error`；且状态变更走 `sendDesktopEvent` 不落审计，`audit.jsonl` 里只有 `config.write` 的渠道切换记录。
+  - 附带发现一处状态缺陷：`error` 字段**从不重置**（`checking` / `not-available` 均不清），一旦 UI 开始显示原文就会显示上一次的陈旧原因。
+- **解法**（本次仅修第 3 条；第 1、2 条待决策）：
+  - `setState` 增审计落盘：`AUDIT_PHASES` 白名单（checking / available / not-available / downloaded / error）+ 相位变化判定（`error` 每次必写），`downloading` 进度帧被拦截 —— 否则一次 138MB 下载会往 `audit.jsonl` 灌上百条。载荷含 `phase / currentVersion / channel / newVersion / error / errorStack`，文本字段按 2000 字符截断（`truncateForAudit`，防 `ERR_UPDATER_INVALID_RELEASE_FEED` 整段 `feedXml` 撑爆单条 JSONL）。**零 schema 变更**：`desktopEventSchema.payload` 与 `desktopActionEventSchema.payload` 本就是 `z.unknown().optional()`，未碰 `src/types/`。
+  - 错误堆栈经局部变量 `lastErrorStack` 捕获、仅在 error 相位写入审计，**不进 `UpdaterState`**（不扩大下行状态面）。
+  - 关于页 error 相位补一行等宽小字显示 `status.error` 原文（可见 200 字符 / `title` 上限 2000 字符），主文案保留不动（长错误串会破坏行布局）。
+  - `checking` 事件顺手清 `error` 与堆栈，消除陈旧原因。
+  - **未修**：① 渠道命名（方案 A 把 `rc` 映射为 `alpha`；方案 B 让发布真正产出 `-rc.N` tag + `rc.yml`）；② 更新源去 `github.com` 依赖。Gitee 侧已实测：`releases/download/{tag}/…` 匿名可读（302 → `foruda.gitee.com` 签名直链，1.4MB/s），但**无 `releases.atom`**（404）故必须改用 generic provider，且 generic **无 `alpha.yml`→`latest.yml` 兜底**；raw 小文件匿名可读、可作 `latest.yml` 固定宿主（免 Gitee Pages 实名）；单文件上限 100MB（另有 300MB 之说）与 132MB 产物**踩线**，是上传前的 go/no-go。
+- **验证（2026-09-10 实机 · win-unpacked）**：审计精确落盘 `checking` / `error` 各 3 条（含 `channel`，**零 `downloading`**）；真因捕获为 **`net::ERR_CONNECTION_RESET`**，栈含 `SimpleURLLoaderWrapper`（实证走 Chromium 网络栈 → 系统代理生效，同时反证早期"开系统代理没用"的判断有误）；关于页成功显示该原文；`checking` 记录中无 `error` 字段（证明重置生效）。附带发现：阻断环境下手动检查**挂起约 24 秒**（12:49:33 → 12:49:57）期间 UI 仅「检查中…」，属独立 UX 缺口，已登记待办。本地打包验证另踩坑 51（`--dir` 不生成 `app-update.yml`）。
+- **复盘要点**：
+  1. 「同一个 UI 动作失败」要**分渠道维度与网络维度分别取证** —— 本次「两个渠道都失败」正是把它俩区分开的关键信号，别把独立故障当一个。
+  2. electron-updater 的「渠道」是**从版本号预发布段推出的字符串**，不是 GitHub 的 pre-release 复选框；自建渠道体系必须让 **tag 命名 / `CHANNEL_FEED` / 发布产物文件名三者同源**。
+  3. 打包应用的**终端日志等于没有日志**。面向用户的失败路径必须同时具备「可展示 + 可落盘」两条出口，否则诊断成本会外化成多轮往返。
+  4. 加"显示错误原文"这类可观测性改动时，要顺手检查**错误字段本身是否会被重置** —— 陈旧值会被新 UI 放大成误导。
+  5. 排障先测**分层可达性**（DNS → TCP → 具体端点）再看业务代码；本次判据是 `github.com:443` 不通而 `api.github.com` 通，一步排除"网络全断"误判。
+
+## 坑 51：`electron-builder --dir` 不生成 `app-update.yml` —— 本地打包验证时 updater 必然 ENOENT
+
+- **现象**：为验证"更新失败诊断面"，用 `npm run build ; npx electron-builder --win --dir` 只产 `release/win-unpacked` 目录（刻意避开 `npm run dist` 的同版本号旧包陷阱），启动后点「检查更新」（或等 20s 静默检查）即报：
+  ```
+  [dsh-updater] Error: ENOENT: no such file or directory,
+    open 'E:\Projects\DSH\desktop\release\win-unpacked\resources\app-update.yml'
+  ```
+  同一份代码 `npm run dist` 打出的安装版内该文件存在、链路正常。
+- **根因**：`app-update.yml` 不是"打包就有"的产物，而是 **`PublishManager` 在 `onAfterPack` 钩子里按 target 类型条件写入**的：
+  - `app-builder-lib/out/publish/PublishManager.js` 的 `packager.onAfterPack` 中，Windows 分支有一道守卫：
+    ```js
+    else if (packager.platform === Platform.WINDOWS) {
+      if (!event.targets.some(it => isSuitableWindowsTarget(it))) return
+    }
+    ```
+  - 同文件 `isSuitableWindowsTarget(target)` **仅认 `nsis` / `nsis-*`**（以及开启 `electronUpdaterAware` 的 `appx`）。`--dir` 模式不含任何这类 target → `some(...)` 为 false → 提前 `return`，`app-update.yml` 从不写入。
+  - 而 `electron-updater` 的 `AppUpdater` 在 `app.isPackaged` 为真时**首次检查必读该文件**，缺件即 `ENOENT`。注意这是"已打包但缺件"的新分支：`auto-updater.ts` 的 `isDisabled()` 守卫只覆盖 `!app.isPackaged`，不覆盖此情形（该守卫的注释本意正是"避免读取缺失的 app-update.yml 抛错"，覆盖面有缺口）。
+- **解法**（不需重新打包）：
+  ```powershell
+  Copy-Item "$env:LOCALAPPDATA\Programs\dsh-forge\resources\app-update.yml" `
+            'release\win-unpacked\resources\app-update.yml'
+  ```
+  文件内容即 publish 段序列化：
+  ```yaml
+  owner: lansi-ai
+  repo: dsh-forge
+  provider: github
+  updaterCacheDirName: dsh-forge-updater
+  ```
+  ⚠️ **补完必须重启 app**：`AppUpdater` 对该文件的读取是 memoize 的，首次失败的读取会被缓存，不重启不会重读。
+  选型取舍：`--dir` 只产 unpacked 目录（无安装包、不覆写 `release/SHA256SUMS`、不与 CI 已发布的同版本号包混淆，即 M4-a3「新旧混放同版本号」陷阱）；`npm run dist` 能顺带生成 `app-update.yml`，代价是产出同名安装包并覆写校验文件。本地验证推荐 **`--dir` + 手工补 yml** 的组合。
+- **复盘要点**：
+  1. `app.isPackaged === true` **不等于**自动更新可用：还需 `resources/app-update.yml` 存在，而它的生成取决于"发布配置 + 特定 target"，与"打包"本身无关。
+  2. 用裁剪参数（`--dir` / 指定单一 target）做本地验证时，要主动核对 electron-builder 因 **target 守卫而跳过的全部产物**，别默认"打包成功 = 产物齐全"。
+  3. 这类"环境缺件"失败**不是静默降级而是每次检查都抛错**，若无诊断面极易被误判成代码 bug —— 本次能一眼定位，正是因为坑 50 的审计与 UI 显示刚落地（P0 的直接收益）。
+
+## 坑 51 附记：`isDisabled()` 的覆盖面缺口（未修，登记待决策）
+
+`auto-updater.ts` 的禁用判据 `isDisabled() = !app.isPackaged || channel === 'off'` 未覆盖「已打包但 `app-update.yml` 缺失/损坏」这一态：真实安装版由 CI 的 nsis 构建保证该文件存在，但 `--dir` 构建、安装损坏、或将来改用 `--dir` 分发便携版时会稳定踩到。可选加固（本次未做）：初始化前探测 `resources/app-update.yml` 是否存在，缺件则降级为禁用句柄并在关于页/审计给出可读提示，而非让每次检查都抛 `ENOENT`。
+
+## 坑 52：手动「检查更新」的结果没有任何用户可见反馈 —— 托盘入口更是全程无感
+
+- **现象**：从**托盘菜单**点「检查更新…」，托盘项只显示「正在检查更新…」，随后**静默恢复**成「检查更新…」，客户端任何位置都不出现结果；用户在 15 秒内连点 3 次（以为没生效）。终端与审计其实都正常：`[dsh-updater] 正在检查更新…` → `[dsh-updater] 已是最新版本 (v0.1.1-alpha.7)`，审计 `app-update:status` 落 `checking` / `not-available` 各 3 条 —— **主进程链路健康，缺口全在用户可见面**。关于页开着时也只有底部状态行文案变成「已是最新版本」。
+- **根因**（三处叠加）：
+  1. `auto-updater.ts` 的 `notify()` **只在 `update-downloaded` 一个 handler 里被调用**；`update-not-available` 与 `error` 全程静默，不产生任何用户可见反馈。
+  2. `desktop-tray.ts` 的更新菜单项只有「检查更新…」/「正在检查更新…」两态，**没有结果态**，检查结束即恢复原样。
+  3. 主进程**不区分「手动检查」与「静默自检」**：`check()` 与 `initialize()` 的延迟自检走同一条路径，因此即便想补反馈也无法只对前者生效（而启动自检每次都弹提示会很吵）。
+- **解法**：
+  - `check()` 拆为 `checkInternal(manual)`：用户入口（关于页按钮 / 托盘菜单）走 `manual=true`；启动延迟自检、渠道切换联动、自动检查开关联动一律 `manual=false`。用 `lastCheckManual` 记录本次检查来源。
+  - 手动检查的终态补可见反馈：`update-not-available` / `error` 经 `notifyResult()` 发系统通知，**仅当主窗口未聚焦**（窗口在前台时页内提示已足够，再弹是重复打扰）；通知体取错误**首行摘要**（≤160 字符），完整原文仍在关于页与 `audit.jsonl`。
+  - `manual` 随 `app-update:status` 事件下行（payload 契约本就是 `z.unknown().optional()`，**无破坏性变更**）；关于页据此只对用户手动发起的检查弹一条 **6 秒结果提示**（成功绿 / 失败琥珀），定时器由 `useEffect` 清理。
+  - 托盘菜单仍不加瞬态结果项（系统通知已覆盖该场景），保持菜单刷新逻辑简单。
+  - 审计载荷同步补 `manual` 字段，事后可区分「用户点的」与「自动跑的」。
+- **复盘要点**：
+  1. **用户主动触发的操作，结果必须落在用户看得见的地方**。把结果只写进"下次打开某个页面才可能看到"的状态，等于没反馈。
+  2. 一个服务方法被多种来源共用（页面按钮 / 托盘菜单 / 定时器）时，必须携带**来源语义**，否则"该出声的"与"该安静的"无法分流。
+  3. 通知策略要按**焦点状态**去重：窗口在前台时页内提示已足够，再弹系统通知就是噪音；窗口在后台时通知才是唯一出口。
+  4. 排查"没有反馈"类问题，先列 **入口 × 可见面** 矩阵 —— 缺口往往落在组合的交叉格里（本次是「托盘入口 × 未打开关于页」）。

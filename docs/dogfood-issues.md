@@ -251,3 +251,24 @@
 - 连带恢复：`dsh-client-ui-sidebar-documentpreview`（0.1.5 右侧栏文档预览、`textpreview` 换代包）此前的 apply 失败属同一根因的连带症状，随本修复**自行恢复**，已从 `CLIENT_EXCLUDE_IDS` 复原装载（59 个插件、零报错）
 - 状态：**fixed（2026-09-10 · 坑 48）**
 
+### #18 · 安装版点「检查更新」失败，且界面不显示任何原因（正式 / 预发布两个渠道一样失败）
+
+- 环境：打包版（v0.1.1-alpha.6 安装版，`%LOCALAPPDATA%\Programs\dsh-forge`）；报告 2026-09-10
+- 第一现场：设置 → 关于 → 「检查更新」→ 显示「检查更新失败，请稍后重试」；**界面不显示 `status.error` 原文**，安装版无控制台 → 终端日志取不到（当时的可见信息上限）
+- 分层取证（2026-09-10 本机实测）：
+  - `github.com:443` TCP 连接**失败**；`releases.atom` / `raw.githubusercontent.com` / `release-assets.githubusercontent.com` 全部**超时**（12s）
+  - 对照：`api.github.com` 200（3s）、`lansi-ai.github.io` 200（1s）→ **IP 级选择性阻断**，而非"网络全断"
+  - 渠道维度：`CHANNEL_FEED.rc = 'rc'` 与仓库 tag 预发布段 `alpha` 不匹配 → **预发布渠道必然失败**（在请求任何 yml 之前即抛 `No published versions on GitHub`）；正式渠道靠"当前安装版本自身的 `alpha` 段匹配 + `alpha.yml` 404 → `latest.yml` 兜底"**歪打正着**成功
+- 状态：**诊断面 verified（2026-09-10）** → 坑 50（本地打包验证附带踩坑 51：`--dir` 不生成 `app-update.yml`）；① 渠道命名 ② 更新源去 `github.com` 依赖 —— 两项仍 **open**，待用户决策
+- 验证结果（2026-09-10 · win-unpacked 实机）：审计落 `checking` / `error` 各 3 条（含 `channel`，零 `downloading`）；真因捕获 = **`net::ERR_CONNECTION_RESET`**（栈含 `SimpleURLLoaderWrapper` → 实证走 Chromium 网络栈、系统代理生效）；关于页成功显示该原文；`checking` 记录中无 `error` 字段（证明重置生效）
+- 附带发现（未修，登记待办）：阻断环境下手动检查**挂起约 24 秒**（12:49:33 → 12:49:57）期间 UI 仅「检查中…」，无进度反馈
+- 修复（本次）：updater 关键相位落 `audit.jsonl`（`downloading` 进度帧拦截）+ 关于页 error 相位显示 `status.error` 原文 + `checking` 时重置 `error` 与堆栈
+
+### #19 · 从托盘点「检查更新」后客户端没有任何结果反馈
+
+- 环境：打包版（win-unpacked，v0.1.1-alpha.7；系统代理已开 `127.0.0.1:7890`）
+- 第一现场：终端 `[dsh-updater] 正在检查更新…` → `[dsh-updater] 已是最新版本 (v0.1.1-alpha.7)`；审计 `app-update:status` 落 `checking` / `not-available` 各 3 条（15 秒内连点 3 次）→ **主进程链路健康，缺口在用户可见面**
+- 根因：① `notify()` 只在 `update-downloaded` 调用，`not-available` / `error` 全静默；② 托盘菜单项无结果态，检查完即静默恢复；③ 主进程不区分手动检查与静默自检，无法只对前者补反馈
+- 状态：**fixed（2026-09-10 · 坑 52）**
+- 修复：`check()` 拆 `checkInternal(manual)` 分流手动/静默；手动检查的 `not-available` / `error` 补系统通知（**仅主窗口未聚焦**）；`manual` 随 `app-update:status` 下行 → 关于页弹 6 秒结果提示（成功绿 / 失败琥珀）；审计同步补 `manual` 字段；托盘不加瞬态结果项
+
