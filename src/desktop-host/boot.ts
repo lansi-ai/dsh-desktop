@@ -273,6 +273,14 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
       { id: 'web-search-deepseek', name: '@deepseek-ai/dsh-web-search-deepseek', config: { apiKeyEnv: 'DEEPSEEK_API_KEY' } },
       { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web', config: { fetch: false, searchTimeoutMs: 60000 } },
       { id: 'tools', name: '@deepseek-ai/dsh-tools' },
+      // 动态 Cordis 包宿主半（agent 预设 `cordis` = 创造模式的硬依赖）：
+      // 提供 `dynamicCordisRunner`（定义注册表 + node:vm 沙箱 + 运行往返）与 `cordisInspect`；
+      // `@deepseek-ai/dsh-tool-cordis` 静态 inject 这两个服务，缺行即
+      // `preset "cordis" failed to mount: 1 row(s) did not activate`（dogfood #23）。
+      // 自身只 inject `tools`（本表上方已激活）；与零端口无冲突——沙箱在进程内，
+      // 不监听任何端口，浏览器半走既有 remote/api-gateway 通路（main.ts 载波桥）。
+      // ⚠ 信任立场：动态包 ≈ bash 访问（官方 README Trust stance；vm 非安全边界）。
+      { id: 'cordis-host-runner', name: '@deepseek-ai/dsh-cordis-host-runner' },
       // ui-settings-general host 面条目：注册 `ui-onboarding` settings namespace，
       // 供官方 UI 的内测声明/onboarding 写入（client 面经 settings.mutate 打到 host settings，
       // 缺此 namespace 会报 "settings namespace ui-onboarding is not registered" 拦截进入）。
@@ -306,8 +314,10 @@ const DESKTOP_OVERLAY_PATCHES: any[] = [
   { id: 'web-startup', disabled: true },
   { id: 'modules', disabled: true },
   { id: 'client-hmr', disabled: true },
-  { id: 'cordis-client-runner', disabled: true },
-  { id: 'cordis-host-runner', disabled: true },
+  // 2026-09-10 起 cordis 双半整体启用（创造模式 · dogfood #23）：宿主半见 §1 的
+  // `cordis-host-runner` insert，浏览器半经 boot-graph 回填装载；旧行
+  // `{ id: 'cordis-client-runner' | 'cordis-host-runner', disabled: true }` 已删
+  // （它们本就不在 dsh-base roster 里，属于「禁用未插入行」的空操作）。
   // 0.1.2 IPC 载波替换：不再禁用 connection（官方 host connection 提供
   // createSharedFetchHandler，是桌面传输背板的核心）；client-runtime 已删（无此行）。
   // 历史补丁条目（getIpcCarrierPatchEntries）已废弃，见 manifest.ts。

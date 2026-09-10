@@ -418,11 +418,12 @@
 - id: client-runtime
   disabled: true
 
-- id: cordis-client-runner
-  disabled: true
-
-- id: cordis-host-runner
-  disabled: true
+# 2026-09-10（创造模式 · dogfood #23）：cordis 双半整体启用——
+# 宿主半由 boot.ts §1 insert `{ id: 'cordis-host-runner', name: '@deepseek-ai/dsh-cordis-host-runner' }`
+# （agent 预设 `cordis` 的 tool-cordis 静态 inject `dynamicCordisRunner`/`cordisInspect`）；
+# 浏览器半（cordis-client-runner + ui-cordis）经 boot-graph 回填装载。
+# 旧条目 `cordis-client-runner: disabled` / `cordis-host-runner: disabled` 已删
+# （二者本就不在 dsh-base roster 内，属「禁用未插入行」的空操作）。
 
 # ═══════════════════════════════════════════════════════════════════════════
 # §3b 对齐官方 web profile：模型可见能力归 agent 预设所有（坑 53）

@@ -1,16 +1,17 @@
 /**
  * dsh-desktop Cordis inventory 兼容（M2·c 旧插件门禁·插件列表显示）。
  *
- * 官方 ui-cordis 插件面板经 `ctx.remote.dynamicCordisRunner.inventory()` 读
- * Cordis 插件清单。host 端因禁用 `cordis-host-runner`（与零端口 IPC 载波架构冲突）
- * 无该 API 域 → 404。本模块提供最小 inventory 等价面：
+ * 历史：官方 ui-cordis 面板经 `ctx.remote.dynamicCordisRunner.inventory()` 读 Cordis
+ * 插件清单，而宿主半 `cordis-host-runner` 曾未装载 → 该 API 域 404，本模块提供最小
+ * inventory 等价面保证面板/设置页仍能列出插件。
  *
- *   从 `__DSH_BOOT__` 图谱（boot-graph）生成的已装载 client 插件清单，
- *   使官方插件面板可显示列表（运行/停止动态插件等完整能力不在本范围）。
+ * **2026-09-10 起（创造模式 · dogfood #23）**：官方 `@deepseek-ai/dsh-cordis-host-runner`
+ * 已装载，`dynamicCordisRunner` 域由官方实现提供 —— 本模块**只保留自研设置页所需的
+ * `pluginInventory/list` 只读快照**（官方没有该端点），不再注册
+ * `dynamicCordisRunner/inventory`：bridge 的 unary 表分发优先于 apiProxy，继续注册会
+ * 遮蔽官方实现，让 ui-cordis 面板读到合成清单而非真实运行时。
  *
- * 调用路径（对齐官方 TypertClientRemote）：
- *   ctx.remote.dynamicCordisRunner.inventory() → connection.rpc.call('/api',
- *   'dynamicCordisRunner/inventory') → bridge methodTable 分发（unary 优先于 apiProxy）。
+ * 清单来源：`__DSH_BOOT__` 图谱（boot-graph）生成的已装载 client 插件清单。
  */
 
 import { generateBootGraph, buildThirdPartyBundles } from './boot-graph.js'
@@ -119,15 +120,13 @@ export function buildPluginInventorySnapshot(): { entries: PluginInventoryEntry[
 /**
  * 注册插件清单等价面到 bridge unary 表（host 端，main.ts 装配段调用，bridge 已注册后）。
  *
- * 覆盖两个官方 remote endpoint：
- * - `dynamicCordisRunner/inventory`（ui-cordis 插件面板；direct + scoped 双形态注册提高命中）
- * - `pluginInventory/list`（设置页「插件列表」Tab：只读 Loader inventory 快照）
+ * 只注册 `pluginInventory/list`（自研设置页「插件列表」Tab 的只读快照）。
+ * 官方 `dynamicCordisRunner/inventory` 自 2026-09-10 起由已装载的官方宿主半提供
+ * （创造模式 · dogfood #23），**本兼容面不再注册它**——unary 表优先于 apiProxy，
+ * 重复注册会遮蔽官方实现。
  */
 export function registerCordisInventoryCompat(): () => void {
   const rows = buildCordisInventory()
-  const reply = async () => rows
-  registerMethod('dynamicCordisRunner/inventory', reply)
-  registerMethod('agent:dynamicCordisRunner/inventory', reply)
   const pluginInventoryReply = async () => buildPluginInventorySnapshot()
   registerMethod('pluginInventory/list', pluginInventoryReply)
 

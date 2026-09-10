@@ -366,9 +366,9 @@ async function bootstrap(): Promise<void> {
     // 2. 注册 IPC 桥（必须在 Host 启动前，确保 renderer 就绪通知可接收）
     registerIpcBridge()
 
-    // 2.5. 注册 Cordis inventory 等价面（M2·c 插件列表显示）。
-    // 必须早于 createWindow()：ui-cordis 面板在客户端插件挂载时会立即读取
-    // `dynamicCordisRunner/inventory`，若晚于窗口创建注册，首次读取会 404 并被缓存。
+    // 2.5. 注册插件清单等价面（M2·c 插件列表显示）。
+    // 只剩自研设置页的 `pluginInventory/list` 只读快照；官方 `dynamicCordisRunner/*`
+    // 自 2026-09-10 起由已装载的官方宿主半提供（创造模式 · dogfood #23），不再兼容。
     // 该方法不依赖 desktopCore，独立于 step 8 的桌面能力守卫。
     const { registerCordisInventoryCompat } = await import('../desktop-host/cordis-inventory.js')
     registerCordisInventoryCompat()

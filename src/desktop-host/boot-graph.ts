@@ -48,14 +48,16 @@ const CLIENT_EXCLUDE_IDS = new Set([
   // 5 子槽位声明）；官方 ui-sidebar 排除后，ui-workspace/ui-settings 无改动注册其子槽位
   // （摸底证实 ui-workspace 运行时不 require ui-sidebar，dsh.client.inject 仅为装载顺序提示）。
   '@deepseek-ai/dsh-client-ui-sidebar',
-  // Web 端专用基础设施，桌面零端口不提供对应宿主服务 →
-  // ① dsh-client-hmr：dev SSE `/plugins/events` 热重载通道不存在，轮询必 404（纯 dev 工具，桌面无价值）；
-  // ② dsh-cordis-client-runner + dsh-client-ui-cordis：动态双半插件管理子系统，对端 cordis-host-runner
-  //    已禁用（零端口架构冲突），客户端激活即对 syncInspectManifest 404 报错且面板本就不工作——
-  //    整体排除后插件清单仍经 cordis-inventory 兼容面（pluginInventory/list）从设置页查看（2026-09-01·终端静音清理）。
+  // Web 端专用基础设施，桌面零端口不提供对应宿主服务：
+  // dsh-client-hmr 的 dev SSE `/plugins/events` 热重载通道不存在，轮询必 404
+  // （纯 dev 工具，桌面无价值）。
   '@deepseek-ai/dsh-client-hmr',
-  '@deepseek-ai/dsh-cordis-client-runner',
-  '@deepseek-ai/dsh-client-ui-cordis',
+  // 2026-09-10 回填装载（创造模式 · dogfood #23）：dsh-cordis-client-runner 与
+  // dsh-client-ui-cordis 当年被排除的直接原因是**宿主半不存在**——客户端激活即
+  // `ctx.remote.dynamicCordisRunner.syncInspectManifest` 404 刷屏、面板本就不工作
+  // （2026-09-01 终端静音清理）。宿主半已回填（boot.ts §1 `cordis-host-runner` insert），
+  // 两者必须配套恢复：面板提供运行审批 + 浏览器半装载，缺它则带浏览器半的动态包
+  // 会一直挂起（官方 README「带浏览器半的包在没有页面连接的地方挂起」）。
   // M6 外壳小件：Session 日志导出自有化——@lansi-ai/dsh-desktop-session-export 接管
   // conversation.session.header.utilities 槽位（导出胶囊 + 结果弹层，文案修正桌面语义）。
   // 仅排除 client 半；host 行 session-log-download（boot.ts §1）保留——/export 命令与
