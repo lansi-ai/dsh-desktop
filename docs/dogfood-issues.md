@@ -301,7 +301,7 @@
   2. `desktop-theme.ts`：`ICON_FILES` 新增 `brand` 件套；`ICON_SLOTS` 新增 `brand-mark-light/dark`（`scope='global'`，设置页「外观」自动出现独立上传项——**#14 的"不再有独立标题栏 logo 槽位"在此被推翻**）；`migratePackIconsToGlobal()` → `syncGlobalBrandAssets()`（品牌修订号 `BRAND_REVISION='2'` + `.brand-revision.json` 哈希标记，用户自定义不覆盖）—— 见坑 54
   3. `desktop-titlebar-client.js` v7：品牌 logo 指向 `brand-mark-{light,dark}.png`（`<img>` 与回退链不变）
 - 生效边界：任务栏/窗口/托盘/Dock 图标**运行时读 `$DSH_HOME/icons`** → 重启即变（存量安装由品牌修订号机制自动刷新，见坑 54）；**桌面快捷方式与安装包图标**取自 electron-builder `icon: src/desktop-shell/web/app-icon-light.png` → 需重新打包/安装
-- 状态：**fixed（2026-09-10 · 坑 54）**——待实机点验（检查点：任务栏/托盘/Dock 黑底金标、标题栏仍是透明金标无黑方块、外观页出现「品牌标记」独立上传项）
+- 状态：**fixed（2026-09-10 · 坑 54）**——任务栏/托盘已确认（用户点验，2026-09-10）；桌面快捷方式/安装包图标待重新打包（alpha.10）验证；外观页「品牌标记」独立上传项待点验
 
 ### #23 · 切到「创造模式」（`cordis` agent 预设）报 `preset "cordis" failed to mount: 1 row(s) did not activate`
 
@@ -315,5 +315,5 @@
   3. `cordis-inventory.ts` 退役 `dynamicCordisRunner/inventory`（+ `agent:` 形态）兼容注册，只留设置页用的 `pluginInventory/list`——unary 表优先于 apiProxy，继续注册会遮蔽官方实现
   4. `desktop-sidebar-client.js` 补声明并渲染 `sidebar.footer.action`（`list`/`root`，对齐官方 ui-sidebar；缺声明会让上游自建槽位，坑 48 同款）→ ui-cordis 的「动态插件」面板入口可见
 - 安全口径（登记 `docs/08-security.md` §4）：动态包 ≈ bash 访问，vm 非安全边界；带浏览器半的包需页面审批（人在环），定义只存内存、不落盘
-- 状态：**fixed（2026-09-10 · 坑 55）**——待实机点验（检查点：切换到创造模式无报错；侧栏底部出现动态插件面板入口；`cordis_define`+`cordis_run` 一个纯 host 包可跑；`cordis/*` 事件与审批页在带浏览器半的包上可用）
+- 状态：**fixed + 实机验证通过（2026-09-10 · 坑 55 · 用户确认）**：切换创造模式不再报 `did not activate`，双半与面板入口均可用
 
