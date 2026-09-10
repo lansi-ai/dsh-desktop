@@ -41,6 +41,7 @@ alwaysApply: true
 
 ### M6 · 全量自绘 UI（🔥 主线）
 - [x] P1 骨架 = M3-c ✅；sidebar 壳 `@lansi-ai/dsh-desktop-sidebar` ✅（2026-09-01 实机验证）；`@lansi-ai/dsh-desktop-session-export` ✅（2026-09-02）；**2026-09-10 补齐接管面：官方 ui-layout 的 `panelInfo` root hook（坑 46）+ `main`(keyed/root) 槽位语义（坑 48 —— 缺它致上游 ui-conversation 的注册被隐式降为 session-maybe scope）**
+- ✅ **标题栏版本号自有化（2026-09-10 · 用户指定 · dogfood #20）**：`.dsh-desktop-titlebar-brand-version` 由上游基线（`__DSH_BASE_VERSION__`）改显自有版本 `v${__DSH_APP_VERSION__}`（协议层新增注入 = `app.getVersion()`，与基线合成同一 script）；上游基线降为悬停 `title`，关于页两者仍并存
 - [ ] **P2 外壳小件 · 当前焦点 = `@lansi-ai/dsh-desktop-brand`（sidebar.brand.mark + sidebar.brand.name 洞）**，会话 header 重排评估（✅ 前置：标题栏 logo 复用 app-icon PNG 已落地，见 dogfood #14）
 - [ ] **P3 侧栏已全量完成 ✅（2026-09-08 实机验收）**：workspaces W1–W5（含 picker 承重、派生层、行组件/视图选项、内容搜索 + 索引开启），见里程碑索引
 - [ ] P4 对话主区（最大单件）：ui-conversation/ui-renderer/ui-input-trigger/ui-attachment/ui-reference → 自研 dsh-desktop-conversation 族
