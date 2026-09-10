@@ -549,3 +549,20 @@
   1. 「接管官方插件的槽位」不止要对齐**服务**与 **root hooks**，还必须对齐**槽位名 + kind + scope**。上游插件用 `slots.inject(<槽位名>)` 等待父槽位，缺声明会让它**自建槽位并继承错误的 scope**，症状出现在下游而非本插件，极难反查。
   2. **scope 决定条目生命周期**：`session-maybe` 会在未选中会话时卸载条目，任何在其中注册 effect 的插件都会被反复重建；`root` 才是常驻。槽位 kind 同理（`single` 会被替换，`keyed` 按 key 常驻）。
   3. 别把结论推给上游——**先跑官方同版本做对照**。本次若不跑 `dsh web`，极易误判为"Cordis 固有竞态"而放弃。
+
+## 坑 49：发版/提交命令的 stdout 与实际结果不符（命令疑似执行两遍，报错但操作已成功）
+
+- **现象**：执行 `npm run release -- 0.1.1-alpha.7 --push`，输出**只有一行**错误 `✗ 目标版本 0.1.1-alpha.7 必须高于当前版本 0.1.1-alpha.7`，看起来彻底失败；但实际发版**完整成功**——`git log` 有 `chore(release): 版本号升至 0.1.1-alpha.7`、本地与远程 tag 均指向该 commit、远程 `main` 已同步、CI 双平台 workflow 已触发。同批次还出现：`git add … ; git commit …` 输出 `nothing to commit, working tree clean`，而该提交实际已存在。
+- **根因**：现象与「**同一条命令被执行了两遍**」完全吻合——第一遍真正完成了 bump/commit/tag/push；第二遍读到的已是 bump 后的版本，于是 preflight 报"版本必须高于当前"。成因未定位（怀疑与命令包装层 `rtk` 代理或 PowerShell 管道组合有关），**注意这不是脚本 dry-run 的问题**：`scripts/release.cjs` 的 `--dry-run` 分支均有 `return`，经实测复核语义正确（零写入，版本与工作区均不变）。
+- **解法（应对方式，非根因修复）**：发版、提交、推送这类关键操作**不要以 stdout / 退出码为准**，一律改用客观状态回验，例如：
+  ```powershell
+  git log --oneline -3
+  git rev-parse v<version>            # 本地 tag 指向
+  git ls-remote origin refs/heads/main # 远程 main 指向
+  git status --porcelain               # 工作区是否干净
+  ```
+  本次即靠这组命令确认"报错但已成功"，避免了重复发版（重复发版会撞"版本必须高于当前"或产生空提交）。
+- **复盘要点**：
+  1. 与本仓坑 44（`git push` 报凭据错但推送已成功）**同族**：沙箱与命令包装层会篡改命令的**表面结果**，退出码与 stdout 都不可作为唯一判据。
+  2. 关键操作后**先回验状态、再决定是否重试**；盲目重试可能造成空提交、版本号跳号或 tag 冲突。
+  3. 报错信息要结合上下文读：`目标版本 X 必须高于当前版本 X`（两者相同）本身就是"已被前一遍改过"的强信号。
