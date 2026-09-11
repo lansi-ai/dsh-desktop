@@ -355,6 +355,7 @@
 30. **「用户可自定义的资源目录」必须能区分「随包资源」与「用户自己的」**：只按 `existsSync` 跳过已存在文件的"迁移"其实是一次性种子，随包资源更新永远到不了存量安装；解法 = 修订号 + 写入哈希（一致才覆盖，改过就保留），并明确「内置资源 vs 激活包」的真源归属（坑 54）。验证资源类改动是否生效，直接读**运行期真源目录**（如 `$DSH_HOME/icons`）的文件与哈希，不要只看仓库里的资源文件已更新。
 31. **服务缺席要查「有没有 insert 行」，不是「有没有 disabled 行」**：非 insert 补丁只按 id 覆盖已存在条目，`{ id, disabled: true }` 写在一条从未插入的行上是**空操作**（坑 55）。诊断顺序 = 报错里的服务名 → `rg -uu` 找提供它的官方包（看 `static inject` / `provide`）→ 回本仓 roster 核对 **insert** 清单 + 客户端图谱排除表；agent 预设/list 类 `inject` 是硬契约，缺一个服务即整块挂不上（`N row(s) did not activate`），恢复时「宿主提供行 + 客户端半 + 宿主 UI 槽位」必须同批回填。
 32. **`git status` 显示 `M` 而 `git diff` 为空 = 索引 stat 缓存尺寸失配（行尾变化是常见诱因，不是判据）**：判别三查——`git hash-object <path>` 与 `git rev-parse HEAD:<path>` 相等（**内容零差异**，这是决定性证据）、`git ls-files --debug <path>` 的 `size` 与实际字节数不符、`git ls-files --eol`（仅辅助）；修复用 **`git add <path>`** 刷新 stat（内容相同即不产生暂存变更）。实测无效：`git update-index --refresh`、`Remove-Item` + `git checkout`（编辑器把行尾再归一化即复发）。此类假改动会卡住 `git merge --ff-only` 与 `scripts/release.cjs` 预检，且报错伪装成真实冲突（坑 56）。
+33. **「装了哪些插件」这类清单，先分清「数据面」与「界面面」再找源**：官方把二者拆成两个包（host 出清单 / client 渲染），窗口里能搜到条目只说明**界面面**在跑，清单内容由**数据面**决定。诊断顺序 = 页面上有没有显式错误态（有 → 链路断，查 unary/apiProxy；没有 → 链路通、返回内容不对，查数据面取数口径）；再确认数据面取数真源是「装配条目」还是「文件/目录派生」——只有前者能反映宿主侧插件（坑 57）。
 
 ## 结论
 
@@ -754,3 +755,33 @@
   2. **`git add <path>` 才是正解**：内容一致时它只刷新 stat、不产生暂存变更。实测**无效**的两种写法：`git update-index --refresh`（不修此类失配，`M` 依旧）、`Remove-Item` + `git checkout -- <path>`（把工作区写回 CRLF——若是 LF 与 CRLF 尺寸差导致的失配，此时会「暂时」变干净；但只要编辑器/工具随后把行尾再归一化为 LF，失配立刻复发。本次就这样反复了两次，一度以为已修好）。
   3. **别被 `--ff-only` 的报错文案带偏**：`Your local changes ... would be overwritten` / `工作区不干净` 都把矛头指向「本地改动」，而本例一个字节都没改。判断口诀：**报错说你有本地改动、但你确信没碰过代码 → 先跑 `git hash-object` 与 `git rev-parse HEAD:<path>` 对哈希**，相等就不要再找代码差异了。
   4. **别据此去改全局行尾策略**：实测全仓有 39 个文件是 `w/lf`（`.gitignore`、`tsconfig.json`、`website/**`、多数 `docs/adr/*` 等）却长期「干净」→ 在 `core.autocrlf=true` 下 LF 工作区**并不必然**报 `M`，真正触发的是「索引 stat 尺寸与实际字节数不符」的那一个文件。顺手去改 `core.autocrlf` 或加 `.gitattributes` 只会把问题转移到另一批文件上。
+
+## 坑 57：插件列表数据面取错真源 —— 官方「插件列表」读 Loader 真实插件树，forge 只读客户端图谱 → 宿主侧插件（`tool-pwsh` 等）在列表与搜索中完全缺失
+
+- **现象**：同一台机器、同一个「设置 → 插件 → 插件列表」窗口，官方网页版与 forge 结论相反：
+  - 官方搜 `pwsh` → 命中 4 项：会话插件 `terminal-bash` / `tool-pwsh-persistent`（「其他预设中还有 3 个匹配」），全局插件 `pwsh-sandbox` / `tool-pwsh`（`tool-pwsh` 带「预设中启用」标记）。
+  - forge 搜 `pwsh` → 「没有匹配的插件。」+「全局插件 · 系统与所有会话共用 · **0 个**」，且**整个「会话插件」分组不渲染**、无任何「预设中启用」标记。
+  注意 forge 页面**没有**出现读取失败的错误态（该 Tab 有显式 error 态 + 「重试」按钮）——说明 `pluginInventory.list` 链路是通的，只是**返回内容里就没有这些插件**。
+
+- **根因**（两处叠加，任一处都足以让 `tool-pwsh` 消失）：
+  1. **「插件列表」是两个包分工，forge 只换了数据面那一个**：
+     - 数据面 `@deepseek-ai/dsh-host-plugin-inventory`（host）→ `ctx.loader.entries()` 的**真实 Cordis Loader 插件树**，再经 `ctx.get('agentPresets').compositionInventory()` 追加每个预设的组成行；
+     - 界面面 `@deepseek-ai/dsh-client-ui-settings-plugin-inventory`（client）→ 注册 `settings.plugins.tab`（`id:'all'`）渲染 Tab。
+     forge 的界面面一直是官方的，而数据面被自研 [cordis-inventory.ts](file:///e:/Projects/DSH/desktop/src/forge-host/cordis-inventory.ts) 顶替。
+  2. **自研数据面在 boot 之前注册，只能从「客户端资源图谱」派生**：`registerCordisInventoryCompat()` 在 [main.ts](file:///e:/Projects/DSH/desktop/src/forge-shell/main.ts#L373-L374) 的 step 2.5 调用（此时还没有 `hostCtx`），于是取数走 `generateBootGraph()`。而图谱的扫描条件是 `dsh.client.platform === 'web'`（[boot-graph.ts](file:///e:/Projects/DSH/desktop/src/forge-host/boot-graph.ts#L243-L262)）——**只含界面半**，宿主侧插件（`tool-pwsh` / `pwsh-sandbox` / `terminal-bash` 等）根本不在其中。
+  3. **快照缺 `agentPresets` 字段** → 页面 `const presets = snapshot?.agentPresets ?? []` 得空数组 → 「会话插件」分组不渲染、`enabledIn` 反查表为空 → 「预设中启用」标记永不出现。（forge 其实**已装载** `agent-presets` 服务，只是没人去读它。）
+  4. 附带的架构性事实：**bridge 的 unary 表分发优先于 apiProxy**（[bridge.ts](file:///e:/Projects/DSH/desktop/src/forge-host/bridge.ts#L195-L213)），自研注册 `pluginInventory/list` 即等于接管该端点 —— 官方 host 半即使装上也会被遮蔽，两者只能二选一。
+
+- **解法**（数据面 + 界面面同批自研，2026-09-10）：
+  - 数据面三源合并：`ctx.loader.entries()`（主进程半，跳过 group 条目）+ boot-graph 的 client bundle（界面半）+ `agentPresets.compositionInventory()`（预设组成），按模块名归并，同名两侧 → `half:'both'`；`enabled` / `fiberPhase` 取 Loader 真实值（`FiberState` 0..5 → `pending/loading/active/failed/null/unloading`）。
+  - **绑定挪到 boot 之后**：新增 `bindCordisInventoryHost(hostCtx)`，在 `bootDesktopHost()` 返回后调用；handler 仍在 boot 前注册（UI 打开时才被调用，故不构成竞态），未绑定时降级为「仅客户端图谱」并显式告警。
+  - 界面面自研 `@lansi-ai/dsh-forge-plugin-inventory` 接管 `settings.plugins.tab`（`id:'all'`），官方同名 Tab 包进 `CLIENT_EXCLUDE_IDS`（否则同一 list 槽位出现两个 `id:'all'`）；「插件」section 外壳（含「插件配置」Tab）仍用官方 `ui-settings-plugins`。
+  - 展示口径演进：v1 = 「桌面定制单列表 + 半身/来源/状态徽标」（80+ 项平铺无层次、徽标堆叠、预设名只在 hover 上＝不可见）；v2 = **两级分组 + 筛选 chips + 精简两行 + 点行展开详情**；v3 = 分组②改为「预设组成」并加**预设切换器**（见复盘要点 6：曾按预设名平铺会给 4 个 shipped 预设铺出 **92 行**且大量重复）。预设名升为行内可见文案，且仅在「全局停用、靠预设启用」时出现（避免与状态文案重复）；搜索仅匹配模块名与条目 id（对齐官方口径）。
+
+- **复盘要点**：
+  1. **「列表为空/搜不到」第一步是分辨「链路断」还是「数据不对」**：显式错误态是免费的分水岭——没有错误态 = `list()` 成功返回，此时去查返回内容，别去查网络/时序。
+  2. **看「有没有」的清单，真源必须是装配树，不能是文件系统/资源图谱**（通用方法论第 20 条同源）：图谱回答「哪些资源会被加载」，`loader.entries()` 回答「哪些插件真的在跑」，两者对宿主侧插件差一个全集。
+  3. **需要宿主服务的数据面，注册与取数是两个时机**：handler 可以在 boot 前注册（懒调用），但**读 loader / agentPresets 必须等 boot 完成**；把「注册」写成模块级静态数据构造，就会永久锁死在 boot 前的可见信息量上。
+  4. **unary 表优先于 apiProxy 是一条双向契约**：自研要补位就补位（官方端点不存在时），但要清醒地知道「补位即接管」；官方 host 半装载后必须撤掉同名自研注册，否则官方实现静默失效（坑 55 同款陷阱）。
+  5. **官方给的数据字段别自作主张省掉**：`agentPresets` 不是「可有可无的附加信息」，它是页面渲染「会话插件」分组与「预设中启用」标记的**唯一依据**，省掉等于删功能。
+  6. **「列出某个预设挂了哪些行」时，三条聚合纪律缺一即少行**（本次一次踩满）：① **主键用 entryId 而非模块名**——`minimal` 的 `terminal-bash`（bash）与 `terminal-pwsh`（pwsh）同名同为 `@deepseek-ai/dsh-terminal-bash`，仅 entryId 不同，按模块名去重直接吞掉一行；② **停用行照列**——`disabled: !!js process.platform === 'win32'` 的 bash 栈在 win32 就是「已停用」，过滤掉等于删掉「本机为何没有 bash」这个答案（官方会话插件分组同口径，标签为 已启用/已停用/条件启用）；③ **不并进全局平面**——同名模块若在全局平面已有行，预设行被吸收后就永远看不见。另外：**4 个 shipped 预设合计 92 行且彼此大量重复**（standard 28 / ptc 29 / cordis 29 / minimal 6），必须用**切换器**一次看一个，平铺即灾难；验证数据口径的最快路径是直接读 `node_modules/@deepseek-ai/dsh-agent-presets/presets/<preset>/agent.cordis.yml`（组行 `group: true` 递归展开、跳过组行本身），比反复猜 API 返回快得多。

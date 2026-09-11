@@ -77,6 +77,12 @@ const CLIENT_EXCLUDE_IDS = new Set([
   //   ui-agent-preset 四者永久 PENDING 且不报错（坑 15）。故自研件必须自己 provide 同名服务。
   // 仅排除 client 半；host 半 lib/index.js 本就是空 apply 且 boot.ts 未插该行，host 侧无连坐。
   '@deepseek-ai/dsh-client-ui-workspace',
+  // M6-P6 插件列表自研：@lansi-ai/dsh-forge-plugin-inventory 接管设置「插件」section 的
+  // `settings.plugins.tab`（id='all'）——官方 ui-settings-plugin-inventory 是互斥副本，
+  // 双激活会在同一 list 槽位注册两个 id='all' 的 Tab（tab 列表投影按 id 去重，行为不确定）。
+  // 仅排除该 Tab 包；「插件」section 外壳仍由官方 ui-settings-plugins 提供（含「插件配置」
+  // Tab），故无需额外接管 section 本身。
+  '@deepseek-ai/dsh-client-ui-settings-plugin-inventory',
   // 注：0.1.5 官方 documentpreview（textpreview 换代包）**不入排除**——排查期曾临时排除，
   // 因其 apply 内 `provide("documentPreviews")` 的异步 effect 未落地即被同步访问而报
   // `cannot get property "documentPreviews" without inject`。该症状实为「main 槽位缺失
@@ -414,6 +420,13 @@ export function generateBootGraph(rev?: string, extraBundles?: BootBundleDecl[])
     // + 十三项动作注入面（全部薄转发官方 domain，数据面零新增）。服务等待在 bundle 内
     // exports.inject 声明，图谱 entry.inject 仅信息性包名边故恒 []（坑 15 口径）。
     { id: '@lansi-ai/dsh-forge-workspaces', path: resolveLocalWebBundle('forge-workspaces-client.js'), inject: [], immediately: true },
+    // M6-P6 插件列表自研（顶替官方 ui-settings-plugin-inventory，见 CLIENT_EXCLUDE_IDS）：
+    // 接管设置「插件」section 的 `settings.plugins.tab`（id='all'），渲染桌面定制单列表
+    // （半身/来源/状态徽标 + 搜索）。数据面 = host 侧的 `pluginInventory/list` 三源合并
+    // 快照（Cordis 真实 Loader 条目 ∪ 客户端图谱 ∪ 预设组成），服务等待在 bundle 内
+    // exports.inject 声明（slots/locale/remote），图谱 entry.inject 仅信息性包名边故恒 []。
+    // external 边保证 ui-renderer（slots 来源）先于本件入图。
+    { id: '@lansi-ai/dsh-forge-plugin-inventory', path: resolveLocalWebBundle('forge-plugin-inventory-client.js'), inject: [], external: ['@deepseek-ai/dsh-client-ui-renderer/client'], immediately: true },
     ...(extraBundles ?? []),
   ]
 

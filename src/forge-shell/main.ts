@@ -366,12 +366,13 @@ async function bootstrap(): Promise<void> {
     // 2. 注册 IPC 桥（必须在 Host 启动前，确保 renderer 就绪通知可接收）
     registerIpcBridge()
 
-    // 2.5. 注册插件清单等价面（M2·c 插件列表显示）。
+    // 2.5. 注册插件清单数据面（M2·c 插件列表显示）。
     // 只剩自研设置页的 `pluginInventory/list` 只读快照；官方 `dynamicCordisRunner/*`
     // 自 2026-09-10 起由已装载的官方宿主半提供（创造模式 · dogfood #23），不再兼容。
     // 该方法不依赖 desktopCore，独立于 step 8 的桌面能力守卫。
-    const { registerCordisInventoryCompat } = await import('../forge-host/cordis-inventory.js')
-    registerCordisInventoryCompat()
+    // 数据源三成分中的 Loader 条目需 boot 完成后才能绑定（见 step 3.6）。
+    const inventory = await import('../forge-host/cordis-inventory.js')
+    inventory.registerCordisInventoryCompat()
 
     // 3. 启动 Cordis Host（desktop profile 装配 + 插件树挂载；--serve 控制 Web 传输层启用）
     const { bootDesktopHost } = await import('../forge-host/boot.js')
@@ -416,6 +417,16 @@ async function bootstrap(): Promise<void> {
       }
     } catch (error) {
       log.error('[dsh-boot] Agent 预设扫描探针失败:', error)
+    }
+
+    // 3.6 插件清单数据面绑定（M6-P6）：`pluginInventory/list` 快照从「仅客户端图谱」
+    // 升级为「Cordis 真实 Loader 条目 ∪ 客户端图谱 ∪ Agent 预设组成」——宿主侧插件
+    // （tool-pwsh / pwsh-sandbox 等）此前在列表与搜索中完全缺失。handler 在 step 2.5
+    // 注册、UI 打开时才调用，此处绑定晚于注册不构成竞态。绑定失败仅降级不阻断启动。
+    try {
+      inventory.bindCordisInventoryHost(hostCtx as { get(name: string): unknown })
+    } catch (error) {
+      log.error('[dsh-boot] 插件清单宿主绑定失败（插件列表将缺失宿主侧插件）:', error)
     }
 
     // 4. 连接 IPC 桥与 Cordis Host 的 0.1.2 传输背板（connection + typertGateway）
