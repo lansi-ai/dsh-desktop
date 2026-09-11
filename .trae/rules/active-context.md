@@ -50,7 +50,7 @@ alwaysApply: true
 - [ ] **P3 侧栏已全量完成 ✅（2026-09-08 实机验收）**：workspaces W1–W5（含 picker 承重、派生层、行组件/视图选项、内容搜索 + 索引开启），见里程碑索引
 - [ ] P4 对话主区（最大单件）：ui-conversation/ui-renderer/ui-input-trigger/ui-attachment/ui-reference → 自研 dsh-forge-conversation 族
 - [ ] P5 过程可视化：ui-tool/ui-subagent/ui-plan/ui-goal/ui-jobs/ui-skill/ui-workflow-run/ui-trajectory
-- ✅ **P6 首件 · 插件列表全自研（2026-09-10）**：界面件 `@lansi-ai/dsh-forge-plugin-inventory` 接管 `settings.plugins.tab`（桌面定制口径 v3：两级分组「全局插件 / 预设组成」+ 承载面筛选 chips + 精简两行、点行展开详情；预设组成组带**预设切换器**并照列已停用/条件行——对齐官方「会话插件 · N 个」（极简模式 = 6 行）；官方同名 Tab 入 `CLIENT_EXCLUDE_IDS`，「插件」section 外壳仍官方）；数据面 `cordis-inventory.ts` 由「仅客户端图谱」升级为**三源合并**（Cordis 真实 Loader 条目 ∪ 客户端图谱 ∪ 预设组成；新增 `bindCordisInventoryHost` 于 boot 后绑定），根治「forge 搜不到 tool-pwsh」——官方读 Loader 真实树、forge 旧实现只读图谱致宿主侧插件全缺，见坑 57；typecheck/lint/build/30 单测全绿
+- ✅ **P6 首件 · 插件列表全自研（2026-09-10）**：界面件 `@lansi-ai/dsh-forge-plugin-inventory` 接管 `settings.plugins.tab`（桌面定制口径 v3：两级分组「全局插件 / 预设组成」+ 承载面筛选 chips + 精简两行、点行展开详情；预设组成组带**预设切换器**并照列已停用/条件行——对齐官方「会话插件 · N 个」（极简模式 = 6 行）；官方同名 Tab 入 `CLIENT_EXCLUDE_IDS`，「插件」section 外壳仍官方）；数据面 `cordis-inventory.ts` 由「仅客户端图谱」升级为**三源合并**（Cordis 真实 Loader 条目 ∪ 客户端图谱 ∪ 预设组成；新增 `bindCordisInventoryHost` 于 boot 后绑定），根治「forge 搜不到 tool-pwsh」——官方读 Loader 真实树、forge 旧实现只读图谱致宿主侧插件全缺，见坑 57；typecheck/lint/build/30 单测全绿 + **实机验证通过（2026-09-11 · 用户确认：极简模式 6 行、预设切换器与分组均正确）**
 - [ ] P6 设置与底座（余）：ui-settings 余下 section + ui-theme/ui-locale/ui-model-selection/ui-permission-presets
 - [ ] M6 门禁：每阶段对照官方不回归 + dogfood 无感切换；全部完成后功能性 ui-* 全量入 CLIENT_EXCLUDE_IDS；M6-x harness 基线动态化（前置 M4-b，随 M4 延后）
 
@@ -71,8 +71,7 @@ alwaysApply: true
 - **技术债**：无新增待记项（原「`dsh-cordis-host-runner` 未装载 → 动态插件运行不支持」已随 dogfood #23 / 坑 55 收口）
 
 ## 04. 下一步即时行动 (Next Immediate Actions)
-- **当前焦点**：M6-P6 首件「插件列表」数据面 + 界面面已全自研（2026-09-10）→ 待实机点验；下一件回到 M6-P2 外壳小件 `@lansi-ai/dsh-forge-brand`（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底
-- **待实机点验（插件列表自研 · 2026-09-10）**：启动日志应有 `[dsh-cordis-inventory] 宿主插件树已绑定（Loader 条目 N 个：…）`（无此行使说明绑定失败）；设置→插件→「插件列表」搜 `pwsh` 应命中 `tool-pwsh` / `pwsh-sandbox`（主进程半）与预设提供的 `tool-pwsh-persistent`；页面不应出现「重试」错误态；「全局插件 / 预设组成」两级分组与筛选 chips 应正常；预设组成组切到极简模式应列出 **6 行**（含 2 条已停用：bash 栈在 win32 关停）；靠预设启用的全局行应直接写出预设名（不再靠悬停）；对照官方网页版逐项核对条目
+- **当前焦点**：M6-P6 首件「插件列表」数据面 + 界面面已全自研并**实机验证通过（2026-09-11）**→ 回到 M6-P2 外壳小件 `@lansi-ai/dsh-forge-brand`（sidebar.brand.mark + sidebar.brand.name 洞）→ 会话 header 重排评估；同期梳理 P4 对话主区（ui-conversation 族）摸底
 - **待实机点验（2026-09-10 批次）**：**品牌资产 v2 黑底**（dogfood #22）—— 任务栏/托盘已确认（用户点验）；启动日志有 `[dsh-theme] 品牌资产已同步到全局图标目录（修订号 legacy → 2…）`；**仍待**：外观页「品牌标记」独立上传项、桌面快捷方式/安装包图标（已随 v0.1.1-rc.1 打包，待点验）
 - **待实机点验（命名空间改名后）**：`dsh-forge` 全量更名后需一次实机启动，确认 15 个自研 client 插件按新 ID 装载、侧栏/设置/外观/工作区无回归（旧 rev 缓存的 index.html 已由启动版本 query + no-store 兜住）；**载体已就绪 = v0.1.1-rc.1（win setup/portable + mac dmg/zip 双架构）**
 - **更新链待决策（2026-09-10 · 坑 50 / dogfood #18）**：诊断面已补（审计落盘 + 关于页显示失败原文），用户侧排障不再靠猜；**open 三项**——① 渠道命名对齐（**进展 2026-09-10：已真出 `-rc.1` tag + 预发布 Release，但 CI 未产出 `latest-rc.yml`（匿名探针实测 404）→ 应用内 rc 渠道仍不自动可见；剩余方案 B = `electron-builder` 配 `channel: rc` + CI 一并上传该描述符**）② 更新源去 `github.com` 依赖（Gitee 已实测：无 `releases.atom` → 必须 generic provider、raw 可作 yml 固定宿主、`releases/download/{tag}` 匿名可读；待验 132MB 单文件上传上限；或国内对象存储 + 自有域名，或就在可用代理下使用）③ 手动检查在阻断环境下挂起约 24 秒且无进度反馈（实测 12:49:33→12:49:57），待定是否加显式超时；**新增可用路径**：通用设置→网络设置→手动设置（如 127.0.0.1:7890）可让更新与页面请求走本地代理；**链路本身已端到端验证通过**（alpha.7→alpha.8→alpha.9 连续自更新跑通），①② 属面向陌生环境的加固、③ 仅在无代理的阻断环境下出现

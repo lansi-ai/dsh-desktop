@@ -772,7 +772,7 @@
   3. **快照缺 `agentPresets` 字段** → 页面 `const presets = snapshot?.agentPresets ?? []` 得空数组 → 「会话插件」分组不渲染、`enabledIn` 反查表为空 → 「预设中启用」标记永不出现。（forge 其实**已装载** `agent-presets` 服务，只是没人去读它。）
   4. 附带的架构性事实：**bridge 的 unary 表分发优先于 apiProxy**（[bridge.ts](file:///e:/Projects/DSH/desktop/src/forge-host/bridge.ts#L195-L213)），自研注册 `pluginInventory/list` 即等于接管该端点 —— 官方 host 半即使装上也会被遮蔽，两者只能二选一。
 
-- **解法**（数据面 + 界面面同批自研，2026-09-10）：
+- **解法**（数据面 + 界面面同批自研，2026-09-10；**实机验证通过 2026-09-11 · 用户确认：极简模式列出 6 行、预设切换器与两级分组均正确**）：
   - 数据面三源合并：`ctx.loader.entries()`（主进程半，跳过 group 条目）+ boot-graph 的 client bundle（界面半）+ `agentPresets.compositionInventory()`（预设组成），按模块名归并，同名两侧 → `half:'both'`；`enabled` / `fiberPhase` 取 Loader 真实值（`FiberState` 0..5 → `pending/loading/active/failed/null/unloading`）。
   - **绑定挪到 boot 之后**：新增 `bindCordisInventoryHost(hostCtx)`，在 `bootDesktopHost()` 返回后调用；handler 仍在 boot 前注册（UI 打开时才被调用，故不构成竞态），未绑定时降级为「仅客户端图谱」并显式告警。
   - 界面面自研 `@lansi-ai/dsh-forge-plugin-inventory` 接管 `settings.plugins.tab`（`id:'all'`），官方同名 Tab 包进 `CLIENT_EXCLUDE_IDS`（否则同一 list 槽位出现两个 `id:'all'`）；「插件」section 外壳（含「插件配置」Tab）仍用官方 `ui-settings-plugins`。
