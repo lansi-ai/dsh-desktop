@@ -1,6 +1,6 @@
 # Upstream 同步与拴合面迁移登记表（sync-upstream · ADR-005）
 
-> 基线版本：**已升级至 `dsh-v0.1.5-alpha.2`**（2026-09-10 人工适配执行，详见「C-6」；REVIEW 判定经用户决策升级，textpreview 随官方换代 documentpreview）；前基线 `0.1.5-alpha.1` 由 2026-09-09 C-5 人工适配升级（跨 0.1.3/0.1.4/0.1.5 三线一次吃下，含 rightbar 契约与文件上传全量 diff）；再前 `0.1.2-rc.1` 由 2026-09-04 C-4 自动升级；再前 `0.1.2-alpha.5` 由 2026-09-03 C-3 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订
+> 基线版本：**已升级至 `dsh-v0.1.5-rc.2`**（2026-09-11 人工适配执行，详见「C-7」；REVIEW 判定经用户决策升级——ui-* 两包差异均为呈现层、两包入口零变化，零代码适配）；前基线 `0.1.5-alpha.2` 由 2026-09-10 C-6 人工适配升级（REVIEW 判定经用户决策升级，textpreview 随官方换代 documentpreview）；再前 `0.1.5-alpha.1` 由 2026-09-09 C-5 人工适配升级（跨 0.1.3/0.1.4/0.1.5 三线一次吃下，含 rightbar 契约与文件上传全量 diff）；再前 `0.1.2-rc.1` 由 2026-09-04 C-4 自动升级；再前 `0.1.2-alpha.5` 由 2026-09-03 C-3 升级；旧基线 `dsh-v0.1.0-rc.8` 检出 `_harness-src`，commit `141eb6f`，2026-08-25 决策 D-4 修订
 > **升级目标（2026-09-01 事实刷新）：`dsh-v0.1.1-rc.2`** 为官方 `latest`/`next` 稳定基线；文档旧载「rc.12」系早期调查臆测项——npm/GitHub 均无 `0.1.0-rc.12`。`0.1.2-alpha.3` 为官方实验性版本，**虽非官方转正基线，但已由桌面按 M4-d3 专项实际升级采用**（用户决策，推翻 C-1 预评估「不选」结论）。该两版本 3 类拴合面 diff 均已登记于「C. 升级核查」与「C-1」。
 > **2026-09-04 事实刷新**：官方 `next` 线已推进至 `dsh-v0.1.2-rc.1`（`latest` 仍为 `0.1.1-rc.2`，四包 `next` 标签全部对齐），0.1.2 系列由此转正进入 rc 阶段；桌面已按 C-4 自动升级至该基线。
 > 本表随每次上游基线升级滚动更新；升级时必须逐行核对「3 类拴合面」，未核对完不得宣告升级完成。
@@ -177,3 +177,22 @@ desktop profile 相对官方 web-app 的预期差集**必须全部落入 S1–S3
 
 **验证记录（2026-09-10）**：`npm install` 成功（+3/−19/改 241 包；EBADENGINE 无害告警：undici@8.10.2、@earendil-works/pi-ai、pi-telemetry 需 node≥22.19.0，当前 v22.16.0）；lock 实测 dsh/dsh-web-frontend/documentpreview 均 0.1.5-alpha.2；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功（22 静态文件 + resources + cordis.yml）。
 **待办**：实机冒烟（重点：workspaces 13 图标消费经官方 dist 内联模块正常渲染、sidebar-files 文件树预览链路随 textpreview→documentpreview 换代验证、0.1.5-alpha.2 dist 装载无回归）。
+
+### C-7 升级核查：`0.1.5-alpha.2` → `0.1.5-rc.2`（2026-09-11 人工适配 · REVIEW 判定经用户决策升级）
+
+> **结论：assess 判定 REVIEW（ui-primitives / ui-chat 两包有差异）→ 自动升级 ABORT → 人工内容级 diff 摸底确认无破坏后经用户决策升级**。拴合面 S1/S2/S3/S3b **零差异**；roster 96 包全部存在（无 blocked）；官方 web-app roster 包集**无新增/删除**。**零代码适配**：仅依赖版本 bump（39 个基线依赖 + 2 个 caret 依赖对齐）+ 应用版本升至 `0.1.1-rc.2`。上游 rc.1 为 `0.1.5` 首个候选版，其「其他变更」段（会话 V3、`SessionHandle`、移除 `ctx.agent`、Inbox API、`conversation`→`main` key、极简模式工具关停表、persona 前后缀）**均落在 alpha.1/alpha.2 区间，已由 C-5/C-6 吸收**，本区间无新增破坏性项。
+
+| 拴合面 | 0.1.5-alpha.2 → 0.1.5-rc.2 diff 结论 | 桌面影响 | 迁移风险 |
+| --- | --- | --- | --- |
+| S1 · 装载协议面 | 零差异 | 无 | 🟢 低 |
+| S2 · IPC 载波面 | 零差异 | 无 | 🟢 低 |
+| S3 · 装配 profile 面 | 零差异 | 无 | 🟢 低 |
+| S3b · roster/manifest 面 | 零差异（96 包全存在） | 无 | 🟢 低 |
+| ui-primitives | +2（`code-file-icon-artwork.ts` / `.manifest.json`）、~3（`CodeFileIcon.tsx` / `markdown/CodeBlock.tsx` / `CodeBlock.module.css`）；**`src/index.ts` 零变化（导出面不变）**——CodeFileIcon 由字母标号改为内嵌全彩 artwork 表（逐实例 id 防渐变/clip 冲突），CodeBlock **新增可选 `contentRef` 与 `.content` 类（纯增量）** | 桌面仅消费 `Modal`/`Button`/`FishLogo`/`BrandWordmark` + workspaces 硬解构 13 图标，均为 index 导出且未变；`ICON_SLOTS` 的 match 特征只针对 ui-workspace 内联图标 `d` 前缀，与新 artwork 无交集 | 🟢 低 |
+| ui-chat | ~2（`client/chat/StatsPills.tsx` / `TurnTailNodeView.module.css`）；**`src/index.ts` 零变化**——统计面板 cacheWrite 为 0 时隐藏该行；轮尾间距微调 | 项目侧仅 roster 包名装载（P4 自绘未开始），无导出消费 | 🟢 低 |
+| 官方 web-app roster 包集 | 无新增/删除 | 无 | 🟢 低 |
+
+**人工适配（2026-09-11 执行）**：39 个基线依赖统一 bump `0.1.5-alpha.2 → 0.1.5-rc.2`；**另对齐 2 个 caret 依赖**（`@deepseek-ai/dsh-client-store` / `@deepseek-ai/dsh-client-ui-primitives`，C-6 新增的直接依赖，`^0.1.5-alpha.2 → ^0.1.5-rc.2`）——npm 不主动升级 lock 内已满足 range 的版本，不对齐会残留 alpha.2 版本错位；应用版本 `0.1.1-rc.1 → 0.1.1-rc.2`。
+
+**验证记录（2026-09-11）**：`npm install` 成功（changed 232 包；**EBADENGINE 无害告警**：`undici@8.10.2`、`@earendil-works/pi-ai@0.85.1`、`pi-telemetry@0.85.1` 需 node≥22.19.0，当前 v22.16.0）；lock 实测全部 `@deepseek-ai` 0.1.5 系 = `0.1.5-rc.2`（零 alpha 残留）；`npm run typecheck` 零错误；`npm run lint` 零告警；`npm run build` 成功（26 静态文件 + resources + cordis.yml）；`npm test` 30/30 通过。
+**待办**：实机冒烟（重点：交付文件卡片排版与对话间距、代码文件图标换全彩 artwork、会话统计 cacheWrite=0 隐藏、反馈弹窗确认；**工作区侧栏内联图标槽位 match 特征基于官方 dist 探测、未被 assess 覆盖，需一并点验**）。

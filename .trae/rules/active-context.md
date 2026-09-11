@@ -11,7 +11,7 @@ alwaysApply: true
 ## 01. 当前迭代目标 (Current Sprint Goal)
 - **阶段**：M3 代码全部完成（2026-08-26）→ **M6 全量自绘 UI 主线（D-20 · ADR-006）**；M3-b4 dogfood 进行中（= M3 收尾门禁，不阻塞自绘）；M4 分发整体延后，重启时机 = 自绘可日常使用
 - **M6 主线**：逐槽位替换官方 ui-*（P1 骨架 ✅ → P2 外壳 → P3 侧栏 → P4 对话区 → P5 过程可视化 → P6 设置底座），每阶段可用可验证；数据面零新增（IPC 载波 + desktopBridge）
-- **上游基线**：`dsh-v0.1.5-alpha.2`（2026-09-10 人工适配升级，REVIEW 判定经用户决策：ui-* 六包差异摸底无破坏、primitives 官方内联 dist、textpreview 随官方换代 documentpreview，见 C-6；每日 02:00 北京时间定时任务跑 `npm run upstream:auto`；**新版判据源 = GitHub releases**，npm 仅作「是否可安装」校验，判定 safe 才动；升级后台账人工同步硬约束见 workflow.md 场景 D）
+- **上游基线**：`dsh-v0.1.5-rc.2`（2026-09-11 人工适配升级，REVIEW 判定经用户决策：ui-primitives/ui-chat 两包差异人工内容级 diff 摸底均为呈现层、两包入口零变化，**零代码适配**，见 C-7；前基线 alpha.2 见 C-6；每日 02:00 北京时间定时任务跑 `npm run upstream:auto`；**新版判据源 = GitHub releases**，npm 仅作「是否可安装」校验，判定 safe 才动；升级后台账人工同步硬约束见 workflow.md 场景 D）
 - **上游待办（pending）**：无（原 `0.1.3-alpha.1` pending 随 C-5 升级一并跨越收口）；下一版本出现时按预评→人工对照流程，破坏性变更禁 auto 硬升（坑 31）
 
 ## 02. 任务看板 (Task Kanban · 滚动窗口)
@@ -21,7 +21,7 @@ alwaysApply: true
 - M3-c 布局/标题栏/骨架宿主化 ✅（= M6-P1，2026-09-01 实机验证）
 - M3-a4 命令面板 + M3-a5 多窗口验证 ⏸️ 用户决策挂起（Ctrl+K 已隐藏；恢复 = revert `forge-cmdpalette-client.js` 禁用壳）
 - M4-a1 electron-builder 基建 ✅；v0.1.1-alpha.1~alpha.3 Win/mac 安装包发布 ✅；**v0.1.1-alpha.4 发布 ✅（2026-09-08 · CI win+mac 双平台自动构建并上传 GitHub Releases pre-release；坑 41：资产名对齐 latest.yml path 后自动更新链路匿名 HEAD 200 验证）**；**v0.1.1-alpha.5 发布（2026-09-09 · 首载 M4-a4 数据目录分层/DSH Forge 命名/规则收敛，tag 推 CI 双平台构建）**；**v0.1.1-alpha.6 发布（2026-09-09 · 载 M4-a1 根锚点入 asar 修复安装版无法聊天，坑 45）**；**v0.1.1-alpha.7 发布（2026-09-10 · 载 0.1.5-alpha.2 基线升级 + 启动报错根治/右侧栏面板恢复，坑 46/47/48；tag 推 CI 双平台构建）**；**v0.1.1-alpha.8 发布（2026-09-10 · 载 更新链诊断面 + 网络代理设置（三态）+ 手动检查结果反馈，坑 50/51/52；tag 推 CI 双平台构建）**；**v0.1.1-alpha.9 发布（2026-09-10 · 载 标题栏版本号自有化，dogfood #20；tag 推 CI 双平台构建）**；**v0.1.1-rc.1 发布 ✅（2026-09-10 · `0.1.1` 线首个 `rc` 候选：极简模式 token 修复（坑 53）+ 品牌资产 v2（坑 54）+ 创造模式修复（坑 55）+ 自研插件命名空间全量更名 `dsh-forge`（D-27）；CI 双平台出包、更新说明人工写入 Release、匿名 HEAD 200 复核通过；**open：未产出 `latest-rc.yml`（实测 404）→ 应用内 rc 渠道不自动可见**）**（打包链坑见 `docs/pitfalls.md`）
-- M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 `docs/m4-d3-012-alpha3-migration-plan.md`）→ alpha.4 → alpha.5（`scripts/upstream.cjs` 自动化首跑）→ rc.1（首次跨 next 线）→ 0.1.5-alpha.1（2026-09-09 人工适配 · C-5：rightbar 契约 + 官方新增 9 包全装 + boot.ts 3 host 行 + workspaces state/owningGroupKey，typecheck/lint/build/17 单测/图谱 61 条目全绿）→ **0.1.5-alpha.2（2026-09-10 人工适配 · C-6：ui-* 六包契约差异摸底无破坏 + primitives 官方内联 dist + textpreview 随官方换代 documentpreview，typecheck/lint/build 全绿）**；登记 `docs/upstream-migrations.md` C-1~C-6
+- M4-d 上游升级链：rc.8 → alpha.3（载波整链重写，方案见 `docs/m4-d3-012-alpha3-migration-plan.md`）→ alpha.4 → alpha.5（`scripts/upstream.cjs` 自动化首跑）→ rc.1（首次跨 next 线）→ 0.1.5-alpha.1（2026-09-09 人工适配 · C-5：rightbar 契约 + 官方新增 9 包全装 + boot.ts 3 host 行 + workspaces state/owningGroupKey，typecheck/lint/build/17 单测/图谱 61 条目全绿）→ **0.1.5-alpha.2（2026-09-10 人工适配 · C-6：ui-* 六包契约差异摸底无破坏 + primitives 官方内联 dist + textpreview 随官方换代 documentpreview，typecheck/lint/build 全绿）** → **0.1.5-rc.2（2026-09-11 人工适配 · C-7：ui-primitives/ui-chat 两包差异均为呈现层且两包入口零变化，零代码适配，typecheck/lint/build/30 单测全绿）**；登记 `docs/upstream-migrations.md` C-1~C-7
 - M4-d6 工具修正 ✅（2026-09-07）：`check` 判据源 npm dist-tags → **GitHub releases**（npm 降级为可安装校验，新增 pending 三态），修「连续 3 天漏检 0.1.3-alpha.1」，见坑 31 / ADR-005 第 6 条
 - **M4-a4 数据目录分层 ✅（2026-09-09 · ADR-008）**：sessions/storages/themes/icons/window-state 归位 `$DSH_HOME`（幂等迁移，失败保持原位）+ 应用命名统一 `DSH Forge`（旧设备目录/旧注册表键自动迁移）+ 卸载删除路径安全校验 + `--data-dir` 与注册表种子；typecheck/lint/29 单测/build 全绿 + **实机验证通过（2026-09-09）**
 - 规则目录收敛 ✅（2026-09-09）：规则唯一来源 = `.trae/rules/`（6 文件，含 `rtk-usage.md`）并入 git 跟踪（`.gitignore` 加例外），陈旧副本 `.rules/` 已删（历史留 git）
@@ -34,7 +34,7 @@ alwaysApply: true
 ### M3-b4 · dogfood 门禁（🔄 进行中）
 - [ ] 全量回归（M1+M2+M3 全链）+ `netstat` 零监听再验证 + 崩溃恢复/多窗口组合测试（多窗口仅验「不崩不干扰」）
 - [ ] **待实机点验（2026-09-04 批次）**：外观 section V2（#8）· 图标需求清单+新建包（#9）· 图标光学归一（#10）· 标题栏图标主题化（#11）· 全局图标分层 D-23（#12）· 工作区图标槽位 4 项（搜索/视图选项/新建/文件夹两态；`ICON_SLOTS` 增 match 官方 path 特征，上传自动并写包内 ui-overrides.json，ui-icons 覆盖层升级 themeIcon 内联上色 + img 兜底）
-- [ ] 上游 0.1.2 系列实机冒烟随 dogfood 合并观察（重点：session 域重构后对话流/历史分页/审计无回归；rc.1 首次跨线验 UI 发行物装载与 roster 装配）
+- [ ] 上游 0.1.5-rc.2 实机冒烟随 dogfood 合并观察（重点：交付文件卡片排版/对话间距、代码文件图标换全彩 artwork、会话统计 cacheWrite=0 隐藏该行、反馈弹窗确认；0.1.5 系 session 域与 roster 装配无回归；**工作区侧栏内联图标槽位 match 特征基于 dist 探测、未被 assess 覆盖，需一并点验**）
 - [x] **#15 安装版无法聊天 ✅（2026-09-09 · 坑 45）**：根锚点 cordis.yml 移入 asar（copy-web 生成 `dist/cordis.yml` + boot 打包分支改 `app.getAppPath()/dist/cordis.yml`），win-unpacked 实机验证预设 4 个无 broken + `session/prompt` 通 + 会话落盘；**待发 alpha.6 方可到达存量安装版**
 - [x] **#16 启动期 rightbar 崩溃（`usePanelInfo is not a function`）✅（2026-09-10 · 坑 46/47）**：0.1.5 rightbar 契约——自研 layout 补齐官方 `panelInfo` root hook（实机验证该类报错消失）；附带根治 index.html 无缓存头致注入图谱陈旧（入口 URL 加启动版本 query + no-store）
 - [x] **#17 `sessions in inactive context` 启动刷屏 ✅（2026-09-10 · 坑 48）**：真因＝自研 layout 只声明 `conversation` 而漏官方语义的 `main`（keyed+root），致上游 ui-conversation 自建该槽位并继承 `session-maybe` → agent-preset 条目随会话状态反复重建、踩 Cordis 激活窗口；单变量对照（官方 web 版无此错 / 换回官方 ui-layout 报错消失）锁定，补齐 `main` 槽位后启动零报错
@@ -76,7 +76,7 @@ alwaysApply: true
 - **待实机点验（命名空间改名后）**：`dsh-forge` 全量更名后需一次实机启动，确认 15 个自研 client 插件按新 ID 装载、侧栏/设置/外观/工作区无回归（旧 rev 缓存的 index.html 已由启动版本 query + no-store 兜住）；**载体已就绪 = v0.1.1-rc.1（win setup/portable + mac dmg/zip 双架构）**
 - **更新链待决策（2026-09-10 · 坑 50 / dogfood #18）**：诊断面已补（审计落盘 + 关于页显示失败原文），用户侧排障不再靠猜；**open 三项**——① 渠道命名对齐（**进展 2026-09-10：已真出 `-rc.1` tag + 预发布 Release，但 CI 未产出 `latest-rc.yml`（匿名探针实测 404）→ 应用内 rc 渠道仍不自动可见；剩余方案 B = `electron-builder` 配 `channel: rc` + CI 一并上传该描述符**）② 更新源去 `github.com` 依赖（Gitee 已实测：无 `releases.atom` → 必须 generic provider、raw 可作 yml 固定宿主、`releases/download/{tag}` 匿名可读；待验 132MB 单文件上传上限；或国内对象存储 + 自有域名，或就在可用代理下使用）③ 手动检查在阻断环境下挂起约 24 秒且无进度反馈（实测 12:49:33→12:49:57），待定是否加显式超时；**新增可用路径**：通用设置→网络设置→手动设置（如 127.0.0.1:7890）可让更新与页面请求走本地代理；**链路本身已端到端验证通过**（alpha.7→alpha.8→alpha.9 连续自更新跑通），①② 属面向陌生环境的加固、③ 仅在无代理的阻断环境下出现
 - **数据面（2026-09-09 已收口）**：ADR-008 数据根分层落地——用户数据跟随 `$DSH_HOME`、设备目录只剩指针+Chromium 缓存+审计；实机验证通过（首启选目录、会话落 home、重启历史可读、旧 `dsh-desktop` 目录自动更名）
-- dogfood 问题按 `docs/dogfood-issues.md` #N 直取；上游升级 `npm run upstream:auto`（每日 02:00 自动，**判据源=GitHub releases**；升级成功后按脚本打印的 `[TODO] 台账待人工同步` 清单收口）。当前上游基线 0.1.5-alpha.2 待实机冒烟（重点：workspaces 图标消费、文件预览换代 documentpreview）；新版出现时按预评→人工对照流程，破坏性变更禁 auto 硬升
+- dogfood 问题按 `docs/dogfood-issues.md` #N 直取；上游升级 `npm run upstream:auto`（每日 02:00 自动，**判据源=GitHub releases**；升级成功后按脚本打印的 `[TODO] 台账待人工同步` 清单收口）。当前上游基线 0.1.5-rc.2 待实机冒烟（重点：交付文件卡片排版/对话间距、代码文件图标换全彩 artwork、会话统计 cacheWrite=0 隐藏该行、反馈弹窗；工作区侧栏内联图标槽位 match 特征需一并点验）；新版出现时按预评→人工对照流程，破坏性变更禁 auto 硬升
 - **按需查阅台账**：`docs/pitfalls.md`（坑 1~N 排障档案）· `docs/dogfood-issues.md`（dogfood 现场）· `docs/upstream-contracts.md`（拴合面速查 + 升级 SOP）· `docs/upstream-migrations.md`（升级台账 C 区）· `docs/11-risks.md`（风险全录）· `docs/adr/`（架构决策全文）
 - ⚠️ **环境红线（省 token 用）**：`npm start` / `npm run dev` / `npm run dist` 在**沙箱内必失败**——运行时数据目录 `E:\Projects\DSHPath`（凭据 `.lock` / 搜索索引 `-shm`）与 `AppData` 缓存在工作区外；表现可能是业务错误壳（如 `loader entries failed to apply`），**先看输出尾部 `TRAE Sandbox Error` 再动手**，直接授权沙箱外运行即可；`git push` 报 `unable to write credential store` 属伪失败（推送已完成，坑 44）。见坑 0 / 38 / 42 / 44
 

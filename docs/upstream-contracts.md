@@ -1,4 +1,4 @@
-# 上游拴合面速查（dsh-v0.1.5-alpha.2 · 2026-09-10 复核）
+# 上游拴合面速查（dsh-v0.1.5-rc.2 · 2026-09-11 复核）
 
 > **用途**：对接/排查 `@deepseek-ai` 上游包时先查此表，免钻 node_modules。
 > **事实来源**：M1-M3 攻坚实证（坑号 = docs/pitfalls.md）+ 2026-09-01 M4-d3 迁移实证（0.1.2-alpha.3）。
@@ -8,6 +8,7 @@
 > **2026-09-04 rc.1 复核（C-4 · 自动工具 · 首次跨线至 `next` 稳定线）**：`0.1.2-alpha.5 → 0.1.2-rc.1` **无破坏性变更**（`scripts/upstream.cjs` 自动 diff 判定：S1/S2/S3/S3b + ui-* 契约零差异、roster 92 包全存在、官方 web-app roster 包集无增删），本表全部契约条目在 `0.1.2-rc.1` 仍然成立，无需任何桌面侧适配。详见 upstream-migrations「C-4」。
 > **2026-09-09 0.1.5-alpha.1 复核（C-5 · 人工适配）**：`0.1.2-rc.1 → 0.1.5-alpha.1` **含破坏性变更，四件人工适配后本表契约条目仍然成立**——layout 契约 `details` 槽位演进为 `rightbar`（报告式 `openRightbar(track, fullscreen)`/`closeRightbar()`，桌面 layout 件已同步）；workspace 快照新增 `state` 流状态与 `owningGroupKey` 独立导出（forge-workspaces 件已同步）；S2 载波 4 文件 diff 经官方同版本 dist 对齐（帧协议四象限不变）；官方 roster 新增 9 包全装（boot.ts 补 3 条 host 行：`workspace-files`/`file-upload`/`open-in-app`）。新增 RPC 端点：`workspaceFiles`（bounded read/目录/变更 feed）、`fileUploads`（流式上传，connection.fetch 路由）。详见 upstream-migrations「C-5」。
 > **2026-09-10 0.1.5-alpha.2 复核（C-6 · 人工适配 · 用户决策）**：`0.1.5-alpha.1 → 0.1.5-alpha.2` **ui-* 契约六包有差异（assess REVIEW 判定）经人工摸底确认无破坏后升级**——拴合面 S1/S2/S3/S3b 零差异、roster 95 包全存在；ui-primitives 图标体系重构（−DocumentFileIcon，+CodeFileIcon/FileTypeIcon/code-file-types）但桌面消费导出（13 图标/Modal/Button/FishLogo/BrandWordmark）全部保留，**官方将 primitives 内联进 dist staticModules（npm 依赖图移除该包），桌面 4 处 require 走官方 dist 模块表无感**；官方 roster **以 documentpreview 换代 textpreview**（textpreview 未发行 0.1.5-alpha.2，E404），桌面依赖随迁。本表契约条目在 0.1.5-alpha.2 全部成立。详见 upstream-migrations「C-6」。
+> **2026-09-11 0.1.5-rc.2 复核（C-7 · 人工适配 · 用户决策）**：`0.1.5-alpha.2 → 0.1.5-rc.2` **ui-* 两包（ui-primitives / ui-chat）有差异（assess REVIEW 判定）经人工内容级 diff 摸底确认无破坏后升级**——拴合面 S1/S2/S3/S3b **零差异**、roster 96 包全存在、官方 web-app roster 包集**无增删**；两包 `src/index.ts` **零变化（导出面不变）**，改动均为组件内部呈现层：`CodeFileIcon` 由字母标号改为内嵌全彩 artwork 表（新增 `code-file-icon-artwork.ts/.manifest.json`，逐实例 id 防渐变/clip 冲突）、`CodeBlock` **新增可选 `contentRef` 与 `.content` 类（纯增量）**、`StatsPills` 在 cacheWrite 为 0 时隐藏该行、`TurnTailNodeView` 间距微调；桌面消费面（`Modal`/`Button`/`FishLogo`/`BrandWordmark` + workspaces 13 图标）不受影响。本表契约条目在 0.1.5-rc.2 全部成立。详见 upstream-migrations「C-7」。
 
 ## 1. RPC 通道归属（renderer → host，0.1.2 新形态）
 

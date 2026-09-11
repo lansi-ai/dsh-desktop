@@ -33,7 +33,7 @@
 | D-1 | 技术栈 | **Electron 主进程内嵌 Cordis Host**（`dsh-app-boot.boot()` 装配 desktop profile） | ADR-001 / ADR-002 |
 | D-2 | 传输载波 | **IPC fetch 桥**（`ipcRenderer.invoke('dsh:rpc'/'dsh:respond')` 上行 + `webContents.send('dsh:frame')` 下行），零 HTTP/WS 端口；`--serve=<port>` 为显式兼容模式 | ADR-003 |
 | D-3 | UI 主线 | **主线 = 官方 Web UI 发行物复用**（`dsh-ui://` 自定义协议加载，不修改 dist）；自绘 Desktop UI 降为 **P2 技术债**（ADR-006 启用前不投入） | 02 修订 / ADR-006 |
-| D-4 | 版本基线 | 原钉 **本地检出 `dsh-v0.1.0-rc.8`**（权威事实源；**2026-09-01 实测上游最新稳定为 `0.1.1-rc.2`**，差异 diff 登记 sync-upstream 迁移表 C 区）；**2026-09-01 已按 M4-d3 实际升级采用 `0.1.2-alpha.3`**（载波整链重写，见 `m4-d3-012-alpha3-migration-plan.md`）；**2026-09-10 已升级 `0.1.5-alpha.2`**（REVIEW 判定经用户决策升级，见迁移表 C-6） | ADR-005 |
+| D-4 | 版本基线 | 原钉 **本地检出 `dsh-v0.1.0-rc.8`**（权威事实源；**2026-09-01 实测上游最新稳定为 `0.1.1-rc.2`**，差异 diff 登记 sync-upstream 迁移表 C 区）；**2026-09-01 已按 M4-d3 实际升级采用 `0.1.2-alpha.3`**（载波整链重写，见 `m4-d3-012-alpha3-migration-plan.md`）；**2026-09-10 已升级 `0.1.5-alpha.2`**（REVIEW 判定经用户决策升级，见迁移表 C-6）；**2026-09-11 已升级 `0.1.5-rc.2`**（REVIEW 判定经用户决策升级，ui-primitives/ui-chat 两包差异均为呈现层、零代码适配，见迁移表 C-7） | ADR-005 |
 | D-5 | 兼容策略 | host 半 = `ctx.desktopRoutes`（webServer 等价面，零监听）；client 半 = 官方槽位注入 + fetch 拦截（白名单） | ADR-007 |
 | D-6 | 里程碑基线 | M1：官方 UI 可对话 + 零端口验证 + 崩溃恢复初版；托盘/热键/通知后置 | 09-roadmap |
 
